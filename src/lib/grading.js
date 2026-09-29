@@ -6,7 +6,7 @@
 
 import {
   normalizeText, sameWord, containsWord, jamoSimilarity, diceSimilarity, parseNumeric, hasNegation,
-  samePredicate, predicateStem, extractKeywords,
+  samePredicate, predicateStem, extractKeywords, plainSymbols,
 } from './korean.js';
 import { boxAlternatives } from './format.js';
 
@@ -52,6 +52,9 @@ function gradeChoice(key, answer) {
 
 /** 한 개의 정답 표현(쉼표로 구분된 필수 요소 포함)과 학생 답 비교 */
 function compareShort(expected, answer, rule) {
+  // ①·㉠·㉮·⑴ 같은 원·괄호 기호는 태블릿 키보드로 친 1·ㄱ·가와 같게 본다
+  expected = plainSymbols(expected);
+  answer = plainSymbols(answer);
   const parts = expected.split(/\s*[,，、]\s*/).filter(Boolean);
   if (parts.length > 1) {
     const hits = parts.filter((p) => containsWord(answer, p) || compareShort(p, answer, rule).status === 'correct');

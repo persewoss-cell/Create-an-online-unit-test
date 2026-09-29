@@ -88,8 +88,6 @@ export default function QuestionEditor({ items, onChange, pageCount }) {
 
 const TYPE_OPTIONS = [
   ['mc', '객관식 (고르기)'],
-  ['mc-ox', '객관식 O/X'],
-  ['mc-custom', '객관식 (보기 직접 입력)'],
   ['short', '단답형'],
   ['essay', '서술형'],
   ['match', '선 잇기'],
@@ -98,9 +96,8 @@ const TYPE_OPTIONS = [
 const isOX = (it) => it.type === 'mc' && Number(it.choiceCount) === 2 && it.choiceLabels?.[0] === 'O' && it.choiceLabels?.[1] === 'X';
 
 /** 유형 선택 칸에 보일 값 */
+// O/X, 보기 직접 입력은 객관식의 "보기 기호" 버튼에서 고른다
 function typeValue(it) {
-  if (isOX(it)) return 'mc-ox';
-  if (it.type === 'mc' && it.customLabels) return 'mc-custom';
   return it.type;
 }
 

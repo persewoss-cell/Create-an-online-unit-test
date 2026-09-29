@@ -11,10 +11,26 @@ export function numberToCircled(n) {
   return CIRCLED[n - 1] || String(n);
 }
 
+const CHOSEONG = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const JUNGSEONG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ';
+
+/**
+ * 원·네모·괄호 안의 숫자·글자를 보통 글자로: ①→1, ❶→1, 1️⃣→1, ⑴→(1), ㉠→ㄱ, ㈀→(ㄱ), ㉮→가, ⓐ→a, 🄰→A, ㎝→cm
+ * (태블릿 키보드로는 원 기호를 치기 어려우므로 1, ㄱ, 가로 써도 같은 답으로 본다)
+ */
+export function plainSymbols(s) {
+  return String(s ?? '')
+    .replace(/[❶-➓]/g, (c) => String(((c.charCodeAt(0) - 0x2776) % 10) + 1)) // ❶ ➀ ➊ (검은 원·원 숫자 딩뱃)
+    .replace(/[️⃣]/g, '') // 1️⃣ 키캡 숫자
+    .replace(/[\u{1F150}-\u{1F169}\u{1F170}-\u{1F189}]/gu, (c) => String.fromCharCode(65 + ((c.codePointAt(0) - 0x1f150) % 32))) // 🅐 🅰 (검은 원·네모 글자)
+    .normalize('NFKC')
+    .replace(/[ᄀ-ᄒ]/g, (c) => CHOSEONG[c.charCodeAt(0) - 0x1100])
+    .replace(/[ᅡ-ᅵ]/g, (c) => JUNGSEONG[c.charCodeAt(0) - 0x1161]);
+}
+
 /** 공백·문장부호 제거, 소문자화 */
 export function normalizeText(s) {
-  return String(s ?? '')
-    .normalize('NFC')
+  return plainSymbols(s)
     .toLowerCase()
     .replace(/[\s 　]+/g, '')
     .replace(/[.,!?;:'"`~·•…()[\]{}<>「」『』“”‘’\-_/\\=+*^%$#@&|，。、：；！？（）]/g, '');
