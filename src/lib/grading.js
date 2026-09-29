@@ -19,6 +19,11 @@ const NO_ANSWER_RE = /^(모름|모르겠|몰라|없음|\?+|x|-+|\.+)$/;
 
 export function isBlank(answer, question) {
   if (answer == null) return true;
+  if (question?.draw || question?.type === 'draw') {
+    // 그리기 문항: 한 획 이상 그려야 하고, 답 칸이 있으면 답도 써야 한다
+    if (!answer.strokes?.length) return true;
+    return question.type !== 'draw' && isBlank(answer.text, { ...question, draw: false });
+  }
   if (question?.type === 'match') {
     return !Array.isArray(answer) || answer.length < (question.matchCount || 1) || answer.some((v) => !v);
   }
@@ -158,6 +163,12 @@ function gradeEssay(key, answer, rule) {
 export function gradeAnswer(question, key, answer, leniency = 'normal') {
   const rule = LENIENCY[leniency] || LENIENCY.normal;
   if (isBlank(answer, question)) return { status: 'wrong', reason: '답 없음' };
+  if (question.type === 'draw') return { status: 'review', reason: '그린 그림 — 선생님 확인' };
+  if (question.draw) {
+    // 그림 + 답: 답은 자동으로 확인하되, 그림 때문에 최종 판정은 선생님이
+    const r = gradeAnswer({ ...question, draw: false }, key, answer.text, leniency);
+    return { status: 'review', reason: `그린 그림 확인 필요 · 적은 답 ${r.status === 'correct' ? '맞음' : r.status === 'wrong' ? '틀림' : '확인 필요'}` };
+  }
   if (question.type === 'mc') return gradeChoice(key || {}, answer);
   if (question.type === 'match') return gradeMatch(key || {}, answer);
   const text = String(answer).trim();

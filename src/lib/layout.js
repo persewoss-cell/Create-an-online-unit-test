@@ -17,6 +17,7 @@ export function layoutLines(items, pageWidth, pageHeight) {
   return cols.flatMap((colItems, col) =>
     groupLines(colItems).map((l) => ({
       text: l.text,
+      blanks: l.blanks.map((b) => ({ x0: clamp(b.x0 / W), x1: clamp(b.x1 / W) })),
       col,
       colCount: cols.length,
       x0: clamp(l.x0 / W),
@@ -88,6 +89,20 @@ function groupLines(items) {
       let x1 = -Infinity;
       let top = -Infinity;
       let bottom = Infinity;
+      const blanks = [];
+      parts.forEach((it, k) => {
+        // 답 칸 "(      )" 위치 찾기: "(" 조각 다음에 ")" 조각이 떨어져 있거나, 한 조각 안에 빈칸이 있는 경우
+        const h = it.h || 10;
+        const next = parts[k + 1];
+        if (it.str.trimEnd().endsWith('(') && next && next.str.trimStart().startsWith(')') && next.x - (it.x + it.w) > h * 0.8) {
+          blanks.push({ x0: it.x + it.w - h * 0.5, x1: next.x + h * 0.5 });
+        }
+        const m = it.str.match(/\(\s{2,}\)/);
+        if (m && it.str.length) {
+          const cw = it.w / it.str.length;
+          blanks.push({ x0: it.x + m.index * cw, x1: it.x + (m.index + m[0].length) * cw });
+        }
+      });
       for (const it of parts) {
         const h = it.h || 10;
         const gap = prevEnd === null ? 0 : it.x - prevEnd;
@@ -104,8 +119,12 @@ function groupLines(items) {
         }
       }
       return {
-        text: text.replace(/[  ]+/g, ' ').replace(/ ?\t ?/g, '\t').trim(),
-        x0, x1, top, bottom,
+        text: text
+          .replace(/[\u0000-\u0008\u000b-\u001f]/g, '') // 글꼴 문제로 섞여 나오는 제어 문자
+          .replace(/[ \u00a0]+/g, ' ')
+          .replace(/ ?\t ?/g, '\t')
+          .trim(),
+        x0, x1, top, bottom, blanks,
       };
     })
     .filter((l) => l.text);

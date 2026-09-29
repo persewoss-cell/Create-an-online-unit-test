@@ -20,6 +20,7 @@ export default function ExamCreate() {
   const [qFile, setQFile] = useState(null);
   const [groups, setGroups] = useState([]);
   const [aspects, setAspects] = useState([]);
+  const [widthsCm, setWidthsCm] = useState([]);
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -43,6 +44,7 @@ export default function ExamCreate() {
       await trimRegions(imgs.map((x) => x.src), questions, grps);
       setPages(imgs.map((x) => x.src));
       setAspects(imgs.map((x) => x.aspect));
+      setWidthsCm(imgs.map((x) => Math.round(x.widthCm * 100) / 100));
       setGroups(grps);
       setItems(toItems(fillDefaultPoints(questions), {}));
       setWarnings(qWarn);
@@ -74,6 +76,7 @@ export default function ExamCreate() {
             leniency: meta.leniency,
             groups,
             pageAspects: aspects,
+            pageWidthsCm: widthsCm,
           },
           questions,
           keys,

@@ -76,7 +76,7 @@ export async function renderPages(doc, { targetWidth = 1100, maxBytes = 850_000,
       if (dataUrl.length <= maxBytes) break;
       scale *= 0.85;
     }
-    out.push({ src: dataUrl, aspect });
+    out.push({ src: dataUrl, aspect, widthCm: (base.width / 72) * 2.54 });
     onProgress?.(p, doc.numPages);
   }
   return out;

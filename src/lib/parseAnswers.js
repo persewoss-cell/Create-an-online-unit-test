@@ -5,7 +5,7 @@
 //   표 형태:  "번호 1 2 3 4 5" / "정답 ③ ① ④ ② ⑤"
 
 import { circledToNumber, numberToCircled, extractKeywords } from './korean.js';
-import { HANGUL_CIRCLED } from './parseQuestions.js';
+import { HANGUL_CIRCLED, KOREAN_CIRCLED } from './parseQuestions.js';
 
 const EXPLAIN_RE = /(?:\[|<|【|\()?\s*(?:해설|풀이|채점\s*기준|오답\s*피하기|오답\s*풀이|참고)\s*(?:\]|>|】|\))?\s*[:：]?/;
 const LEAD_RE = /^\s*(?:정답|답안?|모범\s*답안|예시\s*답안?|예시답|답)\s*[:：)]?\s*/;
@@ -165,6 +165,18 @@ const PAREN_LABELS = (n) => Array.from({ length: n }, (_, i) => `(${i + 1})`);
 /** 선 잇기, ㉮㉯㉰ 기호, (1)(2)(3) ○표, (예) 예시 답안 같은 특수 정답 */
 function buildSpecialKey(q, raw) {
   const s = raw.replace(LEAD_RE, '').trim();
+  // 그리기 문항: "그리기" 또는 "그리기 + 3 cm" (그림은 선생님 확인, 뒤의 답은 입력칸)
+  const dm = s.match(/^그리기\s*(?:[+＋,/]\s*(.+))?$/s);
+  if (dm) {
+    if (!dm[1]) {
+      return {
+        question: { ...q, type: 'draw', draw: true, choiceCount: 0, choices: [], choiceLabels: null, multi: false },
+        key: { draw: true },
+      };
+    }
+    const inner = buildKey({ ...q, draw: false, type: q.type === 'draw' ? 'short' : q.type }, dm[1]);
+    return { question: { ...inner.question, draw: true }, key: { ...inner.key, draw: true } };
+  }
   // 선 잇기: "(1) - ① (2) - ②"
   const pairs = [...s.matchAll(/\((\d{1,2})\)\s*[-–~→:]?\s*([①-⑩㉮-㉷])/g)];
   if (pairs.length >= 2) {
@@ -181,15 +193,16 @@ function buildSpecialKey(q, raw) {
       key: { pairs: sorted.map((p) => p.opt) },
     };
   }
-  // ㉮ / ㉮, ㉰
-  if (/^[㉮-㉷](\s*[,、]\s*[㉮-㉷])*$/.test(s)) {
-    const picks = [...s.matchAll(/[㉮-㉷]/g)].map((m) => HANGUL_CIRCLED.indexOf(m[0]) + 1);
-    const hasLabels = q.choiceLabels && /[㉮-㉷]/.test(q.choiceLabels[0]);
+  // ㉮ / ㉮, ㉰ / ㉡ (㉮㉯㉰ 또는 ㉠㉡㉢ 기호로 고르는 문제)
+  if (/^([㉮-㉷]|[㉠-㉭])(\s*[,、]\s*([㉮-㉷]|[㉠-㉭]))*$/.test(s)) {
+    const series = /[㉮-㉷]/.test(s[0]) ? HANGUL_CIRCLED : KOREAN_CIRCLED;
+    const picks = [...s.matchAll(/[㉮-㉷㉠-㉭]/g)].map((m) => series.indexOf(m[0]) + 1).filter((n) => n > 0);
+    const hasLabels = q.choiceLabels && series.includes(q.choiceLabels[0]);
     const count = Math.max(hasLabels ? q.choiceLabels.length : 3, ...picks);
     return {
       question: {
         ...q, type: 'mc', choiceCount: count, choices: hasLabels ? q.choices : [],
-        choiceLabels: HANGUL_CIRCLED.slice(0, count).split(''), multi: picks.length > 1,
+        choiceLabels: series.slice(0, count).split(''), multi: picks.length > 1,
       },
       key: { choices: picks },
     };
@@ -198,7 +211,9 @@ function buildSpecialKey(q, raw) {
   const pm = s.match(/^((?:\(\d{1,2}\)\s*[,、]?\s*)+)\s*(?:○|O|o|표)?\s*$/);
   if (pm) {
     const picks = [...pm[1].matchAll(/\d{1,2}/g)].map((m) => Number(m[0]));
-    const count = Math.max(q.type === 'mc' ? q.choiceCount : 3, ...picks);
+    // 보기 수: 문제지에서 찾은 보기 수, 없으면 "( ) ( )" 답 칸 수, 그것도 없으면 3
+    const blanks = (q.blanks || []).length;
+    const count = Math.max(q.type === 'mc' ? q.choiceCount : blanks >= 2 ? blanks : 3, ...picks);
     return {
       question: {
         ...q, type: 'mc', choiceCount: count, choices: q.type === 'mc' ? q.choices : [],
@@ -227,6 +242,7 @@ export function emptyKey(type) {
   if (type === 'mc') return { choices: [] };
   if (type === 'essay') return { model: '', keywords: [] };
   if (type === 'match') return { pairs: [] };
+  if (type === 'draw') return { draw: true };
   return { accepted: [] };
 }
 
@@ -260,6 +276,7 @@ export function mergeQuestionsAndAnswers(questions, answerMap) {
 
 export function hasAnswer(key) {
   if (!key) return false;
+  if (key.draw && !key.choices && !key.pairs && !key.accepted && !key.model) return true;
   if (key.choices) return key.choices.length > 0;
   if (key.pairs) return key.pairs.length > 0 && key.pairs.every(Boolean);
   if (key.accepted) return key.accepted.some((a) => a.trim());

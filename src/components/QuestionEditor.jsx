@@ -106,6 +106,7 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
             <option value="short">단답형</option>
             <option value="essay">서술형</option>
             <option value="match">선 잇기</option>
+            <option value="draw">그리기</option>
           </select>
         </label>
         <label>
@@ -126,6 +127,13 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
       </div>
 
       <div style={{ marginTop: 10 }}>
+        {it.type === 'draw' && <div className="small muted">학생이 문제 그림 위에 직접 그립니다. 제출하면 선생님 확인으로 넘어옵니다.</div>}
+        {(it.type === 'short' || it.type === 'essay') && (
+          <label className="small row" style={{ gap: 4, marginBottom: 6 }}>
+            <input type="checkbox" checked={!!it.draw} onChange={(e) => onChange({ draw: e.target.checked })} />
+            그리기도 함께 하는 문항 (예: 반지름을 그어 보고 길이 쓰기)
+          </label>
+        )}
         {it.type === 'mc' && (
           <div className="row">
             <span className="small muted">정답</span>

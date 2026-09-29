@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
-import { AnswerInput, FitRegions, regionsOf, stackRatio, useSize } from '../../components/ExamViews.jsx';
+import { AnswerInput, FitRegions, regionsOf, stackRatio, useSize, unitsPerCm } from '../../components/ExamViews.jsx';
+import { DrawLayer, DrawToolbar } from '../../components/Drawing.jsx';
 import { loadStudent, loadDraft, saveDraft, clearDraft } from '../../lib/student.js';
 import { ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf } from '../../lib/db.js';
 import { isBlank } from '../../lib/grading.js';
@@ -16,6 +17,9 @@ export default function TakeExam() {
   const [pages, setPages] = useState(null);
   const [answers, setAnswers] = useState(() => (p ? loadDraft(id, p) : {}));
   const [cur, setCur] = useState(0);
+  const [tool, setTool] = useState('pen');
+  const [ruler, setRuler] = useState({ show: false, x: 60, y: 120, a: 0 });
+  const [history, setHistory] = useState({}); // 문항별 되돌리기 기록
   const [error, setError] = useState('');
   const [missing, setMissing] = useState([]);
   const [confirming, setConfirming] = useState(false);
@@ -91,7 +95,8 @@ export default function TakeExam() {
       const clean = {};
       for (const x of qs) {
         const v = answers[x.no];
-        clean[x.no] = x.type === 'mc' || x.type === 'match' ? v.map(Number) : String(v).trim();
+        if (x.type === 'draw' || x.draw) clean[x.no] = { strokes: v.strokes, ...(x.type === 'draw' ? {} : { text: String(v.text).trim() }) };
+        else clean[x.no] = x.type === 'mc' || x.type === 'match' ? v.map(Number) : String(v).trim();
       }
       await submitAnswers(id, p, clean);
       clearDraft(id, p);
@@ -108,7 +113,9 @@ export default function TakeExam() {
   const rp = stackRatio(exam, passage);
   const rq = stackRatio(exam, question);
   const ANSWER_W = 340;
-  const answerH = q.type === 'essay' ? 190 : q.type === 'match' ? 70 + 56 * (q.matchCount || 2) : q.type === 'short' ? 120 : 110;
+  const answerH =
+    q.type === 'draw' ? 190 : q.draw ? 280
+      : q.type === 'essay' ? 190 : q.type === 'match' ? 70 + 56 * (q.matchCount || 2) : q.type === 'short' ? 120 : 110;
   const H = main.h - 24;
   // 세로로 긴 화면(태블릿 세로)은 답 칸을 아래에, 가로 화면은 오른쪽에
   const portrait = main.h > main.w * 1.05;
@@ -120,13 +127,64 @@ export default function TakeExam() {
     : Math.min(colW, H / (rp || 1), (H - answerH) / (rq || 1));
   const side = passage.length > 0 && main.w >= 700 && sideW > stackW * 1.1;
 
+  // ── 그리기 ──
+  const isDraw = q.type === 'draw' || q.draw;
+  const drawValue = isDraw ? answers[q.no] || { strokes: [] } : null;
+  const setStrokes = (strokes) => {
+    setHistory((h) => ({ ...h, [q.no]: [...(h[q.no] || []), drawValue.strokes].slice(-60) }));
+    setAnswer(q.no, { ...drawValue, strokes });
+  };
+  const undo = () => {
+    const h = history[q.no] || [];
+    if (!h.length) return setAnswer(q.no, { ...drawValue, strokes: drawValue.strokes.slice(0, -1) });
+    setHistory({ ...history, [q.no]: h.slice(0, -1) });
+    setAnswer(q.no, { ...drawValue, strokes: h[h.length - 1] });
+  };
+  const questionSection = {
+    kind: 'question',
+    regions: question,
+    overlay: isDraw
+      ? (ratio) => (
+          <DrawLayer
+            ratio={ratio}
+            strokes={drawValue.strokes}
+            onChange={setStrokes}
+            tool={tool}
+            ruler={ruler}
+            setRuler={setRuler}
+            ppc={unitsPerCm(exam, question)}
+          />
+        )
+      : null,
+  };
+
   const answerBox = (
     <div className="answer-box" data-testid={`q-${q.no}`}>
       <div className="row" style={{ marginBottom: 10 }}>
         <span className="answer-no">{q.no}번</span>
         <span className="muted small">{TYPE_LABEL[q.type]} · {q.points}점</span>
       </div>
-      <AnswerInput q={q} value={answers[q.no]} onChange={(v) => setAnswer(q.no, v)} />
+      {isDraw && (
+        <DrawToolbar
+          tool={tool}
+          setTool={setTool}
+          ruler={ruler}
+          setRuler={setRuler}
+          onUndo={undo}
+          onClear={() => setStrokes([])}
+          canUndo={drawValue.strokes.length > 0}
+        />
+      )}
+      {isDraw ? (
+        q.type !== 'draw' && (
+          <div style={{ marginTop: 10 }}>
+            <AnswerInput q={{ ...q, draw: false }} value={drawValue.text ?? ''} onChange={(t) => setAnswer(q.no, { ...drawValue, text: t })} />
+          </div>
+        )
+      ) : (
+        <AnswerInput q={q} value={answers[q.no]} onChange={(v) => setAnswer(q.no, v)} />
+      )}
+      {isDraw && <div className="small muted" style={{ marginTop: 8 }}>왼쪽 문제 그림 위에 직접 그리세요.</div>}
       {missing.includes(q.no) && <div className="small" style={{ color: 'var(--bad)', marginTop: 8 }}>답을 입력해야 제출할 수 있어요.</div>}
     </div>
   );
@@ -149,13 +207,13 @@ export default function TakeExam() {
               {side ? (
                 <>
                   <FitRegions exam={exam} pages={pages} sections={[{ kind: 'passage', regions: passage }]} className="grow" />
-                  <FitRegions exam={exam} pages={pages} sections={[{ kind: 'question', regions: question }]} className="grow" />
+                  <FitRegions exam={exam} pages={pages} sections={[questionSection]} className="grow" />
                 </>
               ) : (
                 <FitRegions
                   exam={exam}
                   pages={pages}
-                  sections={[{ kind: 'passage', regions: passage }, { kind: 'question', regions: question }]}
+                  sections={[{ kind: 'passage', regions: passage }, questionSection]}
                   className="grow"
                 />
               )}
@@ -166,7 +224,7 @@ export default function TakeExam() {
           <>
             <FitRegions exam={exam} pages={pages} sections={[{ kind: 'passage', regions: passage }]} className="pane" />
             <div className="pane col">
-              <FitRegions exam={exam} pages={pages} sections={[{ kind: 'question', regions: question }]} className="grow" />
+              <FitRegions exam={exam} pages={pages} sections={[questionSection]} className="grow" />
               {answerBox}
             </div>
           </>
@@ -175,7 +233,7 @@ export default function TakeExam() {
             <FitRegions
               exam={exam}
               pages={pages}
-              sections={[{ kind: 'passage', regions: passage }, { kind: 'question', regions: question }]}
+              sections={[{ kind: 'passage', regions: passage }, questionSection]}
               className="pane grow"
             />
             <div className="pane answer-pane">{answerBox}</div>

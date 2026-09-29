@@ -34,6 +34,7 @@ const ESSAY_RE = /서술|논술|설명하(?:시오|세요|여라|여\s*쓰)|설�
 const POINTS_RE = /[[(（]\s*(\d+(?:\.\d+)?)\s*점\s*[\])）]/;
 
 export const HANGUL_CIRCLED = '㉮㉯㉰㉱㉲㉳㉴㉵㉶㉷';
+export const KOREAN_CIRCLED = '㉠㉡㉢㉣㉤㉥㉦㉧㉨㉩';
 
 /** 보기 기호 목록. 기본은 ①②③…, ㉮㉯㉰ 보기나 (1)(2)(3) 보기는 그 기호를 그대로 쓴다 */
 export function choiceLabel(q, n) {
@@ -49,6 +50,17 @@ export function extractChoices(text) {
     const hc = [...text.matchAll(/[㉮-㉷]/g)].map((m) => ({ n: HANGUL_CIRCLED.indexOf(m[0]) + 1, i: m.index, len: 1 }));
     marks = pickSequential(hc);
     if (marks.length >= 2) labels = marks.map((mk) => HANGUL_CIRCLED[mk.n - 1]);
+  }
+  if (marks.length < 2) {
+    // ㉠㉡㉢ 보기는 지문 속 표시(㉠을…)와 헷갈리지 않도록 줄 맨 앞에 있을 때만
+    const kc = [...text.matchAll(/(^|\n)\s*([㉠-㉭])/g)].map((m) => ({
+      n: KOREAN_CIRCLED.indexOf(m[2]) + 1, i: m.index + m[0].length - 1, len: 1,
+    }));
+    const seq = pickSequential(kc);
+    if (seq.length >= 2) {
+      marks = seq;
+      labels = seq.map((mk) => KOREAN_CIRCLED[mk.n - 1]);
+    }
   }
   if (marks.length < 2) {
     const paren = [...text.matchAll(/\((\d{1,2})\)/g)].map((m) => ({ n: Number(m[1]), i: m.index, len: m[0].length }));
@@ -135,25 +147,27 @@ export function parseQuestions(pages) {
       return { ...o, text: o.text.replace(/\t/g, ' '), page: p.page };
     }),
   );
-  const warnings = [];
-  const anchors = []; // {kind:'q'|'group', idx, ...}
-  let expected = 1;
-  lines.forEach((line, idx) => {
-    const g = matchGroupHeader(line.text);
-    if (g && g.from >= expected - 1) {
-      anchors.push({ kind: 'group', idx, ...g });
-      return;
+  // 여러 쪽에 똑같이 반복되는 머리글(예: "수학 3-2 단원 평가 2. 원")은 문항에서 뺀다
+  const topTexts = new Map();
+  for (const l of lines) {
+    if (l.top != null && l.top < 0.1) {
+      const key = l.text.replace(/\s/g, '');
+      if (!topTexts.has(key)) topTexts.set(key, new Set());
+      topTexts.get(key).add(l.page);
     }
-    const m = matchQuestionStart(line.text);
-    if (!m || (m.loose && (looksLikeTableRow(line.text) || !m.rest.trim()))) return;
-    const exact = m.no === expected;
-    // 번호 하나를 놓쳤더라도 뒤 문항은 계속 찾는다 (확실한 양식이거나 지문 안내 범위 안의 번호일 때)
-    const skip = !exact && m.no > expected && m.no <= expected + 2 && (!m.loose || inGroupRange(anchors, m.no));
-    if (!exact && !skip) return;
-    if (skip) warnings.push(`${expected}${m.no - expected > 1 ? `~${m.no - 1}` : ''}번 문항 번호를 찾지 못했습니다. 확인해 주세요.`);
-    anchors.push({ kind: 'q', idx, no: m.no, rest: m.rest });
-    expected = m.no + 1;
-  });
+  }
+  const repeated = new Set([...topTexts].filter(([, pages]) => pages.size >= 2).map(([k]) => k));
+  if (repeated.size) {
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].top < 0.1 && repeated.has(lines[i].text.replace(/\s/g, ''))) lines.splice(i, 1);
+    }
+  }
+
+  // 번호를 엄격하게(1,2,3… 차례로) 찾은 결과와 건너뛰기를 허용한 결과 중 더 많이 찾은 쪽을 쓴다.
+  // (쪽 머리글의 "2. 원" 같은 단원 제목을 2번 문항으로 착각하지 않도록)
+  const strict = findAnchors(lines, false);
+  const loose = findAnchors(lines, true);
+  const { anchors, warnings } = loose.count > strict.count ? loose : strict;
 
   const layout = pageLayout(lines);
   const hasPos = lines.some((l) => l.top != null);
@@ -177,6 +191,10 @@ export function parseQuestions(pages) {
       group: grp ? grp.id : null,
       regions,
       anchor: hasPos ? { page: first.page, x: first.x0, top: first.top, bottom: first.bottom, colX1: layout.colBounds(first).x1 } : null,
+      // 답을 쓰는 "(   )" 칸 위치 (채점된 시험지에 학생 답을 적을 자리)
+      blanks: hasPos
+        ? seg.flatMap((l) => (l.blanks || []).map((b) => ({ page: l.page, x0: b.x0, x1: b.x1, top: l.top, bottom: l.bottom })))
+        : [],
     });
   });
 
@@ -187,6 +205,29 @@ export function parseQuestions(pages) {
     warnings.push('문항 번호를 찾지 못했습니다. 문항 수를 직접 입력하거나 문항을 추가해 주세요.');
   }
   return { questions, groups, warnings };
+}
+
+function findAnchors(lines, allowSkip) {
+  const warnings = [];
+  const anchors = []; // {kind:'q'|'group', idx, ...}
+  let expected = 1;
+  lines.forEach((line, idx) => {
+    const g = matchGroupHeader(line.text);
+    if (g && g.from >= expected - 1) {
+      anchors.push({ kind: 'group', idx, ...g });
+      return;
+    }
+    const m = matchQuestionStart(line.text);
+    if (!m || (m.loose && (looksLikeTableRow(line.text) || !m.rest.trim()))) return;
+    const exact = m.no === expected;
+    // 번호 하나를 놓쳤더라도 뒤 문항은 계속 찾는다 (확실한 양식이거나 지문 안내 범위 안의 번호일 때)
+    const skip = allowSkip && !exact && m.no > expected && m.no <= expected + 2 && (!m.loose || inGroupRange(anchors, m.no));
+    if (!exact && !skip) return;
+    if (skip) warnings.push(`${expected}${m.no - expected > 1 ? `~${m.no - 1}` : ''}번 문항 번호를 찾지 못했습니다. 확인해 주세요.`);
+    anchors.push({ kind: 'q', idx, no: m.no, rest: m.rest });
+    expected = m.no + 1;
+  });
+  return { anchors, warnings, count: anchors.filter((a) => a.kind === 'q').length };
 }
 
 function inGroupRange(anchors, no) {
@@ -209,15 +250,24 @@ function pageLayout(lines) {
     c.x1 = Math.max(c.x1, l.x1);
     cols.set(key, c);
   }
-  // 2단 페이지: 왼쪽 단은 오른쪽 단이 시작하는 곳에서 자른다 (가로로 긴 제목 때문에 넓어지지 않게)
+  // 2단 페이지: 두 단의 경계에서 자른다 (가로로 긴 제목·옆 단 글자가 섞이지 않게)
   for (const [key, c] of cols) {
     const [page, col] = key.split(':');
     const right = cols.get(`${page}:1`);
     if (col === '0' && right) {
-      const starts = lines.filter((l) => String(l.page) === page && l.col === 1 && l.x0 != null).map((l) => l.x0);
-      const rightStart = Math.min(...starts);
-      c.x1 = Math.min(c.x1, rightStart - 0.02);
-      right.x0 = Math.min(right.x0, rightStart - 0.005);
+      const rightStarts = lines
+        .filter((l) => String(l.page) === page && l.col === 1 && l.x0 != null && l.text.replace(/\s/g, '').length >= 4)
+        .map((l) => l.x0)
+        .sort((a, b) => a - b);
+      const rightStart = rightStarts.length ? rightStarts[Math.floor(rightStarts.length * 0.05)] : right.x0;
+      const leftEnds = lines
+        .filter((l) => String(l.page) === page && l.col === 0 && l.x1 != null && l.x1 < rightStart)
+        .map((l) => l.x1)
+        .sort((a, b) => a - b);
+      const leftEnd = leftEnds.length ? leftEnds[Math.floor(leftEnds.length * 0.97)] : c.x1;
+      const mid = (leftEnd + rightStart) / 2;
+      c.x1 = Math.min(c.x1, mid - 0.004);
+      right.x0 = Math.max(Math.min(right.x0, rightStart - 0.012), mid + 0.004);
     }
   }
   return {

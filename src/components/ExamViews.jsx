@@ -2,12 +2,22 @@
 //  - QuestionView: 문제지에서 지문 + 문항 부분만 잘라서 보여줌
 //  - AnswerInput:  학생이 답을 입력하는 칸 (객관식/선 잇기/단답형/서술형), 정답 표시 모드 지원
 //  - GradedPaper:  제출 후 문제지 전체에 빨간 색연필로 채점 표시
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { buildGrid, findSpot, occupy, textWidth } from '../lib/placement.js';
+import { StrokeShape, stackToPage } from './Drawing.jsx';
 import { choiceLabel } from '../lib/parseQuestions.js';
 import { matchLabel, shortKeyText, answerToText } from '../lib/format.js';
 
 const A4 = 210 / 297;
-const aspectOf = (exam, page) => exam?.pageAspects?.[page - 1] || A4;
+export const aspectOf = (exam, page) => exam?.pageAspects?.[page - 1] || A4;
+
+/** 문항 이미지 묶음(폭 1000 단위)에서 1cm가 몇 단위인지 — 화면 속 자 눈금용 */
+export function unitsPerCm(exam, regions) {
+  const r = regions[0];
+  if (!r) return 50;
+  const pageCm = exam?.pageWidthsCm?.[r.page - 1] || 21;
+  return 1000 / ((r.x1 - r.x0) * pageCm);
+}
 
 const FULL_PAGE = (page) => ({ page, x0: 0, y0: 0, x1: 1, y1: 1 });
 
@@ -56,7 +66,10 @@ export function FitRegions({ exam, pages, sections, className = '' }) {
       {w > 0 &&
         list.map((sec, i) => (
           <div key={i} className={`fit-card ${sec.kind || ''}`} style={{ width: width + CARD_PAD }}>
-            <Regions exam={exam} pages={pages} regions={sec.regions} />
+            <div style={{ position: 'relative' }}>
+              <Regions exam={exam} pages={pages} regions={sec.regions} />
+              {sec.overlay && sec.overlay(stackRatio(exam, sec.regions))}
+            </div>
           </div>
         ))}
     </div>
@@ -113,6 +126,26 @@ export function QuestionView({ exam, q, pages }) {
  */
 export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled }) {
   const show = !!answerKey;
+  if (q.type === 'draw' || q.draw) {
+    return (
+      <div>
+        <div className="key-box" style={{ background: 'var(--primary-weak)', color: '#1d4194' }}>
+          ✏️ 그리기 문항 — 학생이 문제 그림 위에 직접 그립니다. 그림은 선생님이 확인합니다.
+        </div>
+        {q.type !== 'draw' && (
+          <div style={{ marginTop: 8 }}>
+            <AnswerInput
+              q={{ ...q, draw: false }}
+              value={value?.text ?? ''}
+              onChange={(t) => onChange({ ...(value || {}), text: t })}
+              answerKey={answerKey}
+              disabled={disabled}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
   if (q.type === 'mc') {
     const n = q.choiceCount || 5;
     const sel = Array.isArray(value) ? value : [];
@@ -237,11 +270,139 @@ function slashPath(cx, cy, r, seed) {
   return `M${cx - r * 0.9},${cy + r * 1.25} Q${cx + bend},${cy + bend} ${cx + r * 1.5},${cy - r * 1.35}`;
 }
 
+const grow = (b, up, down) => ({ x0: b.x0 - 6, y0: b.y0 - up, x1: b.x1 + 6, y1: b.y1 + down });
+
+function placeLabels(exam, pages, grids, byNo, keys, answers, result) {
+  const out = {}; // no -> {mine, key}, 'score' -> spot
+  pages.forEach((_, pi) => {
+    const page = pi + 1;
+    const src = grids?.[pi];
+    if (!src) return;
+    const g = { ...src, occ: src.occ.slice() };
+    const W = 1000;
+    const H = W / aspectOf(exam, page);
+    if (page === 1) {
+      const text = `${result.score100}점`;
+      const w = textWidth(text, 64);
+      out.score = findSpot(g, { x: W - w / 2 - 30, y: 50 }, w, 70, { x0: W * 0.45, y0: 0, x1: W, y1: H * 0.25 })
+        || { x: W - w - 30, y: 4, w, h: 70 };
+      occupy(g, out.score);
+    }
+    const qs = exam.questions.filter((q) => q.anchor && q.anchor.page === page);
+    // 채점 표시(동그라미·빗금) 자리는 먼저 비워 둔다
+    for (const q of qs) {
+      const a = q.anchor;
+      const lh = Math.max(14, (a.bottom - a.top) * H);
+      const cx = a.x * W + lh * 0.45;
+      const cy = ((a.top + a.bottom) / 2) * H;
+      occupy(g, { x: cx - lh * 1.3, y: cy - lh * 1.3, w: lh * 2.6, h: lh * 2.6 });
+    }
+    for (const q of qs) {
+      const it = byNo[q.no];
+      if (!it) continue;
+      const a = q.anchor;
+      const lh = Math.max(14, (a.bottom - a.top) * H);
+      const regs = (q.regions || []).filter((r) => r.page === page);
+      const box = regs.length
+        ? {
+            x0: Math.min(...regs.map((r) => r.x0)) * W,
+            y0: Math.min(...regs.map((r) => r.y0)) * H,
+            x1: Math.max(...regs.map((r) => r.x1)) * W,
+            y1: Math.max(...regs.map((r) => r.y1)) * H,
+          }
+        : { x0: 0, y0: a.top * H - lh, x1: W, y1: a.bottom * H + lh * 8 };
+      const res = {};
+      const pageBlanks = (q.blanks || []).filter((b) => b.page === page);
+      const sel = Array.isArray(answers?.[q.no]) ? answers[q.no] : [];
+      // "( ) ( )" 중 하나에 ○표 하는 문제: 고른 칸에 ○를 쓴다
+      const oxBlanks = q.type === 'mc' && q.choiceCount >= 2 && pageBlanks.length === q.choiceCount;
+      if (oxBlanks && sel.length) {
+        const b = pageBlanks[sel[0] - 1];
+        if (b) {
+          const fs = 28;
+          const w = textWidth('○', fs);
+          const h = fs * 1.15;
+          const c = { x: ((b.x0 + b.x1) / 2) * W, y: ((b.top + b.bottom) / 2) * H };
+          const spot = findSpot(g, c, w, h, { x0: b.x0 * W - 10, y0: b.top * H - 12, x1: b.x1 * W + 10, y1: b.bottom * H + 12 })
+            || { x: c.x - w / 2, y: c.y - h / 2, w, h };
+          occupy(g, spot);
+          res.mine = { ...spot, text: '○', fs };
+        }
+      }
+      const mineText = oxBlanks || q.type === 'draw' ? '' : answerToText(q, answers?.[q.no]);
+      if (mineText) {
+        const text = mineText.length > 22 ? `${mineText.slice(0, 22)}…` : mineText;
+        const fs = 24;
+        const w = textWidth(text, fs);
+        const h = fs * 1.15;
+        const blank = pageBlanks[0];
+        let spot = null;
+        if (blank) {
+          const c = { x: ((blank.x0 + blank.x1) / 2) * W, y: ((blank.top + blank.bottom) / 2) * H };
+          spot = findSpot(g, c, w, h, { x0: blank.x0 * W - 30, y0: blank.top * H - 16, x1: blank.x1 * W + 30, y1: blank.bottom * H + 16 });
+          if (!spot) spot = findSpot(g, c, w, h, box);
+        } else {
+          // 답 칸이 없으면 문항 첫 줄 오른쪽 끝 근처의 빈 곳
+          spot = findSpot(g, { x: box.x1 - w / 2 - 10, y: ((a.top + a.bottom) / 2) * H }, w, h, grow(box, 40, 70));
+        }
+        if (!spot) spot = findSpot(g, { x: box.x1 - w / 2, y: box.y1 }, w, h, grow(box, 60, 160));
+        if (!spot) spot = { x: Math.max(0, box.x1 - w - 10), y: a.top * H, w, h, overlap: true };
+        occupy(g, spot);
+        res.mine = { ...spot, text, fs };
+      }
+      if (it.status === 'review') {
+        const text = '선생님 확인 중';
+        const fs = 22;
+        const w = textWidth(text, fs);
+        const h = fs * 1.15;
+        const near = res.mine
+          ? { x: res.mine.x + res.mine.w + w / 2 + 8, y: res.mine.y + res.mine.h / 2 }
+          : { x: box.x1 - w / 2 - 20, y: a.bottom * H + lh };
+        const spot = findSpot(g, near, w, h, grow(box, 40, 70))
+          || findSpot(g, near, w, h, grow(box, 60, 160))
+          || { x: box.x1 - w - 10, y: a.top * H - h, w, h, overlap: true };
+        occupy(g, spot);
+        res.review = { ...spot, text, fs };
+      }
+      if (it.status === 'wrong') {
+        const text = `정답: ${shortKeyText(q, keys[q.no])}`;
+        const fs = 26;
+        const w = textWidth(text, fs);
+        const h = fs * 1.15;
+        const near = res.mine
+          ? { x: res.mine.x + res.mine.w + w / 2 + 8, y: res.mine.y + res.mine.h / 2 }
+          : { x: box.x1 - w / 2 - 20, y: a.bottom * H + lh };
+        let spot = findSpot(g, near, w, h, grow(box, 40, 70)) || findSpot(g, near, w, h, grow(box, 60, 160));
+        if (!spot) spot = { x: Math.max(0, box.x1 - w - 10), y: (res.mine ? res.mine.y + res.mine.h : a.bottom * H), w, h, overlap: true };
+        occupy(g, spot);
+        res.key = { ...spot, text, fs };
+      }
+      out[q.no] = res;
+    }
+  });
+  return out;
+}
+
 /**
  * @param {{exam, pages:string[], keys, answers, result}} props  result = gradeSubmission(...)
  */
 export function GradedPaper({ exam, pages, keys, answers, result }) {
   const byNo = Object.fromEntries(result.items.map((it) => [it.no, it]));
+  const [grids, setGrids] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    Promise.all(pages.map((src, i) => buildGrid(src, 1000, 1000 / aspectOf(exam, i + 1)).catch(() => null))).then((g) => {
+      if (alive) setGrids(g);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [pages, exam]);
+  const labels = useMemo(
+    () => (grids ? placeLabels(exam, pages, grids, byNo, keys, answers, result) : {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [grids, exam, pages, keys, answers, result],
+  );
   return (
     <div className="graded">
       {pages.map((src, pi) => {
@@ -260,14 +421,48 @@ export function GradedPaper({ exam, pages, keys, answers, result }) {
                   <feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" />
                 </filter>
               </defs>
-              {page === 1 && (
+              {page === 1 && labels.score && (
                 <g className="score-mark" filter="url(#pencil)">
-                  <text x={W - 40} y={70} textAnchor="end" className="hand red" fontSize="64">
+                  <text x={labels.score.x + 6} y={labels.score.y + 54} className="hand red" fontSize="64">
                     {result.score100}점
                   </text>
-                  <path d={`M${W - 250},86 Q${W - 140},${96} ${W - 36},82`} className="stroke red" strokeWidth="4" fill="none" />
+                  <path
+                    d={`M${labels.score.x},${labels.score.y + 64} Q${labels.score.x + labels.score.w / 2},${labels.score.y + 72} ${labels.score.x + labels.score.w},${labels.score.y + 62}`}
+                    className="stroke red"
+                    strokeWidth="4"
+                    fill="none"
+                  />
                 </g>
               )}
+              {/* 학생이 그린 그림 */}
+              {exam.questions.map((q) => {
+                const strokes = answers?.[q.no]?.strokes;
+                if (!strokes?.length) return null;
+                const { question } = regionsOf(exam, q);
+                if (!question.some((r) => r.page === page)) return null;
+                const toPage = stackToPage(question, (pg) => aspectOf(exam, pg), W, (pg) => W / aspectOf(exam, pg));
+                return (
+                  <g key={`d${q.no}`}>
+                    {strokes.map((st, i) => {
+                      const m0 = toPage(st.p[0], st.p[1]);
+                      if (!m0 || m0.page !== page) return null;
+                      return (
+                        <StrokeShape
+                          key={i}
+                          s={st}
+                          map={(x, y) => {
+                            const m = toPage(x, y);
+                            return [m.X, m.Y];
+                          }}
+                          scale={m0.scale}
+                          color="#3b4a6b"
+                          width={2.6}
+                        />
+                      );
+                    })}
+                  </g>
+                );
+              })}
               {qs.map((q) => {
                 const it = byNo[q.no];
                 if (!it) return null;
@@ -276,8 +471,7 @@ export function GradedPaper({ exam, pages, keys, answers, result }) {
                 const cx = a.x * W + lh * 0.45;
                 const cy = ((a.top + a.bottom) / 2) * H;
                 const r = lh * 1.05;
-                const rightX = Math.min(W - 16, (a.colX1 || 0.95) * W);
-                const mine = answerToText(q, answers?.[q.no]);
+                const lab = labels[q.no] || {};
                 return (
                   <g key={q.no}>
                     {it.status === 'correct' && (
@@ -289,17 +483,27 @@ export function GradedPaper({ exam, pages, keys, answers, result }) {
                     {it.status === 'review' && (
                       <>
                         <rect x={cx - r * 1.2} y={cy - lh * 0.7} width={r * 2.4} height={lh * 1.4} rx="4" className="highlight" />
-                        <text x={cx + r * 1.4} y={cy - lh * 0.9} className="hand orange" fontSize="22">선생님 확인 중</text>
+                        {lab.review && (
+                          <text x={lab.review.x + 3} y={lab.review.y + lab.review.h * 0.8} className={`hand orange ${lab.review.overlap ? 'halo' : ''}`} fontSize={lab.review.fs}>
+                            {lab.review.text}
+                          </text>
+                        )}
                       </>
                     )}
-                    {mine && (
-                      <text x={rightX} y={cy + lh * 0.1} textAnchor="end" className="hand blue halo" fontSize="24">
-                        내 답: {mine.length > 22 ? `${mine.slice(0, 22)}…` : mine}
+                    {lab.mine && (
+                      <text x={lab.mine.x + 3} y={lab.mine.y + lab.mine.h * 0.8} className={`hand blue ${lab.mine.overlap ? 'halo' : ''}`} fontSize={lab.mine.fs}>
+                        {lab.mine.text}
                       </text>
                     )}
-                    {it.status === 'wrong' && (
-                      <text x={rightX} y={cy + lh * 1.35} textAnchor="end" className="hand red halo" fontSize="27" filter="url(#pencil)">
-                        정답: {shortKeyText(q, keys[q.no])}
+                    {lab.key && (
+                      <text
+                        x={lab.key.x + 3}
+                        y={lab.key.y + lab.key.h * 0.8}
+                        className={`hand red ${lab.key.overlap ? 'halo' : ''}`}
+                        fontSize={lab.key.fs}
+                        filter="url(#pencil)"
+                      >
+                        {lab.key.text}
                       </text>
                     )}
                   </g>

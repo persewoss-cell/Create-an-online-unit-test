@@ -34,11 +34,15 @@ export function fromItems(items) {
       matchCount: it.type === 'match' ? Math.max(1, Number(it.matchCount) || 2) : 0,
       matchLabels: it.type === 'match' ? it.matchLabels || null : null,
       group: it.group || null,
+      draw: it.type === 'draw' || !!it.draw,
       regions: it.regions || [],
       anchor: it.anchor || null,
+      blanks: it.blanks || [],
     };
     questions.push(q);
-    if (it.type === 'mc') {
+    if (it.type === 'draw') {
+      keys[q.no] = { draw: true };
+    } else if (it.type === 'mc') {
       keys[q.no] = { choices: [...new Set(it.keyChoices || [])].filter((n) => n <= q.choiceCount).sort((a, b) => a - b) };
     } else if (it.type === 'match') {
       keys[q.no] = { pairs: Array.from({ length: q.matchCount }, (_, i) => Number(it.keyPairs?.[i]) || 0) };
@@ -53,6 +57,7 @@ export function fromItems(items) {
       keys[q.no] = { accepted: splitAlternatives(it.answerText || '') };
     }
   }
+  for (const q of questions) if (q.draw && keys[q.no]) keys[q.no].draw = true;
   return { questions, keys };
 }
 

@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
-import { GradedPaper, Regions, regionsOf } from '../../components/ExamViews.jsx';
+import { GradedPaper, Regions, regionsOf, stackRatio } from '../../components/ExamViews.jsx';
+import { DrawLayer } from '../../components/Drawing.jsx';
 import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
@@ -228,7 +229,7 @@ function ReviewTab({ exam, keys, graded, onJudge, pages }) {
               {pages == null ? (
                 <Loading text="문제 불러오는 중…" />
               ) : (
-                <ReviewQuestion exam={exam} q={q} pages={pages} />
+                <ReviewQuestion exam={exam} q={q} pages={pages} strokes={s.answers?.[q.no]?.strokes} />
               )}
             </div>
             <div>
@@ -248,7 +249,7 @@ function ReviewTab({ exam, keys, graded, onJudge, pages }) {
   );
 }
 
-function ReviewQuestion({ exam, q, pages }) {
+function ReviewQuestion({ exam, q, pages, strokes }) {
   const { passage, question } = regionsOf(exam, q);
   return (
     <div className="stack">
@@ -261,7 +262,10 @@ function ReviewQuestion({ exam, q, pages }) {
         </details>
       )}
       <div className="fit-card">
-        <Regions exam={exam} pages={pages} regions={question} />
+        <div style={{ position: 'relative' }}>
+          <Regions exam={exam} pages={pages} regions={question} />
+          {strokes?.length > 0 && <DrawLayer ratio={stackRatio(exam, question)} strokes={strokes} readOnly />}
+        </div>
       </div>
     </div>
   );
