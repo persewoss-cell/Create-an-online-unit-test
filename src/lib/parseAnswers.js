@@ -165,6 +165,10 @@ const PAREN_LABELS = (n) => Array.from({ length: n }, (_, i) => `(${i + 1})`);
 /** 선 잇기, ㉮㉯㉰ 기호, (1)(2)(3) ○표, (예) 예시 답안 같은 특수 정답 */
 function buildSpecialKey(q, raw) {
   const s = raw.replace(LEAD_RE, '').trim();
+  // 선생님이 직접 채점: 정답 칸에 "검토" 또는 "선생님 채점"
+  if (/^(검토|선생님\s*(채점|검토|확인)|직접\s*채점)$/.test(s)) {
+    return { question: { ...q, manual: true }, key: { ...emptyKey(q.type), manual: true } };
+  }
   // 그리기 문항: "그리기" 또는 "그리기 + 3 cm" (그림은 선생님 확인, 뒤의 답은 입력칸)
   const dm = s.match(/^그리기\s*(?:[+＋,/]\s*(.+))?$/s);
   if (dm) {
@@ -276,6 +280,7 @@ export function mergeQuestionsAndAnswers(questions, answerMap) {
 
 export function hasAnswer(key) {
   if (!key) return false;
+  if (key.manual) return true;
   if (key.draw && !key.choices && !key.pairs && !key.accepted && !key.model) return true;
   if (key.choices) return key.choices.length > 0;
   if (key.pairs) return key.pairs.length > 0 && key.pairs.every(Boolean);

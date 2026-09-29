@@ -35,6 +35,7 @@ export function fromItems(items) {
       matchLabels: it.type === 'match' ? it.matchLabels || null : null,
       group: it.group || null,
       draw: it.type === 'draw' || !!it.draw,
+      manual: !!it.manual,
       regions: it.regions || [],
       anchor: it.anchor || null,
       blanks: it.blanks || [],
@@ -57,7 +58,10 @@ export function fromItems(items) {
       keys[q.no] = { accepted: splitAlternatives(it.answerText || '') };
     }
   }
-  for (const q of questions) if (q.draw && keys[q.no]) keys[q.no].draw = true;
+  for (const q of questions) {
+    if (q.draw && keys[q.no]) keys[q.no].draw = true;
+    if (q.manual && keys[q.no]) keys[q.no].manual = true;
+  }
   return { questions, keys };
 }
 
@@ -77,6 +81,11 @@ export function validateItems(items, pageCount) {
   if (dup.length) errs.push(`번호가 중복되었습니다: ${[...new Set(dup)].join(', ')}번`);
   for (const it of items) {
     if (!(Number(it.no) > 0)) errs.push('문항 번호가 비어 있습니다.');
+    if (it.manual) {
+      // 선생님이 직접 채점하는 문항은 정답을 비워 둬도 된다
+      if (!(Number(it.points) > 0)) errs.push(`${it.no}번: 배점을 입력해 주세요.`);
+      continue;
+    }
     if (pageCount && (Number(it.page) < 1 || Number(it.page) > pageCount)) errs.push(`${it.no}번: 쪽 번호가 범위를 벗어났습니다.`);
     if (!(Number(it.points) > 0)) errs.push(`${it.no}번: 배점을 입력해 주세요.`);
     if (it.type === 'mc' && !(it.keyChoices || []).length) errs.push(`${it.no}번: 객관식 정답을 선택해 주세요.`);

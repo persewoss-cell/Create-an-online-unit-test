@@ -22,6 +22,7 @@ export function answerToText(q, ans) {
 
 export function keyToText(q, key) {
   if (!key) return '';
+  if (q.manual && !hasKeyContent(key)) return '(선생님이 직접 채점)';
   if (q.type === 'draw') return '(그리기 — 선생님 확인)';
   if (q.draw) return `(그리기) ${keyToText({ ...q, draw: false }, key)}`;
   if (q.type === 'mc') return (key.choices || []).map((n) => choiceLabel(q, n)).join(', ');
@@ -45,4 +46,8 @@ export function shortKeyText(q, key) {
   }
   if (q.type === 'short') return (key.accepted || [])[0] || '';
   return keyToText(q, key);
+}
+
+function hasKeyContent(key) {
+  return !!(key.choices?.length || key.pairs?.some(Boolean) || key.accepted?.some((a) => a.trim()) || key.model?.trim() || key.keywords?.length);
 }

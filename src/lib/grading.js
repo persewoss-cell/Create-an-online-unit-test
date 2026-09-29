@@ -163,6 +163,7 @@ function gradeEssay(key, answer, rule) {
 export function gradeAnswer(question, key, answer, leniency = 'normal') {
   const rule = LENIENCY[leniency] || LENIENCY.normal;
   if (isBlank(answer, question)) return { status: 'wrong', reason: '답 없음' };
+  if (question.manual) return { status: 'review', reason: '선생님이 직접 채점하는 문항' };
   if (question.type === 'draw') return { status: 'review', reason: '그린 그림 — 선생님 확인' };
   if (question.draw) {
     // 그림 + 답: 답은 자동으로 확인하되, 그림 때문에 최종 판정은 선생님이

@@ -127,3 +127,19 @@ describe('유틸', () => {
     expect(parseNumeric('광합성')).toBeNull();
   });
 });
+
+describe('선생님이 직접 채점하는 문항', () => {
+  it('정답이 없어도 되고, 답을 쓰면 항상 검토 요청', async () => {
+    const { buildKey, hasAnswer } = await import('../src/lib/parseAnswers.js');
+    const { fromItems, toItems, validateItems } = await import('../src/lib/editorModel.js');
+    const q = { no: 1, type: 'short', points: 10, page: 1 };
+    const { question, key } = buildKey(q, '검토');
+    expect(question.manual).toBe(true);
+    expect(hasAnswer(key)).toBe(true);
+    const items = toItems([question], { 1: key });
+    expect(validateItems(items, 1)).toEqual([]);
+    const { questions, keys } = fromItems(items);
+    expect(gradeAnswer(questions[0], keys[1], '아무 답').status).toBe('review');
+    expect(gradeAnswer(questions[0], keys[1], '').status).toBe('wrong');
+  });
+});

@@ -305,3 +305,8 @@ button.mark { cursor: pointer; }
 .draw-toolbar button span { font-size: 20px; line-height: 1; }
 .draw-toolbar button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
 .draw-toolbar button:disabled { opacity: 0.4; }
+.manual-toggle.on { background: var(--warn-weak); border-color: #e9c46a; color: #6b4a0f; }
+.pcard .qedit .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.pcard .qedit .top > label { flex: 0 0 auto; width: 90px; }
+.pcard .qedit .top > label:nth-of-type(6) { flex: 1 1 100%; width: auto; }
+.pcard .qedit .top > label:has(> span:only-child) { display: none; }

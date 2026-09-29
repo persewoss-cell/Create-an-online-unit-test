@@ -84,11 +84,11 @@ export default function QuestionEditor({ items, onChange, pageCount }) {
 }
 
 export function QuestionRow({ it, pageCount, onChange, onRemove }) {
-  const noAnswer =
+  const noAnswer = !it.manual && (
     (it.type === 'mc' && !it.keyChoices?.length) ||
     (it.type === 'short' && !it.answerText?.trim()) ||
     (it.type === 'essay' && !it.model?.trim() && !it.keywordsText?.trim()) ||
-    (it.type === 'match' && !Array.from({ length: Number(it.matchCount) || 2 }, (_, i) => it.keyPairs?.[i]).every(Boolean));
+    (it.type === 'match' && !Array.from({ length: Number(it.matchCount) || 2 }, (_, i) => it.keyPairs?.[i]).every(Boolean)));
 
   const toggleKey = (n) => {
     const cur = it.keyChoices || [];
@@ -127,6 +127,20 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
       </div>
 
       <div style={{ marginTop: 10 }}>
+        <button
+          type="button"
+          className={`btn sm manual-toggle ${it.manual ? 'on' : ''}`}
+          onClick={() => onChange({ manual: !it.manual })}
+          aria-pressed={!!it.manual}
+          style={{ marginBottom: 8 }}
+        >
+          {it.manual ? '✔ 선생님이 직접 채점 (켜짐)' : '선생님이 직접 채점'}
+        </button>
+        {it.manual && (
+          <div className="small muted" style={{ marginBottom: 8 }}>
+            자동 채점하지 않고 학생이 제출하면 모두 검토 요청으로 넘어옵니다. 정답은 비워 둬도 됩니다(적어 두면 검토할 때 참고로 보입니다).
+          </div>
+        )}
         {it.type === 'draw' && <div className="small muted">학생이 문제 그림 위에 직접 그립니다. 제출하면 선생님 확인으로 넘어옵니다.</div>}
         {(it.type === 'short' || it.type === 'essay') && (
           <label className="small row" style={{ gap: 4, marginBottom: 6 }}>

@@ -23,7 +23,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
   const update = (idx, patch) => onChange(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   const remove = (idx) => onChange(items.filter((_, i) => i !== idx));
   const totalPoints = Math.round(items.reduce((s, it) => s + (Number(it.points) || 0), 0) * 10) / 10;
-  const missing = items.filter((it) => !hasAnswer(keyOf(it))).map((it) => it.no);
+  const missing = items.filter((it) => !it.manual && !hasAnswer(keyOf(it))).map((it) => it.no);
 
   function distribute() {
     if (!items.length) return;
@@ -89,7 +89,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
         </div>
         <div className="small muted">
           객관식 <code>4</code> 또는 <code>④</code>, 기호 <code>㉮</code>, ○표 <code>(3)</code>, 선 잇기 <code>(1)-① (2)-②</code>, 단답형은 답 그대로,
-          서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>). 문항 유형·배점·핵심어는 자동으로 정해집니다.
+          서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>), 그리기는 <code>그리기</code>, 선생님이 직접 채점할 문항은 <code>검토</code>. 문항 유형·배점·핵심어는 자동으로 정해집니다.
         </div>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
       </div>
@@ -114,6 +114,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
               <div className="head">
                 <span className="qno">{it.no}번</span>
                 <span className="badge draft">{TYPE_LABEL[it.type]}</span>
+                {it.manual && <span className="badge review">선생님 채점</span>}
                 <label className="small row" style={{ gap: 4, marginLeft: 'auto' }}>
                   배점
                   <input
@@ -128,7 +129,12 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
                 </label>
               </div>
               <div className="small muted">학생 화면 미리보기 (초록색이 정답)</div>
-              <AnswerInput q={q} value={q.type === 'mc' || q.type === 'match' ? [] : ''} answerKey={key} disabled />
+              {it.manual && (
+                <div className="key-box" style={{ background: 'var(--warn-weak)', color: '#6b4a0f' }}>
+                  선생님이 직접 채점하는 문항입니다. 학생 답은 모두 검토 요청으로 넘어옵니다.
+                </div>
+              )}
+              <AnswerInput q={q} value={q.type === 'mc' || q.type === 'match' ? [] : ''} answerKey={it.manual ? null : key} disabled />
               {!hasAnswer(key) && <div className="small" style={{ color: 'var(--warn)' }}>⚠ 정답이 없습니다. 엑셀로 올리거나 세부 수정에서 입력하세요.</div>}
               <button type="button" className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={() => setOpen({ ...open, [idx]: !open[idx] })}>
                 {open[idx] ? '세부 수정 닫기 ▴' : '세부 수정 ▾'}

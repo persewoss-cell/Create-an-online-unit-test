@@ -364,8 +364,9 @@ function placeLabels(exam, pages, grids, byNo, keys, answers, result) {
         occupy(g, spot);
         res.review = { ...spot, text, fs };
       }
-      if (it.status === 'wrong') {
-        const text = `정답: ${shortKeyText(q, keys[q.no])}`;
+      const keyShort = shortKeyText(q, keys[q.no]);
+      if (it.status === 'wrong' && keyShort && !(q.manual && keyShort.startsWith('('))) {
+        const text = `정답: ${keyShort}`;
         const fs = 26;
         const w = textWidth(text, fs);
         const h = fs * 1.15;
