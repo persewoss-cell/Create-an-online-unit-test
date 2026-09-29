@@ -58,6 +58,16 @@ describe('단답형', () => {
     expect(gradeAnswer(short, { accepted: ['0.75'] }, '3/4').status).toBe('correct');
     expect(gradeAnswer(short, { accepted: ['3cm'] }, '3m').status).toBe('review');
   });
+  it('수학은 단위를 빠뜨리면 틀림', () => {
+    const m = (acc, a) => gradeAnswer(short, { accepted: [acc] }, a, 'normal', '수학').status;
+    expect(m('3cm', '3')).toBe('wrong');
+    expect(m('3권', '3')).toBe('wrong');
+    expect(m('3cm', '3cm')).toBe('correct');
+    expect(m('3권', '3 권입니다')).toBe('correct');
+    expect(m('3/4', '3/4')).toBe('correct');
+    expect(gradeAnswer(short, { accepted: ['3cm'] }, '3', 'normal', '과학').status).toBe('correct');
+    expect(gradeAnswer({ type: 'short', blankCount: 2 }, { boxes: ['3cm', '5권'] }, ['3cm', '5'], 'normal', '수학').status).toBe('wrong');
+  });
   it('쉼표로 구분된 필수 요소', () => {
     const k = { accepted: ['산소, 이산화 탄소'] };
     expect(gradeAnswer(short, k, '이산화탄소와 산소').status).toBe('correct');

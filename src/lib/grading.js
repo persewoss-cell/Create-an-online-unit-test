@@ -72,6 +72,8 @@ function compareShort(expected, answer, rule) {
     const aNum = parseNumeric(answer);
     if (!aNum) return { status: 'wrong' };
     if (Math.abs(kNum.value - aNum.value) > 1e-9) return { status: 'wrong' };
+    // 수학: 정답에 단위(cm, 권, 개 …)가 있는데 숫자만 쓰면 틀림
+    if (rule.requireUnit && kNum.unit && !aNum.unit) return { status: 'wrong', reason: `단위를 쓰지 않음 (${kNum.unit})` };
     if (!aNum.unit || !kNum.unit || aNum.unit === kNum.unit) return { status: 'correct' };
     return { status: 'review', reason: `단위가 다름 (${kNum.unit} / ${aNum.unit})` };
   }
@@ -246,9 +248,10 @@ function gradeEssay(key, answer, rule) {
  * @param {object} key 정답 키
  * @param {any} answer 학생 답 (객관식: number[] / 그 외: string)
  * @param {'strict'|'normal'|'lenient'} leniency
+ * @param {string} [subject] 과목 — '수학'이면 단위를 빠뜨린 답은 틀림
  */
-export function gradeAnswer(question, key, answer, leniency = 'normal') {
-  const rule = LENIENCY[leniency] || LENIENCY.normal;
+export function gradeAnswer(question, key, answer, leniency = 'normal', subject = '') {
+  const rule = { ...(LENIENCY[leniency] || LENIENCY.normal), requireUnit: subject === '수학' };
   if (isBlank(answer, question)) return { status: 'wrong', reason: '답 없음' };
   if (question.manual) return { status: 'review', reason: '선생님이 직접 채점하는 문항' };
   if (question.parts?.length) {
@@ -256,7 +259,7 @@ export function gradeAnswer(question, key, answer, leniency = 'normal') {
     const rs = question.parts.map((_, i) => {
       const pq = partQuestion(question, i);
       const a = answer.parts?.[i];
-      return isBlank(a, pq) ? { status: 'wrong', reason: '답 없음' } : gradeAnswer(pq, key?.parts?.[i] || {}, a, leniency);
+      return isBlank(a, pq) ? { status: 'wrong', reason: '답 없음' } : gradeAnswer(pq, key?.parts?.[i] || {}, a, leniency, subject);
     });
     const tag = rs.map((r, i) => `(${i + 1}) ${r.status === 'correct' ? 'O' : r.status === 'wrong' ? 'X' : '?'}`).join(' ');
     if (rs.some((r) => r.status === 'wrong')) return { status: 'wrong', reason: tag };
@@ -267,7 +270,7 @@ export function gradeAnswer(question, key, answer, leniency = 'normal') {
   if (question.draw) {
     // 그림 + 답: 답은 자동으로 확인하되, 그림 때문에 최종 판정은 선생님이
     if (isBlank(answer.text, { ...question, draw: false })) return { status: 'review', reason: '그린 그림 확인 필요 (답 칸 비움)' };
-    const r = gradeAnswer({ ...question, draw: false }, key, answer.text, leniency);
+    const r = gradeAnswer({ ...question, draw: false }, key, answer.text, leniency, subject);
     return { status: 'review', reason: `그린 그림 확인 필요 · 적은 답 ${r.status === 'correct' ? '맞음' : r.status === 'wrong' ? '틀림' : '확인 필요'}` };
   }
   if (question.type === 'mc') return gradeChoice(key || {}, answer);
@@ -291,7 +294,7 @@ export function gradeAnswer(question, key, answer, leniency = 'normal') {
 export function gradeSubmission(exam, keys, submission) {
   const overrides = submission.overrides || {};
   const items = exam.questions.map((q) => {
-    const auto = gradeAnswer(q, keys[q.no], submission.answers?.[q.no], exam.leniency);
+    const auto = gradeAnswer(q, keys[q.no], submission.answers?.[q.no], exam.leniency, exam.subject);
     const ov = overrides[q.no];
     const status = ov || auto.status;
     const points = Number(q.points) || 0;
