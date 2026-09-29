@@ -5,9 +5,32 @@ import Loading from '../../components/Loading.jsx';
 import { AnswerInput, FitRegions, regionsOf, stackRatio, useSize, unitsPerCm } from '../../components/ExamViews.jsx';
 import { DrawLayer, DrawToolbar } from '../../components/Drawing.jsx';
 import { loadStudent, loadDraft, saveDraft, clearDraft } from '../../lib/student.js';
-import { ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf } from '../../lib/db.js';
+import { ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf, watchExam } from '../../lib/db.js';
 import { isBlank } from '../../lib/grading.js';
-import { TYPE_LABEL } from '../../lib/format.js';
+import { TYPE_LABEL, stableKey } from '../../lib/format.js';
+
+/** 답의 형식 (이게 바뀌면 이미 입력한 답을 지운다) */
+function shapeOf(q) {
+  if (!q) return '';
+  if (q.parts?.length) return `parts:${q.parts.map(shapeOf).join('|')}`;
+  return [q.type, q.choiceCount || 0, q.matchCount || 0, q.blankCount || 0, q.draw ? 'd' : ''].join(':');
+}
+
+/** 제출용으로 답 정리 (문항 형식에 맞게) */
+function cleanAnswer(x, v) {
+  if (v == null) return null;
+  if (x.parts?.length) {
+    const out = {};
+    x.parts.forEach((p, i) => {
+      const pv = v.parts?.[i];
+      if (pv != null) out[i] = cleanAnswer(p, pv);
+    });
+    return { parts: out };
+  }
+  if (x.type === 'draw' || x.draw) return { strokes: v.strokes || [], ...(x.type === 'draw' ? {} : { text: String(v.text ?? '').trim() }) };
+  if (x.type === 'mc' || x.type === 'match') return (Array.isArray(v) ? v : []).map(Number);
+  return Array.isArray(v) ? v.map((t) => String(t ?? '').trim()) : String(v).trim();
+}
 
 export default function TakeExam() {
   const { id } = useParams();
@@ -24,10 +47,12 @@ export default function TakeExam() {
   const [missing, setMissing] = useState([]);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState('');
   const [mainRef, main] = useSize();
 
   useEffect(() => {
-    if (!p) return;
+    if (!p) return undefined;
+    let unsubExam = () => {};
     (async () => {
       try {
         await ensureStudentSession(p);
@@ -38,10 +63,49 @@ export default function TakeExam() {
         if (!e || e.status !== 'open') throw new Error('지금은 볼 수 없는 평가입니다.');
         setExam(e);
         setPages(await getPages(id));
+        // 시험 중 선생님이 문제·정답을 고치면 바로 반영
+        unsubExam = watchExam(
+          id,
+          (next) => {
+            if (!next) return;
+            if (next.status !== 'open') {
+              setError('선생님이 평가를 마감했어요.');
+              return;
+            }
+            setExam((prev) => {
+              if (!prev) return next;
+              const changed = next.questions
+                .filter((q) => {
+                  const old = prev.questions.find((o) => o.no === q.no);
+                  // 학생 화면에 보이는 것만 비교 (영역·위치 정보 등은 제외)
+                  const view = (x) => ({ ...x, regions: undefined, anchor: undefined, blanks: undefined, answerSpots: undefined, text: undefined });
+                  return !old || stableKey(view(old)) !== stableKey(view(q));
+                })
+                .map((q) => q.no);
+              if (changed.length) {
+                // 형식이 바뀐 문항의 답은 지운다 (예: 단답형 → 객관식)
+                setAnswers((a) => {
+                  const out = { ...a };
+                  for (const no of changed) {
+                    const oq = prev.questions.find((o) => o.no === no);
+                    const nq = next.questions.find((o) => o.no === no);
+                    if (!oq || shapeOf(oq) !== shapeOf(nq)) delete out[no];
+                  }
+                  return out;
+                });
+                setNotice(`선생님이 ${changed.join(', ')}번 문제를 고쳤어요. 다시 확인해 주세요.`);
+                setTimeout(() => setNotice(''), 8000);
+              }
+              return next;
+            });
+          },
+          () => {},
+        );
       } catch (err) {
         setError(err.code === 'permission-denied' ? '지금은 볼 수 없는 평가입니다.' : err.message);
       }
     })();
+    return () => unsubExam();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -93,12 +157,7 @@ export default function TakeExam() {
     setSubmitting(true);
     try {
       const clean = {};
-      for (const x of qs) {
-        const v = answers[x.no];
-        if (x.type === 'draw' || x.draw) clean[x.no] = { strokes: v.strokes || [], ...(x.type === 'draw' ? {} : { text: String(v.text ?? '').trim() }) };
-        else if (x.type === 'mc' || x.type === 'match') clean[x.no] = v.map(Number);
-        else clean[x.no] = Array.isArray(v) ? v.map((t) => String(t ?? '').trim()) : String(v).trim();
-      }
+      for (const x of qs) clean[x.no] = cleanAnswer(x, answers[x.no]);
       await submitAnswers(id, p, clean);
       clearDraft(id, p);
       nav(`/exam/${id}/result`, { replace: true });
@@ -269,6 +328,11 @@ export default function TakeExam() {
           제출하기
         </button>
       </footer>
+      {notice && (
+        <div className="missing-toast notice-toast" role="status">
+          🔔 {notice}
+        </div>
+      )}
       {missing.length > 0 && (
         <div className="missing-toast" role="alert">
           아직 답하지 않은 문항이 있어 제출할 수 없어요: {missing.join(', ')}번

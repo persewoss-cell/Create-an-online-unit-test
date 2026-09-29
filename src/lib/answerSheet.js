@@ -19,6 +19,9 @@ const CIRCLED_SET = '①②③④⑤⑥⑦⑧⑨⑩';
 export function answerHint(q) {
   if (!q || typeof q !== 'object') return '';
   const tail = q.manual ? ' · 선생님이 직접 채점하는 문항(비워 둬도 됨)' : '';
+  if (q.parts?.length) {
+    return `답이 ${q.parts.length}부분 — 부분마다 ; 로 구분 (예: ${q.parts.map((p) => (p.type === 'mc' ? (p.choiceLabels || ['①'])[0] : p.type === 'match' ? '(1)-①' : '답')).join(' ; ')})` + tail;
+  }
   if (q.type === 'draw') return '✏️ 그리기 문항 — 비워 두면 학생 그림을 선생님이 채점' + tail;
   if (q.draw) return '✏️ 그리기 + 답 칸 — ( ) 칸에 들어갈 답만 적기 (예: 3 cm), 그림은 선생님이 채점' + tail;
   if (q.type === 'mc') {

@@ -126,6 +126,28 @@ export function QuestionView({ exam, q, pages }) {
  */
 export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled }) {
   const show = !!answerKey;
+  if (q.parts?.length) {
+    // 한 문제 안에 답 유형이 여러 개: 부분마다 (1), (2) … 입력
+    const vals = value?.parts || {}; // {0: 답, 1: 답} (Firestore는 배열 안에 배열을 저장할 수 없어서 객체로)
+    return (
+      <div className="parts">
+        {q.parts.map((p, i) => (
+          <div key={i} className="part">
+            <div className="part-head">({i + 1})</div>
+            <div className="part-body">
+              <AnswerInput
+                q={{ ...p, no: `${q.no}-${i + 1}`, regions: q.regions, parts: undefined }}
+                value={vals[i]}
+                onChange={(v) => onChange({ parts: { ...vals, [i]: v } })}
+                answerKey={show ? answerKey.parts?.[i] || {} : undefined}
+                disabled={disabled}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   if (q.type === 'draw' || q.draw) {
     return (
       <div>
@@ -151,7 +173,7 @@ export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled
     const sel = Array.isArray(value) ? value : [];
     const keySet = new Set(answerKey?.choices || []);
     // 문항 이미지가 있으면 보기 글은 이미지로 보고, 버튼은 기호만 (PDF에서 뽑은 글은 띄어쓰기가 틀릴 수 있음)
-    const hasText = !q.regions?.length && q.choices?.length === n && q.choices.some((c) => c);
+    const hasText = (q.showChoiceText || !q.regions?.length) && q.choices?.length === n && q.choices.some((c) => c);
     const toggle = (k) => {
       if (q.multi) onChange(sel.includes(k) ? sel.filter((x) => x !== k) : [...sel, k].sort((a, b) => a - b));
       else onChange(sel[0] === k ? [] : [k]);

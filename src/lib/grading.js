@@ -17,8 +17,18 @@ export const LENIENCY = {
 
 const NO_ANSWER_RE = /^(모름|모르겠|몰라|없음|\?+|x|-+|\.+)$/;
 
+/** 여러 유형 문항의 한 부분을 독립 문항처럼 다룬다 */
+export function partQuestion(q, i) {
+  return { ...q.parts[i], no: q.no, points: 0, regions: q.regions, parts: undefined, draw: false, manual: false };
+}
+
 export function isBlank(answer, question) {
   if (answer == null) return true;
+  if (question?.parts?.length) {
+    // 여러 유형 문항: 한 부분이라도 답했으면 제출 가능
+    const arr = answer.parts || [];
+    return question.parts.every((_, i) => isBlank(arr[i], partQuestion(question, i)));
+  }
   if (question?.draw || question?.type === 'draw') {
     // 그리기 문항: 그림을 그렸으면 답 칸은 비워도 제출할 수 있다 (그림+답 문항은 둘 중 하나만 해도 됨)
     if (answer.strokes?.length) return false;
@@ -199,6 +209,18 @@ export function gradeAnswer(question, key, answer, leniency = 'normal') {
   const rule = LENIENCY[leniency] || LENIENCY.normal;
   if (isBlank(answer, question)) return { status: 'wrong', reason: '답 없음' };
   if (question.manual) return { status: 'review', reason: '선생님이 직접 채점하는 문항' };
+  if (question.parts?.length) {
+    // 모든 부분이 맞아야 정답. 하나라도 확인이 필요하면 선생님 검토
+    const rs = question.parts.map((_, i) => {
+      const pq = partQuestion(question, i);
+      const a = answer.parts?.[i];
+      return isBlank(a, pq) ? { status: 'wrong', reason: '답 없음' } : gradeAnswer(pq, key?.parts?.[i] || {}, a, leniency);
+    });
+    const tag = rs.map((r, i) => `(${i + 1}) ${r.status === 'correct' ? 'O' : r.status === 'wrong' ? 'X' : '?'}`).join(' ');
+    if (rs.some((r) => r.status === 'wrong')) return { status: 'wrong', reason: tag };
+    if (rs.some((r) => r.status === 'review')) return { status: 'review', reason: `${tag} — 선생님 확인` };
+    return { status: 'correct', reason: tag };
+  }
   if (question.type === 'draw') return { status: 'review', reason: '그린 그림 — 선생님 확인' };
   if (question.draw) {
     // 그림 + 답: 답은 자동으로 확인하되, 그림 때문에 최종 판정은 선생님이

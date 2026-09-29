@@ -4,8 +4,9 @@ import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { GradedPaper } from '../../components/ExamViews.jsx';
 import { loadStudent } from '../../lib/student.js';
-import { getExam, getKeys, getMySubmission, getPages, studentIdOf, watchMySubmission, ensureStudentSession } from '../../lib/db.js';
+import { getExam, getKeys, getMySubmission, getPages, studentIdOf, watchMySubmission, ensureStudentSession, watchExam, watchKeys } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
+import { stableKey } from '../../lib/format.js';
 
 export default function Result() {
   const { id } = useParams();
@@ -31,17 +32,37 @@ export default function Result() {
         if (!exam) throw new Error('평가가 마감되어 결과를 볼 수 없습니다. 선생님께 문의하세요.');
         if (!alive) return;
         // 선생님이 검토하면 새로고침하지 않아도 바로 점수와 표시가 바뀐다
-        let prevOverrides = JSON.stringify(first.overrides || {});
-        unsub = watchMySubmission(id, sid, (sub) => {
-          if (!sub) return;
-          const now = JSON.stringify(sub.overrides || {});
-          if (now !== prevOverrides) {
-            prevOverrides = now;
+        // 선생님이 검토하거나, 문제·정답을 고치면 새로고침하지 않아도 점수와 표시가 바로 바뀐다
+        const cur = { exam, keys, sub: first };
+        let ready = false;
+        const redraw = (changed) => {
+          setData({ ...cur, pages, result: gradeSubmission(cur.exam, cur.keys, cur.sub) });
+          if (ready && changed) {
             setUpdated(true);
             setTimeout(() => setUpdated(false), 6000);
           }
-          setData({ exam, keys, sub, pages, result: gradeSubmission(exam, keys, sub) });
-        }, fail);
+        };
+        const unsubs = [
+          watchMySubmission(id, sid, (sub) => {
+            if (!sub) return;
+            const changed = JSON.stringify(sub.overrides || {}) !== JSON.stringify(cur.sub.overrides || {});
+            cur.sub = sub;
+            redraw(changed);
+          }, fail),
+          watchExam(id, (e) => {
+            if (!e) return;
+            const changed = stableKey(e.questions) !== stableKey(cur.exam.questions);
+            cur.exam = e;
+            redraw(changed);
+          }, () => {}),
+          watchKeys(id, (k) => {
+            const changed = stableKey(k) !== stableKey(cur.keys);
+            cur.keys = k;
+            redraw(changed);
+          }, () => {}),
+        ];
+        ready = true;
+        unsub = () => unsubs.forEach((u) => u());
       } catch (e) {
         fail(e);
       }
@@ -82,7 +103,7 @@ export default function Result() {
             {exam.questions.length}문항 중 {result.correctCount}문항 정답
           </div>
           {updated && (
-            <div className="alert success" style={{ marginTop: 14 }}>선생님이 답을 확인했어요. 점수가 새로 반영되었습니다.</div>
+            <div className="alert success" style={{ marginTop: 14 }}>선생님이 답을 확인하거나 정답을 고쳤어요. 점수가 새로 반영되었습니다.</div>
           )}
           {result.reviewCount > 0 && (
             <div className="alert warn" style={{ marginTop: 14, textAlign: 'left' }}>

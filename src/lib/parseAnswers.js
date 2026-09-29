@@ -126,6 +126,15 @@ export function buildKey(question, raw) {
   let q = { ...question };
   const flags = (k) => ({ ...k, ...(q.draw ? { draw: true } : {}), ...(q.manual ? { manual: true } : {}) });
   if (raw == null || String(raw).trim() === '') return { question: q, key: flags(emptyKey(q.type)) };
+  // 여러 유형 문항: 엑셀 정답을 ; 로 나눠 부분마다 ("③ ; 3 cm")
+  if (q.parts?.length) {
+    const pieces = String(raw).split(/\s*[;；]\s*/);
+    const built = q.parts.map((p, i) => buildKey({ ...p, no: q.no, parts: undefined }, pieces[i] ?? ''));
+    return {
+      question: { ...q, parts: built.map((b, i) => ({ ...q.parts[i], ...pick(b.question) })) },
+      key: flags({ parts: built.map((b) => b.key) }),
+    };
+  }
   // 그림만 그리는 문항으로 인식했는데 답을 적었다면 → 그림 + 답 문항
   if (q.type === 'draw' && !/^\s*그리기/.test(String(raw))) q = { ...q, type: 'short' };
   const built = buildKeyInner(q, raw);
@@ -173,6 +182,12 @@ function buildKeyInner(question, raw) {
   if ((q.fillBoxes || q.blankCount > 1) && parts.length >= 2 && parts.length <= 8) q.blankCount = parts.length;
   else if (!(q.answerSpots?.length >= 2) && !(question.blankCount > 1)) delete q.blankCount;
   return { question: q, key: { accepted } };
+}
+
+/** 부분 문항에 남길 답 형식 필드 */
+function pick(q) {
+  const { type, choiceCount, choices, choiceLabels, showChoiceText, multi, matchCount, matchLabels, blankCount } = q;
+  return { type, choiceCount, choices, choiceLabels, showChoiceText, multi, matchCount, matchLabels, blankCount };
 }
 
 const PAREN_LABELS = (n) => Array.from({ length: n }, (_, i) => `(${i + 1})`);
@@ -305,6 +320,7 @@ export function mergeQuestionsAndAnswers(questions, answerMap) {
 export function hasAnswer(key) {
   if (!key) return false;
   if (key.manual) return true;
+  if (key.parts) return key.parts.length > 0 && key.parts.every((k) => hasAnswer(k));
   if (key.draw && !key.choices && !key.pairs && !key.accepted && !key.model) return true;
   if (key.choices) return key.choices.length > 0;
   if (key.pairs) return key.pairs.length > 0 && key.pairs.every(Boolean);

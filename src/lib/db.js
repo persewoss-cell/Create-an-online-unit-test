@@ -99,6 +99,16 @@ export function updateExam(id, patch) {
   return updateDoc(doc(db, 'exams', id), { ...patch, updatedAt: serverTimestamp() });
 }
 
+/** 평가(문항)를 실시간으로 — 시험 중에 선생님이 문제를 고치면 학생 화면에 바로 반영 */
+export function watchExam(id, cb, onError) {
+  return onSnapshot(doc(db, 'exams', id), (snap) => cb(snap.exists() ? { id, ...snap.data() } : null), onError);
+}
+
+/** 정답을 실시간으로 (제출한 학생의 결과 화면: 정답을 고치면 점수도 바로 다시 계산) */
+export function watchKeys(examId, cb, onError) {
+  return onSnapshot(doc(db, 'exams', examId, 'private', 'key'), (snap) => cb(snap.exists() ? snap.data().keys || {} : {}), onError);
+}
+
 export async function getKeys(examId) {
   const snap = await getDoc(doc(db, 'exams', examId, 'private', 'key'));
   return snap.exists() ? snap.data().keys || {} : {};
