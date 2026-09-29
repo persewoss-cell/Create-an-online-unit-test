@@ -326,3 +326,13 @@ button.mark { cursor: pointer; }
 .mark.sm { width: 20px; height: 20px; font-size: 12px; border-radius: 4px; }
 .btn.xs { padding: 3px 8px; font-size: 12px; border-radius: 6px; white-space: nowrap; }
 .compact-table td, .compact-table th { padding: 4px 12px; vertical-align: middle; }
+/* 문항 분석 표 */
+.analysis-table { table-layout: fixed; }
+.analysis-table th:nth-child(1) { width: 52px; }
+.analysis-table th:nth-child(2) { width: 72px; }
+.analysis-table th:nth-child(4) { width: 280px; }
+.analysis-table th:nth-child(5) { width: 52px; }
+.analysis-table td { padding: 7px 10px; vertical-align: middle; }
+.analysis-table td.one-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.analysis-table td.wrap { white-space: normal; }
+@media (max-width: 700px) { .analysis-table th:nth-child(4) { width: 150px; } }

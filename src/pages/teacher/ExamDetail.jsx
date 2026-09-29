@@ -290,9 +290,9 @@ function AnalysisTab({ exam, keys, graded }) {
   if (!graded.length) return <div className="card center muted">아직 제출한 학생이 없습니다.</div>;
   return (
     <div className="card table-wrap" style={{ padding: 0 }}>
-      <table className="data">
+      <table className="data analysis-table">
         <thead>
-          <tr><th className="c">번호</th><th>유형</th><th>정답</th><th style={{ width: '35%' }}>정답률</th><th className="c">검토</th></tr>
+          <tr><th className="c">번호</th><th>유형</th><th>정답</th><th>정답률</th><th className="c">검토</th></tr>
         </thead>
         <tbody>
           {exam.questions.map((q, i) => {
@@ -303,14 +303,17 @@ function AnalysisTab({ exam, keys, graded }) {
             return (
               <tr key={q.no}>
                 <td className="c">{q.no}</td>
-                <td>{TYPE_LABEL[q.type]}</td>
-                <td className="small">{keyToText(q, keys[q.no])}</td>
-                <td>
+                <td className="nowrap">{TYPE_LABEL[q.type]}</td>
+                {/* 서술형만 줄바꿈, 나머지 정답은 한 줄 */}
+                <td className={`small ${q.type === 'essay' ? 'wrap' : 'one-line'}`} title={keyToText(q, keys[q.no])}>
+                  {keyToText(q, keys[q.no])}
+                </td>
+                <td className="rate">
                   <div className="row" style={{ flexWrap: 'nowrap' }}>
                     <div className="progress" style={{ flex: 1, marginTop: 0 }}>
                       <div style={{ width: `${pct}%`, background: pct < 50 ? 'var(--bad)' : 'var(--ok)' }} />
                     </div>
-                    <span className="small" style={{ width: 70 }}>{pct}% ({c}명)</span>
+                    <span className="small nowrap" style={{ minWidth: 76 }}>{pct}% ({c}명)</span>
                   </div>
                 </td>
                 <td className="c">{rv || '-'}</td>
