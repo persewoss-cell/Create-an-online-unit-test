@@ -46,12 +46,13 @@ async function expectDenied(name, fn) {
   }
 }
 
-// 관리자 권한으로 가입 코드 설정
-await fetch(`http://${HOST}:8080/v1/projects/${PROJECT}/databases/(default)/documents/config/signup`, {
-  method: 'PATCH',
-  headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
-  body: JSON.stringify({ fields: { code: { stringValue: 'TEST-CODE' } } }),
-});
+// 관리 도구(create-admin.mjs)가 하는 것처럼 관리자 권한으로 teachers 문서 생성
+const makeTeacher = (uid) =>
+  fetch(`http://${HOST}:8080/v1/projects/${PROJECT}/databases/(default)/documents/teachers/${uid}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { name: { stringValue: 'T' } } }),
+  });
 
 const stamp = Date.now();
 const T = client();
@@ -61,10 +62,9 @@ const S2 = client();
 
 console.log('교사');
 const tUser = (await createUserWithEmailAndPassword(T.auth, `t${stamp}@x.kr`, 'secret123')).user;
-await expectDenied('틀린 가입 코드로 교사 등록', () =>
-  setDoc(doc(T.db, 'teachers', tUser.uid), { name: 'T', email: 'e', signupCode: 'nope', createdAt: serverTimestamp() }));
-await expectOk('맞는 가입 코드로 교사 등록', () =>
-  setDoc(doc(T.db, 'teachers', tUser.uid), { name: 'T', email: 'e', signupCode: 'TEST-CODE', createdAt: serverTimestamp() }));
+await expectDenied('사이트에서 스스로 교사(관리자) 등록', () =>
+  setDoc(doc(T.db, 'teachers', tUser.uid), { name: 'T', createdAt: serverTimestamp() }));
+await makeTeacher(tUser.uid);
 
 const examId = `exam${stamp}`;
 await expectOk('평가 만들기', () =>
@@ -73,14 +73,14 @@ await expectOk('정답 저장', () => setDoc(doc(T.db, 'exams', examId, 'private
 await expectOk('페이지 저장', () => setDoc(doc(T.db, 'exams', examId, 'pages', '001'), { index: 1, data: 'x' }));
 
 const t2 = (await createUserWithEmailAndPassword(T2.auth, `t2${stamp}@x.kr`, 'secret123')).user;
-await setDoc(doc(T2.db, 'teachers', t2.uid), { name: 'T2', email: 'e', signupCode: 'TEST-CODE', createdAt: serverTimestamp() });
+await makeTeacher(t2.uid);
 await expectDenied('다른 교사의 정답 읽기', () => getDoc(doc(T2.db, 'exams', examId, 'private', 'key')));
 await expectDenied('다른 교사의 평가 수정', () => updateDoc(doc(T2.db, 'exams', examId), { title: 'hack' }));
 
 console.log('학생');
 const sUser = (await signInAnonymously(S.auth)).user;
 await expectDenied('익명 사용자가 교사 등록', () =>
-  setDoc(doc(S.db, 'teachers', sUser.uid), { name: 'S', email: 'e', signupCode: 'TEST-CODE', createdAt: serverTimestamp() }));
+  setDoc(doc(S.db, 'teachers', sUser.uid), { name: 'S', createdAt: serverTimestamp() }));
 await expectOk('열린 평가 읽기', () => getDoc(doc(S.db, 'exams', examId)));
 await expectOk('문제지 페이지 읽기', () => getDoc(doc(S.db, 'exams', examId, 'pages', '001')));
 await expectDenied('제출 전 정답 읽기', () => getDoc(doc(S.db, 'exams', examId, 'private', 'key')));

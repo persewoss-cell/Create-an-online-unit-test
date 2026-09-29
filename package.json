@@ -13,7 +13,8 @@
     "emulators": "firebase emulators:start --only auth,firestore --project demo-unit-test",
     "deploy": "npm run build && firebase deploy --only hosting,firestore,auth",
     "test:rules": "node scripts/test-rules.mjs",
-    "dev:emulator": "VITE_USE_EMULATOR=true vite"
+    "dev:emulator": "VITE_USE_EMULATOR=true vite",
+    "create-admin": "node scripts/create-admin.mjs"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

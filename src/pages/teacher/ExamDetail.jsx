@@ -74,7 +74,7 @@ export default function ExamDetail() {
 
   return (
     <>
-      <TopBar home="/teacher/dashboard" who={`${teacher.name} 선생님`}>
+      <TopBar home="/teacher/dashboard" who="관리자">
         <Link to="/teacher/dashboard" className="btn sm">목록</Link>
       </TopBar>
       <div className="container">

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { watchAuth, getTeacher, signupState } from '../lib/db.js';
+import { watchAuth, getTeacher } from '../lib/db.js';
 import Loading from './Loading.jsx';
 
 const Ctx = createContext({ teacher: null, loading: true, setTeacher: () => {} });
@@ -11,13 +11,11 @@ export function TeacherProvider({ children }) {
   useEffect(
     () =>
       watchAuth(async (user) => {
-        if (signupState.busy) return; // 가입 화면이 직접 처리
         if (!user || user.isAnonymous) {
           setTeacher(null);
         } else {
           try {
-            const t = await getTeacher(user.uid);
-            if (!signupState.busy) setTeacher(t);
+            setTeacher(await getTeacher(user.uid));
           } catch {
             setTeacher(null);
           }

@@ -1,6 +1,5 @@
 // Firestore 데이터 구조
-//  teachers/{uid}                      교사 프로필 (가입 코드 확인 후 생성)
-//  config/signup                       { code } 교사 가입 코드 (콘솔에서 직접 만듦, 아무도 읽을 수 없음)
+//  teachers/{uid}                      관리자(교사) 프로필 — 관리 도구로만 생성
 //  exams/{examId}                      평가 정보 + 문항(정답 제외)
 //  exams/{examId}/pages/{n}            학생 화면에 보여줄 문제지 페이지 이미지
 //  exams/{examId}/private/key          정답 (교사만, 또는 제출을 마친 학생만 읽기 가능)
@@ -12,8 +11,8 @@ import {
   setDoc, deleteDoc, onSnapshot,
 } from 'firebase/firestore';
 import {
-  signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, signInAnonymously, onAuthStateChanged,
-  sendPasswordResetEmail,
+  signInWithEmailAndPassword, signOut, signInAnonymously, onAuthStateChanged, reauthenticateWithCredential,
+  updatePassword, EmailAuthProvider,
 } from 'firebase/auth';
 import { auth, db } from '../firebase.js';
 
@@ -28,55 +27,25 @@ export async function getTeacher(uid) {
   return snap.exists() ? { uid, ...snap.data() } : null;
 }
 
-export async function teacherSignIn(email, password) {
-  const cred = await signInWithEmailAndPassword(auth, email, password);
+// 관리자(교사) 한 명만 쓰는 사이트: 고정된 관리자 계정에 비밀번호만 입력해 로그인한다.
+// 관리자 계정과 teachers 문서는 Firebase 관리 도구로 미리 만들어 둔다(README 참고).
+export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'admin@unit-test.app';
+
+export async function adminSignIn(password) {
+  const cred = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
   const t = await getTeacher(cred.user.uid);
   if (!t) {
     await signOut(auth);
-    throw new Error('교사로 등록되지 않은 계정입니다. 교사 가입을 먼저 해 주세요.');
+    throw new Error('관리자 계정 설정이 완료되지 않았습니다. README의 “관리자 계정 만들기”를 확인해 주세요.');
   }
   return t;
 }
 
-// 가입 처리 중에는 로그인 상태 감시를 잠시 멈춘다.
-// (가입 코드가 틀린 teachers 문서 쓰기가 서버에서 거부되기 전에 로컬 캐시에 잠깐 보이기 때문)
-export const signupState = { busy: false };
-
-export async function teacherSignUp(input) {
-  signupState.busy = true;
-  try {
-    return await doTeacherSignUp(input);
-  } finally {
-    signupState.busy = false;
-  }
-}
-
-async function doTeacherSignUp({ name, email, password, code }) {
-  let cred;
-  try {
-    cred = await createUserWithEmailAndPassword(auth, email, password);
-  } catch (e) {
-    if (e.code === 'auth/email-already-in-use') {
-      // 계정은 있는데 교사 등록이 안 된 경우(가입 코드를 틀렸던 경우 등) 다시 시도할 수 있게
-      cred = await signInWithEmailAndPassword(auth, email, password);
-    } else throw e;
-  }
-  const existing = await getTeacher(cred.user.uid);
-  if (existing) return existing;
-  try {
-    await setDoc(doc(db, 'teachers', cred.user.uid), {
-      name, email, signupCode: code, createdAt: serverTimestamp(),
-    });
-  } catch (e) {
-    await signOut(auth);
-    if (e.code === 'permission-denied') throw new Error('교사 가입 코드가 올바르지 않습니다.');
-    throw e;
-  }
-  return getTeacher(cred.user.uid);
-}
-
-export function resetPassword(email) {
-  return sendPasswordResetEmail(auth, email);
+/** 관리자 비밀번호 변경 (현재 비밀번호 확인 후) */
+export async function changeAdminPassword(current, next) {
+  const user = auth.currentUser;
+  await reauthenticateWithCredential(user, EmailAuthProvider.credential(ADMIN_EMAIL, current));
+  await updatePassword(user, next);
 }
 
 export function logout() {

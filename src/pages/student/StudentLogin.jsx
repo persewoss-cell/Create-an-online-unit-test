@@ -78,7 +78,7 @@ export default function StudentLogin() {
           </button>
         </form>
         <div className="teacher-link">
-          <Link to="/teacher">선생님이신가요? 교사용 관리 페이지 →</Link>
+          <Link to="/teacher">관리자 로그인 →</Link>
         </div>
       </div>
     </>

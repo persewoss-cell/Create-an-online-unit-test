@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
-import { listMyExams, listSubmissions, getKeys, logout } from '../../lib/db.js';
+import { listMyExams, listSubmissions, getKeys, logout, changeAdminPassword } from '../../lib/db.js';
+import { AUTH_ERR } from './TeacherLogin.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
 
 export const STATUS = { draft: '준비 중', open: '응시 중', closed: '마감' };
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const [exams, setExams] = useState(null);
   const [stats, setStats] = useState({});
   const [error, setError] = useState('');
+  const [pwOpen, setPwOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -48,9 +50,11 @@ export default function Dashboard() {
 
   return (
     <>
-      <TopBar home="/teacher/dashboard" who={`${teacher.name} 선생님`}>
+      <TopBar home="/teacher/dashboard" who="관리자">
+        <button className="btn sm" onClick={() => setPwOpen(true)}>비밀번호 변경</button>
         <button className="btn sm" onClick={doLogout}>로그아웃</button>
       </TopBar>
+      {pwOpen && <PasswordDialog onClose={() => setPwOpen(false)} />}
       <div className="container">
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
           <h1 style={{ margin: 0 }}>내 단원평가</h1>
@@ -98,5 +102,47 @@ export default function Dashboard() {
         )}
       </div>
     </>
+  );
+}
+
+function PasswordDialog({ onClose }) {
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState('');
+  const [next2, setNext2] = useState('');
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (next.length < 6) return setMsg({ type: 'error', text: '새 비밀번호는 6자 이상이어야 합니다.' });
+    if (next !== next2) return setMsg({ type: 'error', text: '새 비밀번호가 서로 다릅니다.' });
+    setBusy(true);
+    try {
+      await changeAdminPassword(cur, next);
+      setMsg({ type: 'success', text: '비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 쓰세요.' });
+      setCur('');
+      setNext('');
+      setNext2('');
+    } catch (err) {
+      setMsg({ type: 'error', text: AUTH_ERR[err.code] || err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-back" role="dialog" aria-modal="true">
+      <form className="modal stack" onSubmit={submit}>
+        <h2>비밀번호 변경</h2>
+        <label className="field"><span>현재 비밀번호</span><input type="password" value={cur} onChange={(e) => setCur(e.target.value)} aria-label="현재 비밀번호" /></label>
+        <label className="field"><span>새 비밀번호 (6자 이상)</span><input type="password" value={next} onChange={(e) => setNext(e.target.value)} aria-label="새 비밀번호" /></label>
+        <label className="field"><span>새 비밀번호 확인</span><input type="password" value={next2} onChange={(e) => setNext2(e.target.value)} aria-label="새 비밀번호 확인" /></label>
+        {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="btn" onClick={onClose}>닫기</button>
+          <button className="btn primary" disabled={busy}>{busy ? '변경 중…' : '변경'}</button>
+        </div>
+      </form>
+    </div>
   );
 }
