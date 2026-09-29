@@ -58,7 +58,10 @@ export default function Dashboard() {
       <div className="container">
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
           <h1 style={{ margin: 0 }}>내 단원평가</h1>
-          <Link to="/teacher/new" className="btn primary">+ 새 평가 만들기</Link>
+          <div className="row">
+            <Link to="/teacher/students" className="btn">👥 학생 명단</Link>
+            <Link to="/teacher/new" className="btn primary">+ 새 평가 만들기</Link>
+          </div>
         </div>
         {error && <div className="alert error">{error}</div>}
         {!exams && !error && <Loading />}

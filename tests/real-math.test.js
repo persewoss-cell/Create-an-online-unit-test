@@ -46,7 +46,8 @@ describe.skipIf(!HAS)('실제 수학 시험지', () => {
     expect(k5.question.blankCount).toBe(2);
     expect(gradeAnswer(k5.question, k5.key, ['ㄱㄷ', 'ㄱㄷ']).status).toBe('correct');
     expect(gradeAnswer(k5.question, k5.key, ['ㄱㄷ', 'ㄴㄹ']).status).toBe('wrong');
-    expect(isBlank(['ㄱㄷ', ''], k5.question)).toBe(true);
+    expect(isBlank(['ㄱㄷ', ''], k5.question)).toBe(false); // 한 칸이라도 쓰면 제출 가능
+    expect(isBlank(['', ''], k5.question)).toBe(true);
   });
 
   it('그리기 문항', () => {

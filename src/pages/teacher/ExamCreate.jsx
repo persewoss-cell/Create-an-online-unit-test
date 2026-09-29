@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
+import FileDrop from '../../components/FileDrop.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { openPdf, extractPages, renderPages, readFileAsArrayBuffer } from '../../lib/pdfText.js';
@@ -112,10 +113,7 @@ export default function ExamCreate() {
             </div>
             <div className="card stack">
               <h2>2. 문제지 PDF 올리기</h2>
-              <label className="field">
-                <span>문제 PDF *</span>
-                <input type="file" accept="application/pdf,.pdf" onChange={(e) => setQFile(e.target.files[0] || null)} aria-label="문제 PDF" />
-              </label>
+              <FileDrop accept=".pdf,application/pdf" onFile={setQFile} file={qFile} label="문제 PDF" hint="문제지 PDF를 여기로 끌어다 놓거나 눌러서 고르세요" />
               <p className="muted small">
                 문항 번호와 지문(“※ 다음 글을 읽고 물음에 답하시오. (1~4)”)을 자동으로 찾아 문항별로 잘라 줍니다.
                 정답은 다음 화면에서 엑셀 양식으로 넣습니다.

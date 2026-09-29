@@ -1,6 +1,7 @@
 // 교사용 "문항과 정답 확인": 왼쪽에 잘라낸 문항, 오른쪽에 학생이 보는 답 입력칸 + 정답 표시
 import { useState } from 'react';
 import { QuestionView, AnswerInput } from './ExamViews.jsx';
+import FileDrop from './FileDrop.jsx';
 import { QuestionRow } from './QuestionEditor.jsx';
 import { fromItems, toItems } from '../lib/editorModel.js';
 import { buildKey, hasAnswer } from '../lib/parseAnswers.js';
@@ -73,19 +74,9 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
         </div>
         <div className="row">
           <span><b>②</b> 번호 옆 “정답” 칸만 채워서 올리기 →</span>
-          <label className="btn primary" style={{ cursor: 'pointer' }}>
-            {busy ? '읽는 중…' : '정답 엑셀 올리기'}
-            <input
-              type="file"
-              accept=".xlsx"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                uploadSheet(e.target.files[0]);
-                e.target.value = '';
-              }}
-              aria-label="정답 엑셀"
-            />
-          </label>
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <FileDrop compact accept=".xlsx" onFile={uploadSheet} label={busy ? '읽는 중…' : '정답 엑셀'} hint="작성한 정답 엑셀을 끌어다 놓거나 눌러서 고르세요" />
+          </div>
         </div>
         <div className="small muted">
           객관식 <code>4</code> 또는 <code>④</code>, 기호 <code>㉮</code>, ○표 <code>(3)</code>, 선 잇기 <code>(1)-① (2)-②</code>, 단답형은 답 그대로,

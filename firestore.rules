@@ -2,8 +2,10 @@ rules_version = '2';
 
 // 단원평가 사이트 보안 규칙
 //  - 관리자(교사): 고정된 관리자 계정 비밀번호 로그인 + teachers/{uid} 문서가 있어야 함
-//  - 학생: 익명 로그인. 학년·반·번호당 답안 1회만 생성 가능
-//  - 정답(private/key)은 교사 본인, 또는 이미 제출을 마친 학생만 읽을 수 있음
+//  - 학생: 익명 로그인 후 "학생 세션"을 만든다. 세션은 학생 명단(roster)에 있는
+//          학년·반·번호·이름과 정확히 일치해야만 만들 수 있다 → 명단에 없는 학생은 로그인 불가
+//  - 학생은 자기 번호의 답안·결과만 볼 수 있고, 답안은 1회만 제출할 수 있다
+//  - 정답(private/key)은 교사, 또는 이미 제출을 마친 학생만 읽을 수 있다
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -20,6 +22,19 @@ service cloud.firestore {
     function isOwner(examId) {
       return isTeacher() && examDoc(examId).data.ownerUid == request.auth.uid;
     }
+    function sessionPath() {
+      return /databases/$(database)/documents/studentSessions/$(request.auth.uid);
+    }
+    function hasSession() {
+      return signedIn() && exists(sessionPath());
+    }
+    function mySid() {
+      return get(sessionPath()).data.studentId;
+    }
+    // 이 학생이 이 평가를 이미 제출했는지
+    function submittedBySession(examId) {
+      return hasSession() && exists(/databases/$(database)/documents/exams/$(examId)/submissions/$(mySid()));
+    }
 
     // 관리자(교사) 프로필은 관리 도구로만 만든다. 사이트에서는 새 교사를 만들 수 없다.
     match /teachers/{uid} {
@@ -27,9 +42,32 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 학생 명단: 교사만 읽고 쓸 수 있다 (학생은 명단을 볼 수 없음)
+    match /roster/{studentId} {
+      allow read, write: if isTeacher();
+    }
+
+    // 학생 세션: 명단과 학년·반·번호·이름이 일치할 때만 만들 수 있다
+    match /studentSessions/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['studentId', 'name', 'grade', 'classNo', 'number', 'at'])
+        && request.resource.data.studentId == string(request.resource.data.grade) + '-' + string(request.resource.data.classNo) + '-' + string(request.resource.data.number)
+        && exists(/databases/$(database)/documents/roster/$(request.resource.data.studentId))
+        && get(/databases/$(database)/documents/roster/$(request.resource.data.studentId)).data.name == request.resource.data.name;
+      allow update, delete: if false;
+    }
+
+    // 학생이 자기 결과 목록을 모아 볼 때 (collectionGroup 조회)
+    match /{path=**}/submissions/{studentId} {
+      allow read: if hasSession() && resource.data.studentId == mySid();
+    }
+
     match /exams/{examId} {
       allow read: if (isTeacher() && resource.data.ownerUid == request.auth.uid)
-        || (signedIn() && resource.data.status == 'open');
+        || (signedIn() && resource.data.status == 'open')
+        || submittedBySession(examId);
       allow create: if isTeacher()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.status in ['draft', 'open', 'closed'];
@@ -40,28 +78,31 @@ service cloud.firestore {
       allow delete: if isTeacher() && resource.data.ownerUid == request.auth.uid;
 
       match /pages/{pageId} {
-        allow read: if isOwner(examId) || (signedIn() && examDoc(examId).data.status == 'open');
+        allow read: if isOwner(examId) || (signedIn() && examDoc(examId).data.status == 'open') || submittedBySession(examId);
         allow write: if isOwner(examId);
       }
 
       match /private/{docId} {
         allow read: if isOwner(examId)
-          || (signedIn() && exists(/databases/$(database)/documents/exams/$(examId)/submitters/$(request.auth.uid)));
+          || (signedIn() && exists(/databases/$(database)/documents/exams/$(examId)/submitters/$(request.auth.uid)))
+          || submittedBySession(examId);
         allow write: if isOwner(examId);
       }
 
       match /submissions/{studentId} {
-        // 없는 문서 조회는 허용(응시 여부 확인용), 다른 사람 답안은 조회 불가
+        // 없는 문서 조회는 허용(응시 여부 확인용), 다른 학생 답안은 조회 불가
         allow read: if isOwner(examId)
-          || (signedIn() && (resource == null || resource.data.uid == request.auth.uid));
-        allow create: if signedIn()
+          || (signedIn() && resource == null)
+          || (signedIn() && resource.data.uid == request.auth.uid)
+          || (hasSession() && resource.data.studentId == mySid());
+        allow create: if hasSession()
+          && mySid() == studentId
+          && get(sessionPath()).data.name == request.resource.data.name
           && examDoc(examId).data.status == 'open'
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.keys().hasOnly(['uid', 'studentId', 'grade', 'classNo', 'number', 'name', 'answers', 'submittedAt'])
           && request.resource.data.studentId == studentId
           && studentId == string(request.resource.data.grade) + '-' + string(request.resource.data.classNo) + '-' + string(request.resource.data.number)
-          && request.resource.data.name is string
-          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
           && request.resource.data.answers is map
           && request.resource.data.submittedAt == request.time
           && existsAfter(/databases/$(database)/documents/exams/$(examId)/submitters/$(request.auth.uid));

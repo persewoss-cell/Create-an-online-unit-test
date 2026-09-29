@@ -36,6 +36,7 @@ export default function ExamDetail() {
   const [subs, setSubs] = useState(null);
   const [error, setError] = useState('');
   const [detail, setDetail] = useState(null);
+  const [detailPaper, setDetailPaper] = useState(false);
   const [pages, setPages] = useState(null);
 
   useEffect(() => {
@@ -111,7 +112,18 @@ export default function ExamDetail() {
           ))}
         </div>
 
-        {tab === 'results' && <ResultsTab exam={exam} graded={graded} onOpen={setDetail} onJudge={judge} examId={id} />}
+        {tab === 'results' && (
+          <ResultsTab
+            exam={exam}
+            graded={graded}
+            onOpen={(sid, paper) => {
+              setDetailPaper(!!paper);
+              setDetail(sid);
+            }}
+            onJudge={judge}
+            examId={id}
+          />
+        )}
         {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} pages={pages} />}
         {tab === 'analysis' && <AnalysisTab exam={exam} keys={keys} graded={graded} />}
         {tab === 'edit' && (
@@ -136,7 +148,7 @@ export default function ExamDetail() {
       </div>
 
       {detailRow && (
-        <StudentDetail exam={exam} keys={keys} row={detailRow} onJudge={judge} onClose={() => setDetail(null)} pages={pages} />
+        <StudentDetail exam={exam} keys={keys} row={detailRow} onJudge={judge} onClose={() => setDetail(null)} pages={pages} initialPaper={detailPaper} />
       )}
     </>
   );
@@ -166,11 +178,11 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId }) {
   }
   return (
     <div className="card table-wrap" style={{ padding: 0 }}>
-      <table className="data">
+      <table className="data results-table">
         <thead>
           <tr>
-            <th>반</th><th>번호</th><th>이름</th><th className="c">점수</th>
-            {exam.questions.map((q) => <th key={q.no} className="c">{q.no}</th>)}
+            <th>반</th><th>번</th><th>이름</th><th className="c">점수</th><th className="c">결과지</th>
+            {exam.questions.map((q) => <th key={q.no} className="c qcol">{q.no}</th>)}
             <th />
           </tr>
         </thead>
@@ -179,12 +191,15 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId }) {
             <tr key={s.id}>
               <td>{s.classNo}</td>
               <td>{s.number}</td>
-              <td><button className="btn sm" style={{ border: 0, padding: 0, color: 'var(--primary)' }} onClick={() => onOpen(s.id)}>{s.name}</button></td>
+              <td className="nowrap">{s.name}</td>
               <td className="c"><b>{r.score100}</b></td>
+              <td className="c">
+                <button className="btn xs" onClick={() => onOpen(s.id, true)} aria-label={`${s.name} 결과지`}>📄 보기</button>
+              </td>
               {r.items.map((it, i) => (
-                <td key={it.no} className="c">
+                <td key={it.no} className="c qcol">
                   <button
-                    className={`mark ${it.status} ${it.overridden ? 'overridden' : ''}`}
+                    className={`mark sm ${it.status} ${it.overridden ? 'overridden' : ''}`}
                     title={`${answerToText(exam.questions[i], s.answers?.[it.no])}\n${it.overridden ? '교사 판정' : it.auto.reason || '자동 채점'}\n(클릭: 판정 바꾸기)`}
                     onClick={() => onJudge(s, it.no, nextOverride(it))}
                   >
@@ -192,13 +207,13 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId }) {
                   </button>
                 </td>
               ))}
-              <td><button className="btn sm danger" onClick={() => allowRetake(s)}>재응시 허용</button></td>
+              <td className="nowrap"><button className="btn xs danger" onClick={() => allowRetake(s)}>재응시</button></td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="muted small" style={{ padding: '0 12px' }}>
-        O/X/? 를 누르면 판정을 바꿀 수 있습니다 (자동 → 정답 → 오답 → 자동). 테두리가 있는 표시는 교사가 직접 판정한 것입니다.
+        O/X/? 를 누르면 판정을 바꿀 수 있습니다 (자동 → 정답 → 오답 → 자동). 테두리가 있는 표시는 교사가 직접 판정한 것입니다. “재응시”는 응시 기록을 지워 다시 볼 수 있게 합니다.
       </p>
     </div>
   );
@@ -400,9 +415,9 @@ function SettingsTab({ exam, onSaved, onDeleted }) {
   );
 }
 
-function StudentDetail({ exam, keys, row, onJudge, onClose, pages }) {
+function StudentDetail({ exam, keys, row, onJudge, onClose, pages, initialPaper }) {
   const { s, r } = row;
-  const [paper, setPaper] = useState(false);
+  const [paper, setPaper] = useState(!!initialPaper);
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 960, maxHeight: '92vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>

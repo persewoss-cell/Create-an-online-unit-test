@@ -24,12 +24,9 @@ export function isBlank(answer, question) {
     if (answer.strokes?.length) return false;
     return question.type === 'draw' || isBlank(answer.text, { ...question, draw: false });
   }
-  if (question?.blankCount > 1) {
-    return !Array.isArray(answer) || answer.length < question.blankCount || answer.some((v) => !String(v ?? '').trim());
-  }
-  if (question?.type === 'match') {
-    return !Array.isArray(answer) || answer.length < (question.matchCount || 1) || answer.some((v) => !v);
-  }
+  if (question?.blankCount > 1) return !Array.isArray(answer) || !answer.some((v) => String(v ?? '').trim());
+  // 아무것도 하지 않은 경우만 "빈 답"으로 본다 (일부만 해도 제출 가능)
+  if (question?.type === 'match') return !Array.isArray(answer) || !answer.some(Boolean);
   if (Array.isArray(answer)) return answer.length === 0;
   return String(answer).trim() === '';
 }

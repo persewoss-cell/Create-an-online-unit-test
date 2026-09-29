@@ -10,6 +10,7 @@ import TeacherLogin from './pages/teacher/TeacherLogin.jsx';
 import Dashboard from './pages/teacher/Dashboard.jsx';
 import ExamCreate from './pages/teacher/ExamCreate.jsx';
 import ExamDetail from './pages/teacher/ExamDetail.jsx';
+import Roster from './pages/teacher/Roster.jsx';
 
 export default function App() {
   if (!firebaseReady) return <SetupGuide />;
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/teacher/dashboard" element={<RequireTeacher><Dashboard /></RequireTeacher>} />
         <Route path="/teacher/new" element={<RequireTeacher><ExamCreate /></RequireTeacher>} />
         <Route path="/teacher/exam/:id" element={<RequireTeacher><ExamDetail /></RequireTeacher>} />
+        <Route path="/teacher/students" element={<RequireTeacher><Roster /></RequireTeacher>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </TeacherProvider>

@@ -310,3 +310,19 @@ button.mark { cursor: pointer; }
 .pcard .qedit .top > label { flex: 0 0 auto; width: 90px; }
 .pcard .qedit .top > label:nth-of-type(6) { flex: 1 1 100%; width: auto; }
 .pcard .qedit .top > label:has(> span:only-child) { display: none; }
+.done-btn { background: #eef0f4; color: var(--muted); border-color: #e1e5ec; cursor: not-allowed; opacity: 1; }
+.done-btn:disabled { opacity: 1; }
+.result-btn { background: var(--ok); border-color: var(--ok); color: #fff; }
+.filedrop { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 2px dashed #c2cde0; border-radius: 12px; background: #fafbfe; cursor: pointer; transition: all 0.15s; }
+.filedrop:hover, .filedrop.over { border-color: var(--primary); background: var(--primary-weak); }
+.filedrop.compact { padding: 10px 14px; }
+.filedrop-icon { font-size: 28px; }
+.nowrap { white-space: nowrap; }
+/* 관리자 결과표: 한 학생 한 줄, 좌우 스크롤 없이 */
+.results-table { font-size: 13px; }
+.results-table th, .results-table td { padding: 5px 4px; vertical-align: middle; }
+.results-table th:first-child, .results-table td:first-child { padding-left: 12px; }
+.results-table .qcol { width: 24px; padding: 4px 1px; }
+.mark.sm { width: 20px; height: 20px; font-size: 12px; border-radius: 4px; }
+.btn.xs { padding: 3px 8px; font-size: 12px; border-radius: 6px; white-space: nowrap; }
+.compact-table td, .compact-table th { padding: 4px 12px; vertical-align: middle; }

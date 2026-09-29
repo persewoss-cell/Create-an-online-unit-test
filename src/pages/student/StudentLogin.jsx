@@ -30,11 +30,11 @@ export default function StudentLogin() {
     setBusy(true);
     setError('');
     try {
-      await startStudentSession();
+      await startStudentSession(p);
       saveStudent(p);
       nav('/exams');
     } catch (err) {
-      setError(`접속에 실패했습니다: ${err.message}`);
+      setError(err.message.startsWith('학생 명단') ? err.message : `접속에 실패했습니다: ${err.message}`);
       setBusy(false);
     }
   }

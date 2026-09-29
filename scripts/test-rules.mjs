@@ -5,8 +5,8 @@ import {
   getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInAnonymously, signOut,
 } from 'firebase/auth';
 import {
-  getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc, updateDoc, writeBatch, serverTimestamp,
-  terminate,
+  getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc, getDocs, updateDoc, writeBatch, serverTimestamp,
+  terminate, query, where, collectionGroup,
 } from 'firebase/firestore';
 
 const PROJECT = 'demo-unit-test';
@@ -77,8 +77,27 @@ await makeTeacher(t2.uid);
 await expectDenied('다른 교사의 정답 읽기', () => getDoc(doc(T2.db, 'exams', examId, 'private', 'key')));
 await expectDenied('다른 교사의 평가 수정', () => updateDoc(doc(T2.db, 'exams', examId), { title: 'hack' }));
 
+// 학생 명단 (관리 권한으로)
+const putRoster = (sid, name) =>
+  fetch(`http://${HOST}:8080/v1/projects/${PROJECT}/databases/(default)/documents/roster/${sid}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { name: { stringValue: name } } }),
+  });
+await putRoster('5-1-3', '홍길동');
+await putRoster('5-1-5', '김철수');
+const session = (c, uid, sid, name) => {
+  const [grade, classNo, number] = sid.split('-').map(Number);
+  return setDoc(doc(c.db, 'studentSessions', uid), { studentId: sid, name, grade, classNo, number, at: serverTimestamp() });
+};
+
 console.log('학생');
 const sUser = (await signInAnonymously(S.auth)).user;
+await expectDenied('명단에 없는 학생 로그인', () => session(S, sUser.uid, '5-1-9', '누구'));
+await expectDenied('이름이 틀린 로그인', () => session(S, sUser.uid, '5-1-3', '홍길순'));
+await expectDenied('학생이 명단 읽기', () => getDoc(doc(S.db, 'roster', '5-1-3')));
+await expectDenied('세션 없이 제출', () => submit(S, sUser.uid, '5-1-3'));
+await expectOk('명단과 같은 학생 로그인', () => session(S, sUser.uid, '5-1-3', '홍길동'));
 await expectDenied('익명 사용자가 교사 등록', () =>
   setDoc(doc(S.db, 'teachers', sUser.uid), { name: 'S', createdAt: serverTimestamp() }));
 await expectOk('열린 평가 읽기', () => getDoc(doc(S.db, 'exams', examId)));
@@ -86,7 +105,7 @@ await expectOk('문제지 페이지 읽기', () => getDoc(doc(S.db, 'exams', exa
 await expectDenied('제출 전 정답 읽기', () => getDoc(doc(S.db, 'exams', examId, 'private', 'key')));
 await expectDenied('평가 수정', () => updateDoc(doc(S.db, 'exams', examId), { status: 'closed' }));
 
-const submit = (c, uid, sid, extra = {}) => {
+function submit(c, uid, sid, extra = {}) {
   const b = writeBatch(c.db);
   const [grade, classNo, number] = sid.split('-').map(Number);
   b.set(doc(c.db, 'exams', examId, 'submissions', sid), {
@@ -94,7 +113,8 @@ const submit = (c, uid, sid, extra = {}) => {
   });
   b.set(doc(c.db, 'exams', examId, 'submitters', uid), { studentId: sid, at: serverTimestamp() });
   return b.commit();
-};
+}
+await expectDenied('다른 학생 번호로 제출', () => submit(S, sUser.uid, '5-1-5'));
 await expectDenied('번호와 문서 ID가 다른 제출', () => submit(S, sUser.uid, '5-1-3', { number: 4 }));
 await expectDenied('점수를 직접 넣은 제출', () => submit(S, sUser.uid, '5-1-3', { overrides: { 1: 'correct' } }));
 await expectOk('답안 제출', () => submit(S, sUser.uid, '5-1-3'));
@@ -106,9 +126,19 @@ await expectDenied('스스로 정답 판정하기', () =>
   updateDoc(doc(S.db, 'exams', examId, 'submissions', '5-1-3'), { overrides: { 1: 'correct' } }));
 
 const s2 = (await signInAnonymously(S2.auth)).user;
-await expectDenied('같은 번호로 다시 제출 (다른 기기)', () => submit(S2, s2.uid, '5-1-3'));
+await session(S2, s2.uid, '5-1-5', '김철수');
 await expectDenied('다른 학생 답안 읽기', () => getDoc(doc(S2.db, 'exams', examId, 'submissions', '5-1-3')));
 await expectOk('아직 없는 답안 확인', () => getDoc(doc(S2.db, 'exams', examId, 'submissions', '5-1-9')));
+const S4 = client();
+const s4 = (await signInAnonymously(S4.auth)).user;
+await session(S4, s4.uid, '5-1-3', '홍길동');
+await expectDenied('같은 번호로 다시 제출 (다른 기기)', () => submit(S4, s4.uid, '5-1-3'));
+await expectOk('다른 기기에서 내 결과 보기', () => getDoc(doc(S4.db, 'exams', examId, 'submissions', '5-1-3')));
+await expectOk('다른 기기에서 정답(채점용) 읽기', () => getDoc(doc(S4.db, 'exams', examId, 'private', 'key')));
+await expectOk('내 결과 모아 보기', () =>
+  getDocs(query(collectionGroup(S4.db, 'submissions'), where('studentId', '==', '5-1-3'))));
+await expectDenied('남의 결과 모아 보기', () =>
+  getDocs(query(collectionGroup(S4.db, 'submissions'), where('studentId', '==', '5-1-5'))));
 
 console.log('교사 판정');
 await expectOk('교사가 정답 판정', () =>
@@ -120,10 +150,11 @@ console.log('마감');
 await updateDoc(doc(T.db, 'exams', examId), { status: 'closed' });
 const S3 = client();
 const s3 = (await signInAnonymously(S3.auth)).user;
-await expectDenied('마감된 평가 읽기', () => getDoc(doc(S3.db, 'exams', examId)));
+await expectDenied('마감된 평가 읽기 (응시 안 한 학생)', () => getDoc(doc(S3.db, 'exams', examId)));
+await expectOk('마감된 평가도 응시한 학생은 결과 보기', () => getDoc(doc(S4.db, 'exams', examId)));
 await expectDenied('마감된 평가에 제출', () => submit(S3, s3.uid, '5-1-5'));
 
-for (const c of [T, T2, S, S2, S3]) {
+for (const c of [T, T2, S, S2, S3, S4]) {
   await signOut(c.auth);
   await terminate(c.db);
 }

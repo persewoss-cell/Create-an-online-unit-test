@@ -30,10 +30,10 @@ export default function TakeExam() {
     if (!p) return;
     (async () => {
       try {
-        await ensureStudentSession();
+        await ensureStudentSession(p);
         const state = await submissionState(id, studentIdOf(p));
         if (state === 'mine') return nav(`/exam/${id}/result`, { replace: true });
-        if (state === 'taken') throw new Error('이미 제출된 기록이 있습니다. 다시 봐야 하면 선생님께 말씀드리세요.');
+        if (state === 'taken') return nav(`/exam/${id}/result`, { replace: true });
         const e = await getExam(id);
         if (!e || e.status !== 'open') throw new Error('지금은 볼 수 없는 평가입니다.');
         setExam(e);

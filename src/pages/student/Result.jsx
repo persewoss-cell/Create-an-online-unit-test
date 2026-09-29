@@ -4,7 +4,7 @@ import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { GradedPaper } from '../../components/ExamViews.jsx';
 import { loadStudent } from '../../lib/student.js';
-import { getExam, getKeys, getMySubmission, getPages, studentIdOf, watchMySubmission } from '../../lib/db.js';
+import { getExam, getKeys, getMySubmission, getPages, studentIdOf, watchMySubmission, ensureStudentSession } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
 
 export default function Result() {
@@ -20,9 +20,10 @@ export default function Result() {
     let unsub = () => {};
     let alive = true;
     const fail = (e) =>
-      setError(e.code === 'permission-denied' ? '결과를 볼 수 없습니다. 평가가 마감되었거나, 제출한 기기에서만 결과를 볼 수 있어요.' : e.message);
+      setError(e.code === 'permission-denied' ? '결과를 볼 수 없습니다. 선생님께 문의하세요.' : e.message);
     (async () => {
       try {
+        await ensureStudentSession(p);
         const sid = studentIdOf(p);
         const first = await getMySubmission(id, sid);
         if (!first) throw new Error('제출 기록을 찾을 수 없습니다.');

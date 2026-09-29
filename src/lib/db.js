@@ -7,7 +7,7 @@
 //  exams/{examId}/submitters/{uid}     제출 표시 (정답 열람 권한 확인용)
 
 import {
-  collection, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp, updateDoc, deleteField,
+  collection, collectionGroup, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp, updateDoc, deleteField,
   setDoc, deleteDoc, onSnapshot,
 } from 'firebase/firestore';
 import {
@@ -151,15 +151,104 @@ export function studentIdOf(p) {
 }
 
 /** 공용 PC에서도 학생마다 새 세션을 쓰도록 매번 새 익명 로그인 */
-export async function startStudentSession() {
+async function createSession(uid, p) {
+  try {
+    await setDoc(doc(db, 'studentSessions', uid), {
+      studentId: studentIdOf(p),
+      name: p.name,
+      grade: Number(p.grade),
+      classNo: Number(p.classNo),
+      number: Number(p.number),
+      at: serverTimestamp(),
+    });
+  } catch (e) {
+    if (e.code === 'permission-denied') {
+      await signOut(auth);
+      throw new Error('학생 명단에 없습니다. 학년·반·번호·이름을 정확히 입력했는지 확인하세요.');
+    }
+    throw e;
+  }
+}
+
+/**
+ * 학생 로그인: 공용 PC에서도 학생마다 새 세션을 쓰도록 매번 새 익명 로그인 후,
+ * 학생 명단과 일치하는지 서버(보안 규칙)에서 확인하는 "학생 세션"을 만든다.
+ */
+export async function startStudentSession(p) {
   if (auth.currentUser) await signOut(auth);
   const cred = await signInAnonymously(auth);
+  await createSession(cred.user.uid, p);
   return cred.user.uid;
 }
 
-export async function ensureStudentSession() {
-  if (auth.currentUser?.isAnonymous) return auth.currentUser.uid;
-  return startStudentSession();
+export async function ensureStudentSession(p) {
+  const u = auth.currentUser;
+  if (u?.isAnonymous) {
+    const snap = await getDoc(doc(db, 'studentSessions', u.uid)).catch(() => null);
+    if (snap?.exists() && snap.data().studentId === studentIdOf(p) && snap.data().name === p.name) return u.uid;
+  }
+  return startStudentSession(p);
+}
+
+/** 이 학생이 제출한 모든 평가 (마감된 평가 포함) */
+export async function listMyResults(p) {
+  const snap = await getDocs(query(collectionGroup(db, 'submissions'), where('studentId', '==', studentIdOf(p))));
+  const out = [];
+  for (const d of snap.docs) {
+    const examId = d.ref.parent.parent.id;
+    try {
+      const e = await getDoc(doc(db, 'exams', examId));
+      if (e.exists()) out.push({ exam: { id: examId, ...e.data() }, submission: { id: d.id, ...d.data() } });
+    } catch {
+      /* 지워진 평가 등은 건너뜀 */
+    }
+  }
+  return out;
+}
+
+// ─────────────── 학생 명단 (교사) ───────────────
+
+export async function listRoster() {
+  const snap = await getDocs(collection(db, 'roster'));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => a.grade - b.grade || a.classNo - b.classNo || a.number - b.number);
+}
+
+export async function saveRosterEntry(entry, oldId) {
+  const e = { grade: Number(entry.grade), classNo: Number(entry.classNo), number: Number(entry.number), name: String(entry.name).trim() };
+  const id = studentIdOf(e);
+  const batch = writeBatch(db);
+  if (oldId && oldId !== id) batch.delete(doc(db, 'roster', oldId));
+  batch.set(doc(db, 'roster', id), e);
+  await batch.commit();
+  return { id, ...e };
+}
+
+export function deleteRosterEntry(id) {
+  return deleteDoc(doc(db, 'roster', id));
+}
+
+/** 여러 명 한꺼번에 저장 (replace=true면 기존 명단을 지우고 새로) */
+export async function saveRosterBulk(entries, replace) {
+  const ids = new Set(entries.map((e) => studentIdOf(e)));
+  const ops = [];
+  if (replace) {
+    const cur = await getDocs(collection(db, 'roster'));
+    cur.docs.filter((d) => !ids.has(d.id)).forEach((d) => ops.push((b) => b.delete(d.ref)));
+  }
+  entries.forEach((e) =>
+    ops.push((b) =>
+      b.set(doc(db, 'roster', studentIdOf(e)), {
+        grade: Number(e.grade), classNo: Number(e.classNo), number: Number(e.number), name: String(e.name).trim(),
+      }),
+    ),
+  );
+  for (let i = 0; i < ops.length; i += 400) {
+    const b = writeBatch(db);
+    ops.slice(i, i + 400).forEach((op) => op(b));
+    await b.commit();
+  }
 }
 
 export async function listOpenExams(grade, classNo) {
