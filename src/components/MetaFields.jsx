@@ -1,6 +1,7 @@
 import { LENIENCY } from '../lib/grading.js';
+import { SUBJECTS } from '../lib/subjects.js';
 
-export const SUBJECTS = ['국어', '수학', '사회', '과학', '영어', '도덕', '실과', '음악', '미술', '체육', '통합', '기타'];
+export { SUBJECTS };
 
 export function subjectName(m) {
   return m.subject === '기타' ? (m.subjectCustom || '').trim() || '기타' : m.subject;
