@@ -4,7 +4,7 @@ import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { GradedPaper } from '../../components/ExamViews.jsx';
 import { loadStudent } from '../../lib/student.js';
-import { getExam, getKeys, getMySubmission, getPages, studentIdOf } from '../../lib/db.js';
+import { getExam, getKeys, getMySubmission, getPages, studentIdOf, watchMySubmission } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
 
 export default function Result() {
@@ -14,19 +14,41 @@ export default function Result() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
+  const [updated, setUpdated] = useState(false);
   useEffect(() => {
-    if (!p) return;
+    if (!p) return undefined;
+    let unsub = () => {};
+    let alive = true;
+    const fail = (e) =>
+      setError(e.code === 'permission-denied' ? '결과를 볼 수 없습니다. 평가가 마감되었거나, 제출한 기기에서만 결과를 볼 수 있어요.' : e.message);
     (async () => {
       try {
-        const sub = await getMySubmission(id, studentIdOf(p));
-        if (!sub) throw new Error('제출 기록을 찾을 수 없습니다.');
+        const sid = studentIdOf(p);
+        const first = await getMySubmission(id, sid);
+        if (!first) throw new Error('제출 기록을 찾을 수 없습니다.');
         const [exam, keys, pages] = await Promise.all([getExam(id), getKeys(id), getPages(id)]);
         if (!exam) throw new Error('평가가 마감되어 결과를 볼 수 없습니다. 선생님께 문의하세요.');
-        setData({ exam, keys, sub, pages, result: gradeSubmission(exam, keys, sub) });
+        if (!alive) return;
+        // 선생님이 검토하면 새로고침하지 않아도 바로 점수와 표시가 바뀐다
+        let prevOverrides = JSON.stringify(first.overrides || {});
+        unsub = watchMySubmission(id, sid, (sub) => {
+          if (!sub) return;
+          const now = JSON.stringify(sub.overrides || {});
+          if (now !== prevOverrides) {
+            prevOverrides = now;
+            setUpdated(true);
+            setTimeout(() => setUpdated(false), 6000);
+          }
+          setData({ exam, keys, sub, pages, result: gradeSubmission(exam, keys, sub) });
+        }, fail);
       } catch (e) {
-        setError(e.code === 'permission-denied' ? '결과를 볼 수 없습니다. 평가가 마감되었거나, 제출한 기기에서만 결과를 볼 수 있어요.' : e.message);
+        fail(e);
       }
     })();
+    return () => {
+      alive = false;
+      unsub();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -58,6 +80,9 @@ export default function Result() {
           <div className="score-sub">
             {exam.questions.length}문항 중 {result.correctCount}문항 정답
           </div>
+          {updated && (
+            <div className="alert success" style={{ marginTop: 14 }}>선생님이 답을 확인했어요. 점수가 새로 반영되었습니다.</div>
+          )}
           {result.reviewCount > 0 && (
             <div className="alert warn" style={{ marginTop: 14, textAlign: 'left' }}>
               선생님이 확인해야 하는 답이 {result.reviewCount}개 있어요(노란색 표시). 확인 후 점수가 올라갈 수 있어요.

@@ -1,5 +1,7 @@
 // 실제 학교 시험지(3학년 2학기 국어 2단원)로 인식·정답·채점 전체 점검
+// 시험지 PDF는 저작권 때문에 저장소에 넣지 않는다. 가지고 있으면 REAL_SAMPLE_PDF=경로 로 지정해서 실행.
 import { describe, it, expect, beforeAll } from 'vitest';
+import { existsSync } from 'node:fs';
 import { extract } from '../scripts/inspect-pdf.mjs';
 import { parseQuestions, fillDefaultPoints } from '../src/lib/parseQuestions.js';
 import { buildKey } from '../src/lib/parseAnswers.js';
@@ -13,10 +15,14 @@ const ANSWERS = {
   20: '(예) 책 읽기와 그림 그리기를 좋아한다. / 비빔밥을 잘 먹는다. / 생일은 6월 2일이고, 혈액형은 B형이다. / 야구 선수가 되고 싶어 한다. / 보라색을 좋아한다. 등',
 };
 
+const PDF = process.env.REAL_SAMPLE_PDF || 'samples/real_q.pdf';
+const HAS_PDF = existsSync(PDF);
+
 let parsed;
 let keyed;
 beforeAll(async () => {
-  parsed = parseQuestions(await extract('samples/real_q.pdf'));
+  if (!HAS_PDF) return;
+  parsed = parseQuestions(await extract(PDF));
   // 엑셀 양식 → 교사 작성 → 다시 읽기
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
@@ -28,7 +34,7 @@ beforeAll(async () => {
   keyed = qs.map((q) => buildKey(q, answers.get(q.no)));
 });
 
-describe('실제 국어 시험지', () => {
+describe.skipIf(!HAS_PDF)('실제 국어 시험지', () => {
   it('20문항과 지문 묶음을 모두 찾는다', () => {
     expect(parsed.questions.map((q) => q.no)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
     expect(parsed.groups.map((g) => `${g.from}~${g.to}`)).toEqual(['1~4', '5~6', '7~8', '9~12', '13~15', '16~18', '19~20']);

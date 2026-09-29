@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
-import { GradedPaper, QuestionView } from '../../components/ExamViews.jsx';
+import { GradedPaper, Regions, regionsOf } from '../../components/ExamViews.jsx';
 import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
@@ -90,7 +90,7 @@ export default function ExamDetail() {
           <div className="row">
             <StatusButtons exam={exam} onChange={(status) => updateExam(id, { status }).then(() => setExam({ ...exam, status }))} />
             <button className="btn primary" onClick={() => exportResultsXlsx(exam, keys, subs)} disabled={!subs.length}>
-              엑셀 다운로드
+              시험 결과 엑셀 다운로드
             </button>
           </div>
         </div>
@@ -223,23 +223,46 @@ function ReviewTab({ exam, keys, graded, onJudge, pages }) {
             </div>
             <span className="badge review">{it.auto.reason || '검토 필요'}</span>
           </div>
-          {pages?.length > 0 && q.regions?.length > 0 ? (
-            <details style={{ marginTop: 6 }}>
-              <summary className="small" style={{ cursor: 'pointer' }}>문제 보기</summary>
-              <div style={{ maxWidth: 560, marginTop: 6 }}><QuestionView exam={exam} q={q} pages={pages} /></div>
-            </details>
-          ) : (
-            q.text && <div className="muted small" style={{ marginTop: 4 }}>{q.text}</div>
-          )}
-          <div className="small" style={{ marginTop: 8 }}>학생 답</div>
-          <div className="ans">{answerToText(q, s.answers?.[q.no])}</div>
-          <div className="small muted">정답: {keyToText(q, keys[q.no])}</div>
-          <div className="row" style={{ marginTop: 10 }}>
-            <button className="btn ok" onClick={() => onJudge(s, q.no, 'correct')}>정답 인정</button>
-            <button className="btn bad" onClick={() => onJudge(s, q.no, 'wrong')}>오답 처리</button>
+          <div className="review-grid">
+            <div className="review-q">
+              {pages == null ? (
+                <Loading text="문제 불러오는 중…" />
+              ) : (
+                <ReviewQuestion exam={exam} q={q} pages={pages} />
+              )}
+            </div>
+            <div>
+              <div className="small" style={{ fontWeight: 600 }}>학생 답</div>
+              <div className="ans">{answerToText(q, s.answers?.[q.no])}</div>
+              <div className="small" style={{ fontWeight: 600, marginTop: 8 }}>정답</div>
+              <div className="ans" style={{ background: 'var(--ok-weak)' }}>{keyToText(q, keys[q.no])}</div>
+              <div className="row" style={{ marginTop: 12 }}>
+                <button className="btn ok lg" onClick={() => onJudge(s, q.no, 'correct')}>정답 인정</button>
+                <button className="btn bad lg" onClick={() => onJudge(s, q.no, 'wrong')}>오답 처리</button>
+              </div>
+            </div>
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ReviewQuestion({ exam, q, pages }) {
+  const { passage, question } = regionsOf(exam, q);
+  return (
+    <div className="stack">
+      {passage.length > 0 && (
+        <details>
+          <summary className="small" style={{ cursor: 'pointer', fontWeight: 600 }}>지문 보기</summary>
+          <div className="fit-card passage" style={{ marginTop: 6 }}>
+            <Regions exam={exam} pages={pages} regions={passage} />
+          </div>
+        </details>
+      )}
+      <div className="fit-card">
+        <Regions exam={exam} pages={pages} regions={question} />
+      </div>
     </div>
   );
 }

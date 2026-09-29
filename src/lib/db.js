@@ -214,6 +214,15 @@ export async function submitAnswers(examId, profile, answers) {
   return studentId;
 }
 
+/** 내 답안을 실시간으로 받아 온다 (선생님이 검토하면 바로 반영) */
+export function watchMySubmission(examId, studentId, cb, onError) {
+  return onSnapshot(
+    doc(db, 'exams', examId, 'submissions', studentId),
+    (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null),
+    onError,
+  );
+}
+
 export async function getMySubmission(examId, studentId) {
   const snap = await getDoc(doc(db, 'exams', examId, 'submissions', studentId));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;

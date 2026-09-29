@@ -80,7 +80,7 @@ export function Crop({ src, region, aspect }) {
   );
 }
 
-function Regions({ exam, pages, regions }) {
+export function Regions({ exam, pages, regions }) {
   return regions.map((r, i) =>
     pages[r.page - 1] ? <Crop key={i} src={pages[r.page - 1]} region={r} aspect={aspectOf(exam, r.page)} /> : null,
   );
@@ -292,7 +292,7 @@ export function GradedPaper({ exam, pages, keys, answers, result }) {
                         <text x={cx + r * 1.4} y={cy - lh * 0.9} className="hand orange" fontSize="22">선생님 확인 중</text>
                       </>
                     )}
-                    {mine && it.status === 'wrong' && (
+                    {mine && (
                       <text x={rightX} y={cy + lh * 0.1} textAnchor="end" className="hand blue halo" fontSize="24">
                         내 답: {mine.length > 22 ? `${mine.slice(0, 22)}…` : mine}
                       </text>

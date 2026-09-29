@@ -288,3 +288,6 @@ button.mark { cursor: pointer; }
 .exam-main.portrait { flex-direction: column; }
 .exam-main .portrait-content { display: flex; gap: 12px; }
 .exam-main .portrait-content .fit { height: 100%; }
+.review-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; margin-top: 10px; align-items: start; }
+.review-q { background: #f4f6fa; border-radius: 8px; padding: 8px; }
+@media (max-width: 800px) { .review-grid { grid-template-columns: 1fr; } }
