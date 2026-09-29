@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import {
   signInWithEmailAndPassword, signOut, signInAnonymously, onAuthStateChanged, reauthenticateWithCredential,
-  updatePassword, EmailAuthProvider,
+  updatePassword, EmailAuthProvider, setPersistence, browserLocalPersistence, browserSessionPersistence,
 } from 'firebase/auth';
 import { auth, db } from '../firebase.js';
 
@@ -31,7 +31,9 @@ export async function getTeacher(uid) {
 // 관리자 계정과 teachers 문서는 Firebase 관리 도구로 미리 만들어 둔다(README 참고).
 export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'admin@unit-test.app';
 
-export async function adminSignIn(password) {
+/** keep=true 면 브라우저를 닫아도 로그인 유지, false 면 브라우저를 닫으면 로그아웃 */
+export async function adminSignIn(password, keep = true) {
+  await setPersistence(auth, keep ? browserLocalPersistence : browserSessionPersistence);
   const cred = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
   const t = await getTeacher(cred.user.uid);
   if (!t) {
@@ -176,6 +178,7 @@ async function createSession(uid, p) {
  */
 export async function startStudentSession(p) {
   if (auth.currentUser) await signOut(auth);
+  await setPersistence(auth, browserLocalPersistence);
   const cred = await signInAnonymously(auth);
   await createSession(cred.user.uid, p);
   return cred.user.uid;

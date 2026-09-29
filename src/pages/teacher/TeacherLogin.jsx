@@ -18,6 +18,13 @@ export default function TeacherLogin() {
   const nav = useNavigate();
   const { teacher, loading, setTeacher } = useTeacher();
   const [password, setPassword] = useState('');
+  const [keep, setKeep] = useState(() => {
+    try {
+      return localStorage.getItem('admin-keep') !== '0';
+    } catch {
+      return true;
+    }
+  });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -30,7 +37,12 @@ export default function TeacherLogin() {
     setError('');
     setBusy(true);
     try {
-      setTeacher(await adminSignIn(password));
+      setTeacher(await adminSignIn(password, keep));
+      try {
+        localStorage.setItem('admin-keep', keep ? '1' : '0');
+      } catch {
+        /* 무시 */
+      }
       nav('/teacher/dashboard');
     } catch (err) {
       setError(AUTH_ERR[err.code] || err.message);
@@ -57,6 +69,12 @@ export default function TeacherLogin() {
               autoFocus
               aria-label="비밀번호"
             />
+          </label>
+          {/* 브라우저 비밀번호 저장 기능이 동작하도록 사용자 이름 칸(보이지 않음) */}
+          <input type="text" name="username" autoComplete="username" value="관리자" readOnly hidden />
+          <label className="row small remember">
+            <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} aria-label="로그인 상태 유지" />
+            로그인 상태 유지 <span className="muted">(브라우저를 닫아도 로그인이 유지돼요)</span>
           </label>
           {error && <div className="alert error">{error}</div>}
           <button className="btn primary block lg" disabled={busy}>{busy ? '확인 중…' : '로그인'}</button>

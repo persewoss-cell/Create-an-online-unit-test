@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
-import { loadStudent, saveStudent } from '../../lib/student.js';
+import { loadStudent, saveStudent, loadRemembered, setRemembered } from '../../lib/student.js';
 import { startStudentSession } from '../../lib/db.js';
 
 export default function StudentLogin() {
   const nav = useNavigate();
-  const prev = loadStudent();
+  const remembered = loadRemembered();
+  const prev = remembered || loadStudent();
   const [form, setForm] = useState({
-    grade: prev?.grade ?? '', classNo: prev?.classNo ?? '', number: '', name: '',
+    grade: prev?.grade ?? '', classNo: prev?.classNo ?? '', number: remembered?.number ?? '', name: remembered?.name ?? '',
   });
+  const [remember, setRemember] = useState(!!remembered);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -32,6 +34,7 @@ export default function StudentLogin() {
     try {
       await startStudentSession(p);
       saveStudent(p);
+      setRemembered(remember ? p : null);
       nav('/exams');
     } catch (err) {
       setError(err.message.startsWith('학생 명단') ? err.message : `접속에 실패했습니다: ${err.message}`);
@@ -71,6 +74,10 @@ export default function StudentLogin() {
           <label className="field">
             <span>이름</span>
             <input type="text" value={form.name} onChange={set('name')} maxLength={20} aria-label="이름" autoComplete="off" />
+          </label>
+          <label className="row small remember">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} aria-label="로그인 정보 저장" />
+            로그인 정보 저장 <span className="muted">(이 기기에서 다음에 자동으로 채워요 · 여럿이 쓰는 기기에서는 체크하지 마세요)</span>
           </label>
           {error && <div className="alert error">{error}</div>}
           <button className="btn primary lg block" disabled={busy}>

@@ -45,3 +45,23 @@ export function clearDraft(examId, p) {
     /* 무시 */
   }
 }
+
+// "로그인 정보 저장" — 이 기기에 학년·반·번호·이름을 기억 (체크한 경우만)
+const REMEMBER = 'student-remember';
+
+export function loadRemembered() {
+  try {
+    return JSON.parse(localStorage.getItem(REMEMBER) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+export function setRemembered(p) {
+  try {
+    if (p) localStorage.setItem(REMEMBER, JSON.stringify(p));
+    else localStorage.removeItem(REMEMBER);
+  } catch {
+    /* 저장 불가 환경은 무시 */
+  }
+}

@@ -336,3 +336,4 @@ button.mark { cursor: pointer; }
 .analysis-table td.one-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .analysis-table td.wrap { white-space: normal; }
 @media (max-width: 700px) { .analysis-table th:nth-child(4) { width: 150px; } }
+.remember { gap: 6px; font-weight: 400; cursor: pointer; } .remember input { width: 18px; height: 18px; }
