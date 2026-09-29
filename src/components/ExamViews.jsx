@@ -2,11 +2,66 @@
 //  - QuestionView: 문제지에서 지문 + 문항 부분만 잘라서 보여줌
 //  - AnswerInput:  학생이 답을 입력하는 칸 (객관식/선 잇기/단답형/서술형), 정답 표시 모드 지원
 //  - GradedPaper:  제출 후 문제지 전체에 빨간 색연필로 채점 표시
+import { useLayoutEffect, useState } from 'react';
 import { choiceLabel } from '../lib/parseQuestions.js';
 import { matchLabel, shortKeyText, answerToText } from '../lib/format.js';
 
 const A4 = 210 / 297;
 const aspectOf = (exam, page) => exam?.pageAspects?.[page - 1] || A4;
+
+const FULL_PAGE = (page) => ({ page, x0: 0, y0: 0, x1: 1, y1: 1 });
+
+/** 문항의 지문 영역과 문제 영역 (영역 정보가 없으면 그 쪽 전체) */
+export function regionsOf(exam, q) {
+  const group = q.group ? (exam.groups || []).find((g) => g.id === q.group) : null;
+  return {
+    passage: group?.regions?.length ? group.regions : [],
+    question: q.regions?.length ? q.regions : [FULL_PAGE(q.page || 1)],
+  };
+}
+
+/** 영역들을 같은 폭으로 세로로 쌓았을 때의 (높이 / 폭) 비율 */
+export function stackRatio(exam, regions) {
+  return regions.reduce((s, r) => s + (r.y1 - r.y0) / ((r.x1 - r.x0) * aspectOf(exam, r.page)), 0);
+}
+
+/** 요소 크기 측정: const [ref, size] = useSize(); <div ref={ref}> */
+export function useSize() {
+  const [el, setEl] = useState(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    if (!el) return undefined;
+    const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, size];
+}
+
+/**
+ * 주어진 칸 안에 스크롤 없이 들어가도록 영역 이미지들의 크기를 맞춘다.
+ * sections: 카드 하나에 들어갈 영역 묶음들 (예: [지문 영역들, 문제 영역들])
+ */
+export function FitRegions({ exam, pages, sections, className = '' }) {
+  const [ref, { w, h }] = useSize();
+  const CARD_PAD = 20; // 카드 안쪽 여백(위아래 합)
+  const GAP = 10;
+  const list = sections.filter((sec) => sec.regions.length);
+  const ratio = list.reduce((s, sec) => s + stackRatio(exam, sec.regions), 0);
+  const fixed = list.length * CARD_PAD + (list.length - 1) * GAP;
+  const byHeight = h > 150 ? (h - fixed) / ratio : Infinity; // 높이가 정해지지 않은 좁은 화면은 폭에 맞춤
+  const width = ratio > 0 ? Math.max(120, Math.min(w - CARD_PAD, byHeight)) : 0;
+  return (
+    <div ref={ref} className={`fit ${className}`}>
+      {w > 0 &&
+        list.map((sec, i) => (
+          <div key={i} className={`fit-card ${sec.kind || ''}`} style={{ width: width + CARD_PAD }}>
+            <Regions exam={exam} pages={pages} regions={sec.regions} />
+          </div>
+        ))}
+    </div>
+  );
+}
 
 /** 페이지 이미지에서 한 영역만 잘라서 표시 */
 export function Crop({ src, region, aspect }) {

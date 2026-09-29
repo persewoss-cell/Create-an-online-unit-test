@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
-import { QuestionView, AnswerInput } from '../../components/ExamViews.jsx';
+import { AnswerInput, FitRegions, regionsOf, stackRatio, useSize } from '../../components/ExamViews.jsx';
 import { loadStudent, loadDraft, saveDraft, clearDraft } from '../../lib/student.js';
 import { ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf } from '../../lib/db.js';
 import { isBlank } from '../../lib/grading.js';
@@ -20,7 +20,7 @@ export default function TakeExam() {
   const [missing, setMissing] = useState([]);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const leftRef = useRef(null);
+  const [mainRef, main] = useSize();
 
   useEffect(() => {
     if (!p) return;
@@ -44,10 +44,6 @@ export default function TakeExam() {
   useEffect(() => {
     if (p && exam) saveDraft(id, p, answers);
   }, [answers, exam, id, p]);
-
-  useEffect(() => {
-    leftRef.current?.scrollTo({ top: 0 });
-  }, [cur]);
 
   const answeredCount = useMemo(
     () => (exam ? exam.questions.filter((q) => !isBlank(answers[q.no], q)).length : 0),
@@ -107,68 +103,114 @@ export default function TakeExam() {
     }
   }
 
-  return (
-    <>
-      <TopBar who={who} />
-      <div className="solve">
-        <section className="solve-left" ref={leftRef} aria-label={`${q.no}번 문제`}>
-          <QuestionView exam={exam} q={q} pages={pages} />
-        </section>
+  // ── 화면 배치 고르기 (태블릿 한 화면에 스크롤 없이) ──
+  const { passage, question } = regionsOf(exam, q);
+  const rp = stackRatio(exam, passage);
+  const rq = stackRatio(exam, question);
+  const ANSWER_W = 340;
+  const answerH = q.type === 'essay' ? 190 : q.type === 'match' ? 70 + 56 * (q.matchCount || 2) : q.type === 'short' ? 120 : 110;
+  const H = main.h - 24;
+  // 세로로 긴 화면(태블릿 세로)은 답 칸을 아래에, 가로 화면은 오른쪽에
+  const portrait = main.h > main.w * 1.05;
+  const contentH = portrait ? H - answerH - 12 : H;
+  const stackW = Math.min(main.w - (portrait ? 40 : ANSWER_W + 40), contentH / (rp + rq || 1));
+  const colW = (main.w - 40) / 2;
+  const sideW = portrait
+    ? Math.min(colW, contentH / (rp || 1), contentH / (rq || 1))
+    : Math.min(colW, H / (rp || 1), (H - answerH) / (rq || 1));
+  const side = passage.length > 0 && main.w >= 700 && sideW > stackW * 1.1;
 
-        <aside className="solve-right" aria-label="답안">
-          <div className="sec">
-            <div className="muted small">{exam.subject} · {exam.unit}</div>
-            <div style={{ fontWeight: 700 }}>{exam.title}</div>
-            <div className="row small" style={{ justifyContent: 'space-between', marginTop: 6 }}>
-              <span>답한 문항 <b>{answeredCount}</b> / {total}</span>
-              {missing.length > 0 && <span style={{ color: 'var(--bad)' }}>안 푼 문항 {missing.length}개</span>}
-            </div>
-            <div className="progress"><div style={{ width: `${(answeredCount / total) * 100}%` }} /></div>
-          </div>
-
-          <div className="sec grow" data-testid={`q-${q.no}`}>
-            <div className="row" style={{ marginBottom: 10 }}>
-              <span style={{ fontSize: 22, fontWeight: 800 }}>{q.no}번</span>
-              <span className="muted small">{TYPE_LABEL[q.type]} · {q.points}점</span>
-            </div>
-            <AnswerInput q={q} value={answers[q.no]} onChange={(v) => setAnswer(q.no, v)} />
-            {missing.includes(q.no) && (
-              <div className="small" style={{ color: 'var(--bad)', marginTop: 8 }}>답을 입력해야 제출할 수 있어요.</div>
-            )}
-            <div className="row" style={{ justifyContent: 'space-between', marginTop: 16 }}>
-              <button className="btn" onClick={() => setCur(cur - 1)} disabled={cur === 0}>← 이전 문제</button>
-              <button className="btn primary" onClick={() => setCur(cur + 1)} disabled={cur === total - 1}>다음 문제 →</button>
-            </div>
-          </div>
-
-          <div className="sec">
-            <div className="small muted" style={{ marginBottom: 6 }}>문항 번호를 누르면 이동해요</div>
-            <div className="qnav">
-              {qs.map((x, i) => (
-                <button
-                  key={x.no}
-                  className={`${!isBlank(answers[x.no], x) ? 'done' : ''} ${missing.includes(x.no) ? 'missing' : ''} ${i === cur ? 'current' : ''}`}
-                  onClick={() => setCur(i)}
-                  aria-label={`${x.no}번으로 이동`}
-                >
-                  {x.no}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="sec">
-            {missing.length > 0 && (
-              <div className="alert error small" style={{ marginBottom: 8 }}>
-                아직 답하지 않은 문항이 있어 제출할 수 없어요: {missing.join(', ')}번
-              </div>
-            )}
-            <button className="btn primary lg block" onClick={trySubmit} disabled={submitting}>
-              제출하기 ({answeredCount}/{total})
-            </button>
-          </div>
-        </aside>
+  const answerBox = (
+    <div className="answer-box" data-testid={`q-${q.no}`}>
+      <div className="row" style={{ marginBottom: 10 }}>
+        <span className="answer-no">{q.no}번</span>
+        <span className="muted small">{TYPE_LABEL[q.type]} · {q.points}점</span>
       </div>
+      <AnswerInput q={q} value={answers[q.no]} onChange={(v) => setAnswer(q.no, v)} />
+      {missing.includes(q.no) && <div className="small" style={{ color: 'var(--bad)', marginTop: 8 }}>답을 입력해야 제출할 수 있어요.</div>}
+    </div>
+  );
+
+  return (
+    <div className="exam-shell">
+      <header className="exam-top">
+        <b className="exam-title">{exam.title}</b>
+        <span className="muted small">{who}</span>
+        <div className="exam-progress">
+          <span className="small">답한 문항 <b>{answeredCount}</b>/{total}</span>
+          <div className="progress"><div style={{ width: `${(answeredCount / total) * 100}%` }} /></div>
+        </div>
+      </header>
+
+      <main ref={mainRef} className={`exam-main ${portrait ? 'portrait' : ''} ${side ? 'side' : 'stack'}`} aria-label={`${q.no}번 문제`}>
+        {portrait && main.w >= 700 ? (
+          <>
+            <div className="pane grow portrait-content">
+              {side ? (
+                <>
+                  <FitRegions exam={exam} pages={pages} sections={[{ kind: 'passage', regions: passage }]} className="grow" />
+                  <FitRegions exam={exam} pages={pages} sections={[{ kind: 'question', regions: question }]} className="grow" />
+                </>
+              ) : (
+                <FitRegions
+                  exam={exam}
+                  pages={pages}
+                  sections={[{ kind: 'passage', regions: passage }, { kind: 'question', regions: question }]}
+                  className="grow"
+                />
+              )}
+            </div>
+            {answerBox}
+          </>
+        ) : side ? (
+          <>
+            <FitRegions exam={exam} pages={pages} sections={[{ kind: 'passage', regions: passage }]} className="pane" />
+            <div className="pane col">
+              <FitRegions exam={exam} pages={pages} sections={[{ kind: 'question', regions: question }]} className="grow" />
+              {answerBox}
+            </div>
+          </>
+        ) : (
+          <>
+            <FitRegions
+              exam={exam}
+              pages={pages}
+              sections={[{ kind: 'passage', regions: passage }, { kind: 'question', regions: question }]}
+              className="pane grow"
+            />
+            <div className="pane answer-pane">{answerBox}</div>
+          </>
+        )}
+      </main>
+
+      <footer className="exam-bottom">
+        <button className="btn nav-btn" onClick={() => setCur(cur - 1)} disabled={cur === 0}>← 이전</button>
+        <div className="qnav" role="navigation" aria-label="문항 이동">
+          {qs.map((x, i) => (
+            <button
+              key={x.no}
+              className={`${!isBlank(answers[x.no], x) ? 'done' : ''} ${missing.includes(x.no) ? 'missing' : ''} ${i === cur ? 'current' : ''}`}
+              onClick={() => setCur(i)}
+              aria-label={`${x.no}번으로 이동`}
+            >
+              {x.no}
+            </button>
+          ))}
+        </div>
+        {cur < total - 1 ? (
+          <button className="btn primary nav-btn" onClick={() => setCur(cur + 1)}>다음 →</button>
+        ) : (
+          <span />
+        )}
+        <button className="btn primary nav-btn submit-btn" onClick={trySubmit} disabled={submitting}>
+          제출하기
+        </button>
+      </footer>
+      {missing.length > 0 && (
+        <div className="missing-toast" role="alert">
+          아직 답하지 않은 문항이 있어 제출할 수 없어요: {missing.join(', ')}번
+        </div>
+      )}
 
       {confirming && (
         <div className="modal-back" role="dialog" aria-modal="true">
@@ -184,6 +226,6 @@ export default function TakeExam() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

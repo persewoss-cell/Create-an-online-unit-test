@@ -244,3 +244,47 @@ button.mark { cursor: pointer; }
 .marks .orange { fill: #d9480f; }
 .marks .halo { paint-order: stroke; stroke: rgba(255, 255, 255, 0.9); stroke-width: 6px; stroke-linejoin: round; }
 .marks .highlight { fill: #ffe066; opacity: 0.55; }
+
+/* ── 태블릿용 풀이 화면: 한 화면에 스크롤 없이 ── */
+.exam-shell { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: #e9edf3; touch-action: manipulation; }
+.exam-top { display: flex; align-items: center; gap: 14px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.exam-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.exam-progress { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 190px; }
+.exam-progress .progress { flex: 1; margin-top: 0; }
+.exam-main { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 12px; }
+.exam-main .pane { min-width: 0; min-height: 0; }
+.exam-main.side .pane { flex: 1 1 0; }
+.exam-main .pane.col { display: flex; flex-direction: column; gap: 10px; }
+.exam-main .grow { flex: 1 1 0; min-height: 0; }
+.exam-main .answer-pane { flex: 0 0 340px; overflow-y: auto; }
+.fit { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 0; overflow: hidden; }
+.exam-main.stack .fit { height: 100%; }
+.exam-main.side > .fit { height: 100%; }
+.fit-card { background: #fff; border-radius: 10px; padding: 10px; box-shadow: var(--shadow); max-width: 100%; }
+.fit-card.passage { border-left: 4px solid #c9d6f5; }
+.fit-card .crop + .crop { border-top: 1px dashed var(--line); }
+.answer-box { background: var(--surface); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); flex-shrink: 0; }
+.answer-pane .answer-box { min-height: 100%; }
+.answer-no { font-size: 24px; font-weight: 800; }
+.exam-shell .choice { min-height: 52px; font-size: 18px; }
+.exam-shell .choices.compact .choice { min-width: 60px; font-size: 22px; }
+.exam-shell .choices.compact { gap: 10px; }
+.exam-shell input[type='text'] { font-size: 18px; padding: 12px; }
+.exam-shell textarea { font-size: 17px; }
+.exam-bottom { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface); border-top: 1px solid var(--line); flex-shrink: 0; }
+.exam-bottom .qnav { flex: 1; display: flex; gap: 6px; overflow-x: auto; padding: 2px; scrollbar-width: thin; }
+.exam-bottom .qnav button { flex: 0 0 42px; height: 42px; }
+.nav-btn { min-height: 46px; padding: 8px 16px; white-space: nowrap; }
+.submit-btn { background: var(--ok); border-color: var(--ok); }
+.missing-toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--bad); color: #fff; padding: 10px 16px; border-radius: 10px; font-weight: 600; box-shadow: var(--shadow); z-index: 20; max-width: 90vw; }
+/* 휴대폰처럼 좁은 화면은 위아래로 */
+@media (max-width: 699px) {
+  .exam-shell { height: auto; min-height: 100dvh; overflow: visible; }
+  .exam-main, .exam-main .pane.col { flex-direction: column; }
+  .exam-main .answer-pane { flex: none; }
+  .exam-main .fit, .exam-main.stack .fit { height: auto; }
+  .exam-top .muted { display: none; }
+}
+.exam-main.portrait { flex-direction: column; }
+.exam-main .portrait-content { display: flex; gap: 12px; }
+.exam-main .portrait-content .fit { height: 100%; }

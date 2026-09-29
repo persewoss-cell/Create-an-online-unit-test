@@ -6,6 +6,7 @@ import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { openPdf, extractPages, renderPages, readFileAsArrayBuffer } from '../../lib/pdfText.js';
 import { parseQuestions, fillDefaultPoints } from '../../lib/parseQuestions.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
+import { trimRegions } from '../../lib/trimRegions.js';
 import { createExam, updateExam } from '../../lib/db.js';
 import { LENIENCY } from '../../lib/grading.js';
 import MetaFields, { defaultTitle, parseClasses, subjectName } from '../../components/MetaFields.jsx';
@@ -39,6 +40,7 @@ export default function ExamCreate() {
       const { questions, groups: grps, warnings: qWarn } = parseQuestions(qPages);
       setBusy('문항 이미지를 만드는 중…');
       const imgs = await renderPages(qDoc, { onProgress: (i, n) => setBusy(`문항 이미지를 만드는 중… (${i}/${n})`) });
+      await trimRegions(imgs.map((x) => x.src), questions, grps);
       setPages(imgs.map((x) => x.src));
       setAspects(imgs.map((x) => x.aspect));
       setGroups(grps);
