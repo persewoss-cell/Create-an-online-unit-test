@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
-import QuestionEditor from '../../components/QuestionEditor.jsx';
+import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { openPdf, extractPages, renderPages, readFileAsArrayBuffer } from '../../lib/pdfText.js';
 import { parseQuestions, fillDefaultPoints } from '../../lib/parseQuestions.js';
-import { parseAnswerText, mergeQuestionsAndAnswers } from '../../lib/parseAnswers.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { createExam, updateExam } from '../../lib/db.js';
 import { LENIENCY } from '../../lib/grading.js';
@@ -15,17 +14,17 @@ export default function ExamCreate() {
   const { teacher } = useTeacher();
   const nav = useNavigate();
   const [meta, setMeta] = useState({
-    subject: '', subjectCustom: '', grade: '', semester: '1', unit: '', title: '', classesText: '', leniency: 'normal', showAnswers: false,
+    subject: '', subjectCustom: '', grade: '', semester: '1', unit: '', title: '', classesText: '', leniency: 'normal',
   });
   const [qFile, setQFile] = useState(null);
-  const [aFile, setAFile] = useState(null);
+  const [groups, setGroups] = useState([]);
+  const [aspects, setAspects] = useState([]);
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [warnings, setWarnings] = useState([]);
   const [pages, setPages] = useState([]);
   const [items, setItems] = useState([]);
-  const [zoom, setZoom] = useState(null);
   const [saveErrors, setSaveErrors] = useState([]);
 
   async function recognize(e) {
@@ -37,23 +36,14 @@ export default function ExamCreate() {
       setBusy('문제지를 읽는 중…');
       const qDoc = await openPdf(await readFileAsArrayBuffer(qFile));
       const qPages = await extractPages(qDoc);
-      const { questions, warnings: qWarn } = parseQuestions(qPages);
-      let answerMap = new Map();
-      if (aFile) {
-        setBusy('정답지를 읽는 중…');
-        const aDoc = await openPdf(await readFileAsArrayBuffer(aFile));
-        const aPages = await extractPages(aDoc);
-        answerMap = parseAnswerText(aPages.flatMap((p) => p.lines));
-        if (!answerMap.size) qWarn.push('정답지에서 번호별 정답을 찾지 못했습니다. 아래 “정답 빠르게 입력하기”를 이용해 주세요.');
-      } else {
-        qWarn.push('정답 PDF를 올리지 않았습니다. 문항별 정답을 직접 입력해 주세요.');
-      }
-      const merged = mergeQuestionsAndAnswers(questions, answerMap);
-      setBusy('학생 화면용 문제지 이미지를 만드는 중…');
-      const imgs = await renderPages(qDoc, { onProgress: (i, n) => setBusy(`학생 화면용 문제지 이미지를 만드는 중… (${i}/${n})`) });
-      setPages(imgs);
-      setItems(toItems(fillDefaultPoints(merged.questions), merged.keys));
-      setWarnings([...qWarn, ...merged.warnings]);
+      const { questions, groups: grps, warnings: qWarn } = parseQuestions(qPages);
+      setBusy('문항 이미지를 만드는 중…');
+      const imgs = await renderPages(qDoc, { onProgress: (i, n) => setBusy(`문항 이미지를 만드는 중… (${i}/${n})`) });
+      setPages(imgs.map((x) => x.src));
+      setAspects(imgs.map((x) => x.aspect));
+      setGroups(grps);
+      setItems(toItems(fillDefaultPoints(questions), {}));
+      setWarnings(qWarn);
       setStep(2);
     } catch (err) {
       console.error(err);
@@ -80,7 +70,8 @@ export default function ExamCreate() {
             title: meta.title.trim() || defaultTitle(meta),
             classes: parseClasses(meta.classesText),
             leniency: meta.leniency,
-            showAnswers: meta.showAnswers,
+            groups,
+            pageAspects: aspects,
           },
           questions,
           keys,
@@ -115,25 +106,18 @@ export default function ExamCreate() {
               <MetaFields meta={meta} setMeta={setMeta} />
             </div>
             <div className="card stack">
-              <h2>2. PDF 올리기</h2>
-              <div className="grid2">
-                <label className="field">
-                  <span>문제 PDF *</span>
-                  <input type="file" accept="application/pdf,.pdf" onChange={(e) => setQFile(e.target.files[0] || null)} aria-label="문제 PDF" />
-                </label>
-                <label className="field">
-                  <span>정답 PDF</span>
-                  <input type="file" accept="application/pdf,.pdf" onChange={(e) => setAFile(e.target.files[0] || null)} aria-label="정답 PDF" />
-                </label>
-              </div>
+              <h2>2. 문제지 PDF 올리기</h2>
+              <label className="field">
+                <span>문제 PDF *</span>
+                <input type="file" accept="application/pdf,.pdf" onChange={(e) => setQFile(e.target.files[0] || null)} aria-label="문제 PDF" />
+              </label>
               <p className="muted small">
-                문항 번호(1. / 1) / 1번 / 문제 1 / [1] 등)와 보기(①~⑤, (1)~(5))를 과목별 양식에 맞춰 자동으로 찾습니다.
-                정답지는 “1. ③”, “1③ 2④”, 표(번호 줄 + 정답 줄), “1번 답: …” 형식을 인식하며, 서술형은 “핵심어: …” 줄이 있으면 채점 기준으로 씁니다.
-                인식 결과는 다음 화면에서 확인·수정할 수 있습니다.
+                문항 번호와 지문(“※ 다음 글을 읽고 물음에 답하시오. (1~4)”)을 자동으로 찾아 문항별로 잘라 줍니다.
+                정답은 다음 화면에서 엑셀 양식으로 넣습니다.
               </p>
             </div>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
-              <button className="btn primary lg" disabled={!!busy}>문제·정답 인식하기 →</button>
+              <button className="btn primary lg" disabled={!!busy}>문제 인식하기 →</button>
             </div>
           </form>
         )}
@@ -152,19 +136,13 @@ export default function ExamCreate() {
                 <ul>{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
               </div>
             )}
-            <div className="card">
-              <h2>문제지 미리보기 ({pages.length}쪽)</h2>
-              <div className="thumbs">
-                {pages.map((src, i) => (
-                  <img key={i} src={src} alt={`${i + 1}쪽`} onClick={() => setZoom(src)} />
-                ))}
-              </div>
-              <p className="muted small">학생에게는 이 문제지가 왼쪽에, 아래 문항별 답 입력칸이 오른쪽에 보입니다. 이미지를 누르면 크게 볼 수 있어요.</p>
-            </div>
-            <div className="card">
-              <h2>문항과 정답 확인</h2>
-              <QuestionEditor items={items} onChange={setItems} pageCount={pages.length} />
-            </div>
+            <ExamPreviewEditor
+              view={{ groups, pageAspects: aspects }}
+              pages={pages}
+              items={items}
+              onChange={setItems}
+              title={meta.title.trim() || defaultTitle(meta) || '단원평가'}
+            />
             <div className="card row" style={{ justifyContent: 'space-between' }}>
               <button className="btn" onClick={() => setStep(1)} disabled={!!busy}>← 다시 올리기</button>
               <div className="row">
@@ -176,11 +154,6 @@ export default function ExamCreate() {
           </div>
         )}
       </div>
-      {zoom && (
-        <div className="modal-back" onClick={() => setZoom(null)}>
-          <img src={zoom} alt="확대" />
-        </div>
-      )}
     </>
   );
 }

@@ -65,10 +65,6 @@ export default function MetaFields({ meta, setMeta }) {
           </select>
         </label>
       </div>
-      <label className="row small">
-        <input type="checkbox" checked={!!meta.showAnswers} onChange={set('showAnswers')} />
-        학생 결과 화면에 정답도 보여주기 (끄면 O/X와 점수만 보여줍니다)
-      </label>
     </>
   );
 }

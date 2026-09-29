@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
-import QuestionEditor from '../../components/QuestionEditor.jsx';
+import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
+import { GradedPaper, QuestionView } from '../../components/ExamViews.jsx';
 import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
@@ -34,6 +35,7 @@ export default function ExamDetail() {
   const [subs, setSubs] = useState(null);
   const [error, setError] = useState('');
   const [detail, setDetail] = useState(null);
+  const [pages, setPages] = useState(null);
 
   useEffect(() => {
     let unsub = () => {};
@@ -44,6 +46,7 @@ export default function ExamDetail() {
         setExam(e);
         setKeys(await getKeys(id));
         unsub = watchSubmissions(id, setSubs, (err) => setError(err.message));
+        getPages(id).then(setPages).catch(() => setPages([]));
       } catch (err) {
         setError(err.message);
       }
@@ -108,12 +111,13 @@ export default function ExamDetail() {
         </div>
 
         {tab === 'results' && <ResultsTab exam={exam} graded={graded} onOpen={setDetail} onJudge={judge} examId={id} />}
-        {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} />}
+        {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} pages={pages} />}
         {tab === 'analysis' && <AnalysisTab exam={exam} keys={keys} graded={graded} />}
         {tab === 'edit' && (
           <EditTab
             exam={exam}
             keys={keys}
+            pages={pages}
             hasSubs={subs.length > 0}
             onSaved={(questions, newKeys) => {
               setExam({ ...exam, questions });
@@ -131,7 +135,7 @@ export default function ExamDetail() {
       </div>
 
       {detailRow && (
-        <StudentDetail exam={exam} keys={keys} row={detailRow} onJudge={judge} onClose={() => setDetail(null)} />
+        <StudentDetail exam={exam} keys={keys} row={detailRow} onJudge={judge} onClose={() => setDetail(null)} pages={pages} />
       )}
     </>
   );
@@ -199,7 +203,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId }) {
   );
 }
 
-function ReviewTab({ exam, keys, graded, onJudge }) {
+function ReviewTab({ exam, keys, graded, onJudge, pages }) {
   const items = [];
   for (const { s, r } of graded) {
     r.items.forEach((it, i) => {
@@ -219,7 +223,14 @@ function ReviewTab({ exam, keys, graded, onJudge }) {
             </div>
             <span className="badge review">{it.auto.reason || '검토 필요'}</span>
           </div>
-          {q.text && <div className="muted small" style={{ marginTop: 4 }}>{q.text}</div>}
+          {pages?.length > 0 && q.regions?.length > 0 ? (
+            <details style={{ marginTop: 6 }}>
+              <summary className="small" style={{ cursor: 'pointer' }}>문제 보기</summary>
+              <div style={{ maxWidth: 560, marginTop: 6 }}><QuestionView exam={exam} q={q} pages={pages} /></div>
+            </details>
+          ) : (
+            q.text && <div className="muted small" style={{ marginTop: 4 }}>{q.text}</div>
+          )}
           <div className="small" style={{ marginTop: 8 }}>학생 답</div>
           <div className="ans">{answerToText(q, s.answers?.[q.no])}</div>
           <div className="small muted">정답: {keyToText(q, keys[q.no])}</div>
@@ -270,16 +281,11 @@ function AnalysisTab({ exam, keys, graded }) {
   );
 }
 
-function EditTab({ exam, keys, hasSubs, onSaved }) {
+function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
   const [items, setItems] = useState(() => toItems(exam.questions, keys));
   const [errs, setErrs] = useState([]);
   const [msg, setMsg] = useState('');
-  const [pages, setPages] = useState(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    getPages(exam.id).then(setPages).catch(() => setPages([]));
-  }, [exam.id]);
 
   async function save() {
     const e = validateItems(items, exam.pageCount);
@@ -299,20 +305,14 @@ function EditTab({ exam, keys, hasSubs, onSaved }) {
     }
   }
 
+  if (!pages) return <Loading />;
   return (
     <div className="stack">
       {hasSubs && <div className="alert info">이미 응시한 학생이 있습니다. 정답을 고치면 저장 즉시 모든 학생이 새 정답으로 다시 채점됩니다.</div>}
       {errs.length > 0 && <div className="alert error"><ul>{errs.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
       {msg && <div className="alert success">{msg}</div>}
-      {pages && pages.length > 0 && (
-        <div className="card">
-          <div className="thumbs">{pages.map((src, i) => <a key={i} href={src} target="_blank" rel="noreferrer"><img src={src} alt={`${i + 1}쪽`} /></a>)}</div>
-        </div>
-      )}
-      <div className="card">
-        <QuestionEditor items={items} onChange={setItems} pageCount={exam.pageCount} />
-      </div>
-      <div className="row" style={{ justifyContent: 'flex-end' }}>
+      <ExamPreviewEditor view={exam} pages={pages} items={items} onChange={setItems} title={exam.title} />
+      <div className="row" style={{ justifyContent: 'flex-end', position: 'sticky', bottom: 0, background: 'var(--bg)', padding: '10px 0' }}>
         <button className="btn primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : '문항·정답 저장'}</button>
       </div>
     </div>
@@ -329,7 +329,6 @@ function SettingsTab({ exam, onSaved, onDeleted }) {
     title: exam.title,
     classesText: (exam.classes || []).join(', '),
     leniency: exam.leniency || 'normal',
-    showAnswers: !!exam.showAnswers,
   }));
   const [msg, setMsg] = useState('');
 
@@ -342,7 +341,6 @@ function SettingsTab({ exam, onSaved, onDeleted }) {
       title: meta.title.trim() || exam.title,
       classes: parseClasses(meta.classesText),
       leniency: meta.leniency,
-      showAnswers: meta.showAnswers,
     };
     await updateExam(exam.id, patch);
     onSaved(patch);
@@ -375,15 +373,26 @@ function SettingsTab({ exam, onSaved, onDeleted }) {
   );
 }
 
-function StudentDetail({ exam, keys, row, onJudge, onClose }) {
+function StudentDetail({ exam, keys, row, onJudge, onClose, pages }) {
   const { s, r } = row;
+  const [paper, setPaper] = useState(false);
   return (
     <div className="modal-back" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 760, maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 960, maxHeight: '92vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <h2 style={{ margin: 0 }}>{s.classNo}반 {s.number}번 {s.name} — {r.score100}점</h2>
-          <button className="btn sm" onClick={onClose}>닫기</button>
+          <div className="row">
+            <button className="btn sm" onClick={() => setPaper(!paper)} disabled={!pages?.length}>
+              {paper ? '표로 보기' : '채점된 시험지 보기'}
+            </button>
+            <button className="btn sm" onClick={onClose}>닫기</button>
+          </div>
         </div>
+        {paper && pages?.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <GradedPaper exam={exam} pages={pages} keys={keys} answers={s.answers} result={r} />
+          </div>
+        ) : (
         <table className="data" style={{ marginTop: 12 }}>
           <thead><tr><th className="c">번호</th><th>학생 답</th><th>정답</th><th>판정</th></tr></thead>
           <tbody>
@@ -408,6 +417,7 @@ function StudentDetail({ exam, keys, row, onJudge, onClose }) {
             })}
           </tbody>
         </table>
+        )}
       </div>
     </div>
   );

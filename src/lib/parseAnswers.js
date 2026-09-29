@@ -4,7 +4,8 @@
 //   "1③ 2① 3④"              "[서술형 1] 예시 답안: …"
 //   표 형태:  "번호 1 2 3 4 5" / "정답 ③ ① ④ ② ⑤"
 
-import { circledToNumber, extractKeywords } from './korean.js';
+import { circledToNumber, numberToCircled, extractKeywords } from './korean.js';
+import { HANGUL_CIRCLED } from './parseQuestions.js';
 
 const EXPLAIN_RE = /(?:\[|<|【|\()?\s*(?:해설|풀이|채점\s*기준|오답\s*피하기|오답\s*풀이|참고)\s*(?:\]|>|】|\))?\s*[:：]?/;
 const LEAD_RE = /^\s*(?:정답|답안?|모범\s*답안|예시\s*답안?|예시답|답)\s*[:：)]?\s*/;
@@ -100,7 +101,7 @@ function cleanTextAnswer(raw) {
   s = s.replace(KEYWORD_RE, '');
   s = s.replace(LEAD_RE, '');
   s = s.replace(/[[(（]\s*\d+(?:\.\d+)?\s*점\s*[\])）]/g, '');
-  return s.replace(/\s+/g, ' ').trim();
+  return s.replace(/\s+/g, ' ').replace(/\s+등\s*\.?$/, '').trim();
 }
 
 /** "광합성(또는 광합성 작용) / 탄소 동화" → ["광합성", "광합성 작용", "탄소 동화"] */
@@ -124,6 +125,8 @@ export function splitAlternatives(text) {
 export function buildKey(question, raw) {
   const q = { ...question };
   if (raw == null || String(raw).trim() === '') return { question: q, key: emptyKey(q.type) };
+  const special = buildSpecialKey(q, String(raw));
+  if (special) return special;
   const choice = parseChoiceAnswer(raw);
   const looksCircled = /^[①-⑩]/.test(String(raw).replace(LEAD_RE, '').trim());
   if (choice && choice.length && (q.type === 'mc' || looksCircled)) {
@@ -157,9 +160,73 @@ export function buildKey(question, raw) {
   return { question: q, key: { accepted: splitAlternatives(text) } };
 }
 
+const PAREN_LABELS = (n) => Array.from({ length: n }, (_, i) => `(${i + 1})`);
+
+/** 선 잇기, ㉮㉯㉰ 기호, (1)(2)(3) ○표, (예) 예시 답안 같은 특수 정답 */
+function buildSpecialKey(q, raw) {
+  const s = raw.replace(LEAD_RE, '').trim();
+  // 선 잇기: "(1) - ① (2) - ②"
+  const pairs = [...s.matchAll(/\((\d{1,2})\)\s*[-–~→:]?\s*([①-⑩㉮-㉷])/g)];
+  if (pairs.length >= 2) {
+    const hangul = /[㉮-㉷]/.test(pairs[0][2]);
+    const idx = (ch) => (hangul ? HANGUL_CIRCLED.indexOf(ch) + 1 : circledToNumber(ch));
+    const sorted = pairs.map((m) => ({ item: Number(m[1]), opt: idx(m[2]) })).sort((a, b) => a.item - b.item);
+    const optCount = Math.max(sorted.length, ...sorted.map((p) => p.opt));
+    return {
+      question: {
+        ...q, type: 'match', choiceCount: 0, choices: [], choiceLabels: null, multi: false,
+        matchCount: sorted.length,
+        matchLabels: Array.from({ length: optCount }, (_, i) => (hangul ? HANGUL_CIRCLED[i] : numberToCircled(i + 1))),
+      },
+      key: { pairs: sorted.map((p) => p.opt) },
+    };
+  }
+  // ㉮ / ㉮, ㉰
+  if (/^[㉮-㉷](\s*[,、]\s*[㉮-㉷])*$/.test(s)) {
+    const picks = [...s.matchAll(/[㉮-㉷]/g)].map((m) => HANGUL_CIRCLED.indexOf(m[0]) + 1);
+    const hasLabels = q.choiceLabels && /[㉮-㉷]/.test(q.choiceLabels[0]);
+    const count = Math.max(hasLabels ? q.choiceLabels.length : 3, ...picks);
+    return {
+      question: {
+        ...q, type: 'mc', choiceCount: count, choices: hasLabels ? q.choices : [],
+        choiceLabels: HANGUL_CIRCLED.slice(0, count).split(''), multi: picks.length > 1,
+      },
+      key: { choices: picks },
+    };
+  }
+  // (3) ○  → (1)(2)(3) 중 고르는 문제
+  const pm = s.match(/^((?:\(\d{1,2}\)\s*[,、]?\s*)+)\s*(?:○|O|o|표)?\s*$/);
+  if (pm) {
+    const picks = [...pm[1].matchAll(/\d{1,2}/g)].map((m) => Number(m[0]));
+    const count = Math.max(q.type === 'mc' ? q.choiceCount : 3, ...picks);
+    return {
+      question: {
+        ...q, type: 'mc', choiceCount: count, choices: q.type === 'mc' ? q.choices : [],
+        choiceLabels: PAREN_LABELS(count), multi: picks.length > 1,
+      },
+      key: { choices: picks },
+    };
+  }
+  // (예) 예시 답안 → 서술형(예시와 비슷하면 정답, 아니면 선생님 확인)
+  const ex = s.match(/^\(?\s*예(?:시)?\s*(?:답안)?\s*\)?\s*[.:：)]?\s*(.+)$/s);
+  if (ex && /^\(?\s*예/.test(s)) {
+    const examples = ex[1]
+      .replace(/\s*등\s*\.?\s*$/, '')
+      .split(/\s*\/\s*/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return {
+      question: { ...q, type: 'essay', choiceCount: 0, choices: [], choiceLabels: null, multi: false },
+      key: { model: examples.join(' / '), examples, keywords: [], open: true },
+    };
+  }
+  return null;
+}
+
 export function emptyKey(type) {
   if (type === 'mc') return { choices: [] };
   if (type === 'essay') return { model: '', keywords: [] };
+  if (type === 'match') return { pairs: [] };
   return { accepted: [] };
 }
 
@@ -194,6 +261,7 @@ export function mergeQuestionsAndAnswers(questions, answerMap) {
 export function hasAnswer(key) {
   if (!key) return false;
   if (key.choices) return key.choices.length > 0;
+  if (key.pairs) return key.pairs.length > 0 && key.pairs.every(Boolean);
   if (key.accepted) return key.accepted.some((a) => a.trim());
   return !!(key.model && key.model.trim()) || (key.keywords || []).length > 0;
 }

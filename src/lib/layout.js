@@ -1,16 +1,38 @@
 // PDF 텍스트 조각(item)들을 읽는 순서대로 줄(line)로 재구성한다.
 // 2단 편집(왼쪽 단 → 오른쪽 단)된 시험지도 자동으로 감지한다.
+// 각 줄은 페이지 안의 위치(0~1로 정규화, 위쪽이 0)도 함께 가진다 → 문항 이미지 자르기에 사용.
 
 /**
  * @param {{str:string,x:number,y:number,w:number,h:number}[]} items  y는 PDF 좌표(아래에서 위로 증가)
  * @param {number} pageWidth
- * @returns {string[]} 읽는 순서의 줄 목록
+ * @param {number} [pageHeight]
+ * @returns {{text:string,x0:number,x1:number,top:number,bottom:number,col:number}[]} 읽는 순서의 줄 목록
  */
-export function itemsToLines(items, pageWidth) {
+export function layoutLines(items, pageWidth, pageHeight) {
   const clean = items.filter((it) => it.str && it.str.trim() !== '');
   if (!clean.length) return [];
-  return splitColumns(clean, pageWidth).flatMap(groupLines);
+  const W = pageWidth || Math.max(...clean.map((it) => it.x + it.w)) || 1;
+  const H = pageHeight || Math.max(...clean.map((it) => it.y + (it.h || 10))) || 1;
+  const cols = splitColumns(clean, pageWidth);
+  return cols.flatMap((colItems, col) =>
+    groupLines(colItems).map((l) => ({
+      text: l.text,
+      col,
+      colCount: cols.length,
+      x0: clamp(l.x0 / W),
+      x1: clamp(l.x1 / W),
+      top: clamp(1 - l.top / H),
+      bottom: clamp(1 - l.bottom / H),
+    })),
+  );
 }
+
+/** 텍스트만 필요할 때 */
+export function itemsToLines(items, pageWidth) {
+  return layoutLines(items, pageWidth).map((l) => l.text);
+}
+
+const clamp = (v) => Math.min(1, Math.max(0, v));
 
 function chars(it) {
   return it.str.trim().length;
@@ -62,6 +84,10 @@ function groupLines(items) {
       const parts = line.items.sort((a, b) => a.x - b.x);
       let text = '';
       let prevEnd = null;
+      let x0 = Infinity;
+      let x1 = -Infinity;
+      let top = -Infinity;
+      let bottom = Infinity;
       for (const it of parts) {
         const h = it.h || 10;
         const gap = prevEnd === null ? 0 : it.x - prevEnd;
@@ -70,8 +96,17 @@ function groupLines(items) {
         else if (gap > h * 0.2 && !text.endsWith(' ') && !it.str.startsWith(' ')) text += ' ';
         text += it.str;
         prevEnd = it.x + it.w;
+        if (it.str.trim()) {
+          x0 = Math.min(x0, it.x);
+          x1 = Math.max(x1, it.x + it.w);
+          top = Math.max(top, it.y + h * 0.9);
+          bottom = Math.min(bottom, it.y - h * 0.25);
+        }
       }
-      return text.replace(/[ \u00a0]+/g, ' ').replace(/ ?\t ?/g, '\t').trim();
+      return {
+        text: text.replace(/[  ]+/g, ' ').replace(/ ?\t ?/g, '\t').trim(),
+        x0, x1, top, bottom,
+      };
     })
-    .filter(Boolean);
+    .filter((l) => l.text);
 }

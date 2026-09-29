@@ -1,5 +1,5 @@
 // pdf.js로 PDF에서 텍스트 줄을 뽑고, 학생 화면용 페이지 이미지를 만든다.
-import { itemsToLines } from './layout.js';
+import { layoutLines } from './layout.js';
 
 let pdfjsPromise = null;
 
@@ -45,14 +45,14 @@ export async function extractPages(doc) {
         w: it.width,
         h: it.height || Math.hypot(it.transform[2], it.transform[3]),
       }));
-    pages.push({ page: p, lines: itemsToLines(items, viewport.width) });
+    pages.push({ page: p, lines: layoutLines(items, viewport.width, viewport.height) });
   }
   return pages;
 }
 
 /**
  * 페이지를 JPEG data URL로 렌더링 (Firestore 문서 1MB 제한을 넘지 않도록 품질 조절)
- * @returns {Promise<string[]>}
+ * @returns {Promise<{src:string, aspect:number}[]>}  aspect = 가로/세로
  */
 export async function renderPages(doc, { targetWidth = 1100, maxBytes = 850_000, onProgress } = {}) {
   const out = [];
@@ -61,6 +61,7 @@ export async function renderPages(doc, { targetWidth = 1100, maxBytes = 850_000,
     const base = page.getViewport({ scale: 1 });
     let scale = targetWidth / base.width;
     let dataUrl = '';
+    const aspect = base.width / base.height;
     for (let attempt = 0; attempt < 6; attempt++) {
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement('canvas');
@@ -75,7 +76,7 @@ export async function renderPages(doc, { targetWidth = 1100, maxBytes = 850_000,
       if (dataUrl.length <= maxBytes) break;
       scale *= 0.85;
     }
-    out.push(dataUrl);
+    out.push({ src: dataUrl, aspect });
     onProgress?.(p, doc.numPages);
   }
   return out;

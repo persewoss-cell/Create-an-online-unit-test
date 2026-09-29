@@ -6,7 +6,7 @@
 
 import {
   normalizeText, sameWord, containsWord, jamoSimilarity, diceSimilarity, parseNumeric, hasNegation,
-  samePredicate, predicateStem,
+  samePredicate, predicateStem, extractKeywords,
 } from './korean.js';
 
 export const LENIENCY = {
@@ -17,8 +17,11 @@ export const LENIENCY = {
 
 const NO_ANSWER_RE = /^(모름|모르겠|몰라|없음|\?+|x|-+|\.+)$/;
 
-export function isBlank(answer) {
+export function isBlank(answer, question) {
   if (answer == null) return true;
+  if (question?.type === 'match') {
+    return !Array.isArray(answer) || answer.length < (question.matchCount || 1) || answer.some((v) => !v);
+  }
   if (Array.isArray(answer)) return answer.length === 0;
   return String(answer).trim() === '';
 }
@@ -95,6 +98,28 @@ function matchKeyword(answer, keyword) {
     });
 }
 
+function gradeMatch(key, answer) {
+  const want = key.pairs || [];
+  if (!want.length) return { status: 'review', reason: '정답이 등록되지 않음' };
+  const got = Array.isArray(answer) ? answer.map(Number) : [];
+  const ok = want.every((v, i) => got[i] === v);
+  return { status: ok ? 'correct' : 'wrong' };
+}
+
+/** 예시 답안이 여러 개인 서술형: 하나라도 충분히 비슷하면 정답, 열린 문항이면 나머지는 선생님 확인 */
+function gradeExamples(key, answer, rule) {
+  let best = { status: 'wrong' };
+  for (const ex of key.examples) {
+    const r = gradeEssay({ model: ex, keywords: extractKeywords(ex) }, answer, rule);
+    if (r.status === 'correct') return { ...r, reason: `예시 답안과 일치 (${ex})` };
+    if (r.status === 'review' && best.status !== 'review') best = r;
+  }
+  if (key.open && normalizeText(answer).length >= 2) {
+    return { status: 'review', reason: best.status === 'review' ? best.reason : '예시 답안과 다른 답 — 선생님 확인' };
+  }
+  return best;
+}
+
 function gradeEssay(key, answer, rule) {
   const keywords = (key.keywords || []).filter((k) => String(k).trim());
   const model = key.model || '';
@@ -132,11 +157,15 @@ function gradeEssay(key, answer, rule) {
  */
 export function gradeAnswer(question, key, answer, leniency = 'normal') {
   const rule = LENIENCY[leniency] || LENIENCY.normal;
-  if (isBlank(answer)) return { status: 'wrong', reason: '답 없음' };
+  if (isBlank(answer, question)) return { status: 'wrong', reason: '답 없음' };
   if (question.type === 'mc') return gradeChoice(key || {}, answer);
+  if (question.type === 'match') return gradeMatch(key || {}, answer);
   const text = String(answer).trim();
   if (NO_ANSWER_RE.test(normalizeText(text))) return { status: 'wrong', reason: '답 없음' };
-  if (question.type === 'essay') return gradeEssay(key || {}, text, rule);
+  if (question.type === 'essay') {
+    if (key?.examples?.length) return gradeExamples(key, text, rule);
+    return gradeEssay(key || {}, text, rule);
+  }
   return gradeShort(key || {}, text, rule);
 }
 

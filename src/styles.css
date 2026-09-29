@@ -182,3 +182,65 @@ button.mark { cursor: pointer; }
 .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #c9d6f5; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .center { text-align: center; padding: 40px 0; }
+
+/* ── 문항 잘라 보기 ── */
+.crop { position: relative; overflow: hidden; width: 100%; background: #fff; }
+.crop img { position: absolute; display: block; max-width: none; height: auto; user-select: none; }
+.qview { display: flex; flex-direction: column; gap: 10px; }
+.qview-passage, .qview-question { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.qview-passage { border-left: 4px solid #c9d6f5; }
+.qview-passage .crop + .crop, .qview-question .crop + .crop { margin-top: 6px; border-top: 1px dashed var(--line); }
+.page-img { display: block; width: 100%; background: #fff; }
+
+/* 정답 표시 (교사 미리보기) */
+.choice.correct-key { border-color: var(--ok); box-shadow: inset 0 0 0 2px var(--ok); }
+.choice.correct-key:not(.selected) { background: var(--ok-weak); }
+.key-check { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--ok); }
+.choices.compact .key-check { margin-left: 4px; }
+.key-box { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--ok-weak); color: #145c33; font-size: 14px; }
+.match { display: flex; flex-direction: column; gap: 8px; }
+.match-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.match-row .choice { min-width: 48px; justify-content: center; font-size: 18px; }
+
+/* ── 한 문제씩 풀기 ── */
+.solve { display: grid; grid-template-columns: minmax(0, 1fr) 400px; height: calc(100vh - 53px); }
+.solve-left { overflow-y: auto; padding: 18px; background: #e9edf3; }
+.solve-left .qview { max-width: 860px; margin: 0 auto; }
+.solve-right { display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line); overflow-y: auto; }
+.solve-right .sec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.solve-right .grow { flex: 1; }
+.qnav { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 6px; }
+.qnav button { height: 36px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.qnav button.done { background: var(--primary-weak); border-color: #bfd3fb; color: var(--primary); }
+.qnav button.current { outline: 2px solid var(--primary); }
+.qnav button.missing { background: var(--bad-weak); border-color: var(--bad); color: var(--bad); }
+@media (max-width: 900px) {
+  .solve { grid-template-columns: 1fr; height: auto; }
+  .solve-left { padding: 10px; }
+  .solve-right { border-left: 0; border-top: 1px solid var(--line); }
+}
+
+/* ── 교사: 문항 미리보기 카드 ── */
+.pcard { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fff; }
+.pcard + .pcard { margin-top: 14px; }
+.pcard.warn { border-color: #e9c46a; background: #fffdf5; }
+.pcard .left { background: #f4f6fa; border-radius: 8px; padding: 8px; }
+.pcard .right { display: flex; flex-direction: column; gap: 10px; }
+.pcard .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pcard .qno { font-weight: 800; font-size: 18px; }
+@media (max-width: 900px) { .pcard { grid-template-columns: 1fr; } }
+
+/* ── 채점된 시험지 ── */
+.graded { display: flex; flex-direction: column; gap: 18px; align-items: center; }
+.graded-page { position: relative; width: 100%; max-width: 900px; box-shadow: var(--shadow); background: #fff; }
+.graded-page img { display: block; width: 100%; }
+.graded-page svg.marks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.marks .stroke { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.marks .red { stroke: #e03131; fill: #e03131; opacity: 0.88; }
+.marks path.red { fill: none; }
+.marks .hand { font-family: 'Nanum Pen Script', 'Comic Sans MS', cursive; font-weight: 400; }
+.marks text.red:not(.halo) { stroke: none; }
+.marks .blue { fill: #2b50b8; }
+.marks .orange { fill: #d9480f; }
+.marks .halo { paint-order: stroke; stroke: rgba(255, 255, 255, 0.9); stroke-width: 6px; stroke-linejoin: round; }
+.marks .highlight { fill: #ffe066; opacity: 0.55; }

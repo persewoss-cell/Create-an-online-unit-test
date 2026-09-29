@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { numberToCircled, extractKeywords } from '../lib/korean.js';
+import { choiceLabel } from '../lib/parseQuestions.js';
 import { parseAnswerText, buildKey } from '../lib/parseAnswers.js';
 import { newItem, toItems } from '../lib/editorModel.js';
 
@@ -82,11 +83,12 @@ export default function QuestionEditor({ items, onChange, pageCount }) {
   );
 }
 
-function QuestionRow({ it, pageCount, onChange, onRemove }) {
+export function QuestionRow({ it, pageCount, onChange, onRemove }) {
   const noAnswer =
     (it.type === 'mc' && !it.keyChoices?.length) ||
     (it.type === 'short' && !it.answerText?.trim()) ||
-    (it.type === 'essay' && !it.model?.trim() && !it.keywordsText?.trim());
+    (it.type === 'essay' && !it.model?.trim() && !it.keywordsText?.trim()) ||
+    (it.type === 'match' && !Array.from({ length: Number(it.matchCount) || 2 }, (_, i) => it.keyPairs?.[i]).every(Boolean));
 
   const toggleKey = (n) => {
     const cur = it.keyChoices || [];
@@ -103,12 +105,15 @@ function QuestionRow({ it, pageCount, onChange, onRemove }) {
             <option value="mc">객관식</option>
             <option value="short">단답형</option>
             <option value="essay">서술형</option>
+            <option value="match">선 잇기</option>
           </select>
         </label>
         <label>
-          {it.type === 'mc' ? '보기 수' : ' '}
+          {it.type === 'mc' ? '보기 수' : it.type === 'match' ? '잇는 개수' : ' '}
           {it.type === 'mc' ? (
             <input type="number" min="2" max="10" value={it.choiceCount || 5} onChange={(e) => onChange({ choiceCount: Number(e.target.value) })} />
+          ) : it.type === 'match' ? (
+            <input type="number" min="1" max="10" value={it.matchCount || 2} onChange={(e) => onChange({ matchCount: Number(e.target.value) })} />
           ) : <span />}
         </label>
         <label>배점<input type="number" min="0" step="0.5" value={it.points} onChange={(e) => onChange({ points: e.target.value })} aria-label={`${it.no}번 배점`} /></label>
@@ -127,7 +132,7 @@ function QuestionRow({ it, pageCount, onChange, onRemove }) {
             <div className="keypick">
               {Array.from({ length: Number(it.choiceCount) || 5 }, (_, i) => i + 1).map((n) => (
                 <button type="button" key={n} className={it.keyChoices?.includes(n) ? 'on' : ''} onClick={() => toggleKey(n)} aria-label={`${it.no}번 정답 ${n}`}>
-                  {numberToCircled(n)}
+                  {choiceLabel(it, n)}
                 </button>
               ))}
             </div>
@@ -135,6 +140,31 @@ function QuestionRow({ it, pageCount, onChange, onRemove }) {
               <input type="checkbox" checked={!!it.multi || (it.keyChoices || []).length > 1} onChange={(e) => onChange({ multi: e.target.checked })} />
               여러 개 고르는 문제
             </label>
+          </div>
+        )}
+        {it.type === 'match' && (
+          <div className="stack">
+            {Array.from({ length: Number(it.matchCount) || 2 }, (_, i) => (
+              <div key={i} className="row">
+                <b>({i + 1})</b> →
+                <div className="keypick">
+                  {Array.from({ length: Math.max(Number(it.matchCount) || 2, (it.matchLabels || []).length) }, (_, k) => k + 1).map((v) => (
+                    <button
+                      type="button"
+                      key={v}
+                      className={it.keyPairs?.[i] === v ? 'on' : ''}
+                      onClick={() => {
+                        const next = [...(it.keyPairs || [])];
+                        next[i] = v;
+                        onChange({ keyPairs: next });
+                      }}
+                    >
+                      {it.matchLabels?.[v - 1] || numberToCircled(v)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
         {it.type === 'short' && (
@@ -148,6 +178,10 @@ function QuestionRow({ it, pageCount, onChange, onRemove }) {
             <label className="field">
               <span className="small">모범 답안</span>
               <textarea rows={2} value={it.model} onChange={(e) => onChange({ model: e.target.value })} aria-label={`${it.no}번 모범 답안`} />
+              <label className="small row" style={{ gap: 4, fontWeight: 400, marginTop: 4 }}>
+                <input type="checkbox" checked={!!it.open} onChange={(e) => onChange({ open: e.target.checked })} />
+                예시 답안 (여러 개는 / 로 구분, 예시와 다른 답은 선생님 확인)
+              </label>
             </label>
             <label className="field">
               <span className="small">
