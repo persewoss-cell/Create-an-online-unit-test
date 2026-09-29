@@ -1,0 +1,95 @@
+rules_version = '2';
+
+// 단원평가 사이트 보안 규칙
+//  - 교사: 이메일 로그인 + teachers/{uid} 문서가 있어야 함 (가입 코드 확인)
+//  - 학생: 익명 로그인. 학년·반·번호당 답안 1회만 생성 가능
+//  - 정답(private/key)은 교사 본인, 또는 이미 제출을 마친 학생만 읽을 수 있음
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isTeacher() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
+    }
+    function examDoc(examId) {
+      return get(/databases/$(database)/documents/exams/$(examId));
+    }
+    function isOwner(examId) {
+      return isTeacher() && examDoc(examId).data.ownerUid == request.auth.uid;
+    }
+
+    match /config/{docId} {
+      allow read, write: if false;
+    }
+
+    match /teachers/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && request.resource.data.keys().hasOnly(['name', 'email', 'signupCode', 'createdAt'])
+        && request.resource.data.signupCode is string
+        && request.resource.data.signupCode == get(/databases/$(database)/documents/config/signup).data.code;
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']);
+      allow delete: if false;
+    }
+
+    match /exams/{examId} {
+      allow read: if (isTeacher() && resource.data.ownerUid == request.auth.uid)
+        || (signedIn() && resource.data.status == 'open');
+      allow create: if isTeacher()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status in ['draft', 'open', 'closed'];
+      allow update: if isTeacher()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.status in ['draft', 'open', 'closed'];
+      allow delete: if isTeacher() && resource.data.ownerUid == request.auth.uid;
+
+      match /pages/{pageId} {
+        allow read: if isOwner(examId) || (signedIn() && examDoc(examId).data.status == 'open');
+        allow write: if isOwner(examId);
+      }
+
+      match /private/{docId} {
+        allow read: if isOwner(examId)
+          || (signedIn() && exists(/databases/$(database)/documents/exams/$(examId)/submitters/$(request.auth.uid)));
+        allow write: if isOwner(examId);
+      }
+
+      match /submissions/{studentId} {
+        // 없는 문서 조회는 허용(응시 여부 확인용), 다른 사람 답안은 조회 불가
+        allow read: if isOwner(examId)
+          || (signedIn() && (resource == null || resource.data.uid == request.auth.uid));
+        allow create: if signedIn()
+          && examDoc(examId).data.status == 'open'
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'studentId', 'grade', 'classNo', 'number', 'name', 'answers', 'submittedAt'])
+          && request.resource.data.studentId == studentId
+          && studentId == string(request.resource.data.grade) + '-' + string(request.resource.data.classNo) + '-' + string(request.resource.data.number)
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
+          && request.resource.data.answers is map
+          && request.resource.data.submittedAt == request.time
+          && existsAfter(/databases/$(database)/documents/exams/$(examId)/submitters/$(request.auth.uid));
+        // 학생은 제출 후 수정 불가. 교사는 판정(overrides)만 수정
+        allow update: if isOwner(examId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['overrides', 'reviewedAt']);
+        allow delete: if isOwner(examId);
+      }
+
+      match /submitters/{uid} {
+        allow read: if isOwner(examId) || (signedIn() && request.auth.uid == uid);
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['studentId', 'at'])
+          && getAfter(/databases/$(database)/documents/exams/$(examId)/submissions/$(request.resource.data.studentId)).data.uid == request.auth.uid;
+        allow delete: if isOwner(examId);
+      }
+    }
+  }
+}
