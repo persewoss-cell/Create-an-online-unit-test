@@ -209,6 +209,38 @@ export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled
       </div>
     );
   }
+  if (q.type === 'short' && q.blankCount > 1) {
+    const vals = Array.isArray(value) ? value : [];
+    const ord = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째'];
+    const keyParts = show ? String((answerKey.accepted || [])[0] || '').split(/\s*[,，、]\s*/) : [];
+    return (
+      <div className="stack" style={{ gap: 8 }}>
+        <div className="small muted">□ 칸마다 순서대로 답을 쓰세요.</div>
+        {Array.from({ length: q.blankCount }, (_, i) => (
+          <label key={i} className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+            <span className="small" style={{ width: 56, flexShrink: 0, fontWeight: 600 }}>{ord[i]} 칸</span>
+            <input
+              type="text"
+              value={vals[i] ?? ''}
+              onChange={(e) => {
+                const next = Array.from({ length: q.blankCount }, (_, j) => vals[j] ?? '');
+                next[i] = e.target.value;
+                onChange(next);
+              }}
+              placeholder={show ? keyParts[i] || '' : '답'}
+              aria-label={`${q.no}번 ${ord[i]} 칸`}
+              disabled={disabled}
+            />
+          </label>
+        ))}
+        {show && (
+          <div className="key-box">
+            <b>정답</b> {(answerKey.accepted || []).join(' / ')}
+          </div>
+        )}
+      </div>
+    );
+  }
   const keyText = show
     ? q.type === 'essay'
       ? answerKey.examples?.length

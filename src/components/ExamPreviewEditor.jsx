@@ -4,7 +4,7 @@ import { QuestionView, AnswerInput } from './ExamViews.jsx';
 import { QuestionRow } from './QuestionEditor.jsx';
 import { fromItems, toItems } from '../lib/editorModel.js';
 import { buildKey, hasAnswer } from '../lib/parseAnswers.js';
-import { downloadAnswerTemplate, readAnswerSheet } from '../lib/answerSheet.js';
+import { downloadAnswerTemplate, readAnswerSheet, answerHint } from '../lib/answerSheet.js';
 import { TYPE_LABEL } from '../lib/format.js';
 
 function keyOf(it) {
@@ -67,7 +67,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
         <h2 style={{ margin: 0 }}>정답 넣기</h2>
         <div className="row">
           <span><b>①</b> 양식 받기 →</span>
-          <button type="button" className="btn" onClick={() => downloadAnswerTemplate(items.map((it) => Number(it.no)), title)}>
+          <button type="button" className="btn" onClick={() => downloadAnswerTemplate(items, title)}>
             정답 엑셀 양식 다운로드 ({items.length}문항)
           </button>
         </div>
@@ -115,6 +115,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
                 <span className="qno">{it.no}번</span>
                 <span className="badge draft">{TYPE_LABEL[it.type]}</span>
                 {it.manual && <span className="badge review">선생님 채점</span>}
+                {it.draw && it.type !== 'draw' && <span className="badge draft">+ 그리기</span>}
                 <label className="small row" style={{ gap: 4, marginLeft: 'auto' }}>
                   배점
                   <input
@@ -129,6 +130,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
                 </label>
               </div>
               <div className="small muted">학생 화면 미리보기 (초록색이 정답)</div>
+              <div className="small" style={{ color: 'var(--primary)' }}>답 쓰는 법: {answerHint(fromItems([it]).questions[0])}</div>
               {it.manual && (
                 <div className="key-box" style={{ background: 'var(--warn-weak)', color: '#6b4a0f' }}>
                   선생님이 직접 채점하는 문항입니다. 학생 답은 모두 검토 요청으로 넘어옵니다.

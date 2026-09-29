@@ -13,15 +13,37 @@ function download(buf, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-/** @param {number[]} numbers 문항 번호 목록 */
-export async function buildAnswerTemplate(numbers) {
+const CIRCLED_SET = '①②③④⑤⑥⑦⑧⑨⑩';
+
+/** 문제지 인식 결과를 보고 정답 칸에 무엇을 어떻게 적으면 되는지 안내 */
+export function answerHint(q) {
+  if (!q || typeof q !== 'object') return '';
+  const tail = q.manual ? ' · 선생님이 직접 채점하는 문항(비워 둬도 됨)' : '';
+  if (q.type === 'draw') return '✏️ 그리기 문항 — 비워 두면 학생 그림을 선생님이 채점' + tail;
+  if (q.draw) return '✏️ 그리기 + 답 칸 — ( ) 칸에 들어갈 답만 적기 (예: 3 cm), 그림은 선생님이 채점' + tail;
+  if (q.type === 'mc') {
+    const labels = q.choiceLabels || CIRCLED_SET.slice(0, q.choiceCount || 5).split('');
+    if (q.oxBlanks) return `○표 할 괄호: ${labels.join(' / ')} 중에서 적기 (예: ${labels[labels.length - 1]})` + tail;
+    return `${labels.join(' ')} 중에서 적기${q.multi ? ' (여러 개면 2, 4 처럼)' : ''} (예: ${labels[0]})` + tail;
+  }
+  if (q.type === 'match') return '(1)-① (2)-② 처럼 적기' + tail;
+  if (q.fillBoxes) return '□ 칸에 들어갈 답. 칸이 여러 개면 순서대로 쉼표로 (예: 3, 6)' + tail;
+  if (q.type === 'essay') return '모범 답안 문장 또는 (예) 예시 / 예시 등' + tail;
+  return '답 그대로 적기 (여러 답 인정: 답1 / 답2)' + tail;
+}
+
+/** @param {(number|object)[]} list 문항 번호 목록 또는 문항 목록(인식 결과) */
+export async function buildAnswerTemplate(list) {
+  const numbers = list.map((x) => (typeof x === 'object' ? Number(x.no) : x));
+  const byNo = Object.fromEntries(list.filter((x) => typeof x === 'object').map((x) => [Number(x.no), x]));
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('정답');
   ws.columns = [
     { header: '번호', key: 'no', width: 8 },
-    { header: '정답', key: 'answer', width: 60 },
+    { header: '정답', key: 'answer', width: 40 },
     { header: '배점(비우면 자동)', key: 'points', width: 18 },
+    { header: '답 쓰는 법 (자동 안내)', key: 'hint', width: 70 },
   ];
   const head = ws.getRow(1);
   head.font = { bold: true };
@@ -29,7 +51,10 @@ export async function buildAnswerTemplate(numbers) {
   head.eachCell((c) => {
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF7' } };
   });
-  for (const no of numbers) ws.addRow({ no });
+  for (const no of numbers) {
+    const row = ws.addRow({ no, hint: answerHint(byNo[no]) });
+    row.getCell('hint').font = { color: { argb: 'FF5D6B7E' } };
+  }
   ws.getColumn('answer').numFmt = '@'; // 정답은 글자로 (3/4 가 날짜로 바뀌지 않게)
   for (let r = 2; r <= numbers.length + 1; r++) ws.getCell(`B${r}`).numFmt = '@';
   ws.views = [{ state: 'frozen', ySplit: 1 }];
@@ -44,6 +69,10 @@ export async function buildAnswerTemplate(numbers) {
     ['기호로 고르는 문제', '㉮'],
     ['○표 하는 문제', '(3)'],
     ['선 잇기', '(1)-① (2)-②'],
+    ['○표 할 괄호 고르기', '오른쪽  (또는 왼쪽, 가운데, 위, 아래)'],
+    ['□ 칸이 여러 개', '3, 6  (순서대로 쉼표)'],
+    ['그리기', '그리기  /  그리기 + 3 cm'],
+    ['선생님이 직접 채점', '검토'],
     ['단답형', '서까래'],
     ['단답형 (여러 답 인정)', '로제타 선생님 / 로제타'],
     ['단답형 (모두 써야 정답)', '산소, 이산화 탄소'],
@@ -58,8 +87,8 @@ export async function buildAnswerTemplate(numbers) {
   return wb.xlsx.writeBuffer();
 }
 
-export async function downloadAnswerTemplate(numbers, title = '단원평가') {
-  const buf = await buildAnswerTemplate(numbers);
+export async function downloadAnswerTemplate(list, title = '단원평가') {
+  const buf = await buildAnswerTemplate(list);
   download(buf, `${title.replace(/[\\/:*?"<>|]/g, '_')}_정답양식.xlsx`);
 }
 
@@ -94,7 +123,7 @@ export async function readAnswerSheet(data) {
     row.eachCell({ includeEmpty: true }, (c, col) => cells.push([col, cellText(c.value).replace(/\s/g, '')]));
     const f = (re) => cells.find(([, t]) => re.test(t))?.[0];
     const n = f(/^(번호|문항|문항번호|no)$/i);
-    const a = f(/^(정답|답|답안)/);
+    const a = f(/^(정답|답|답안)$/);
     if (n && a) {
       noCol = n;
       ansCol = a;

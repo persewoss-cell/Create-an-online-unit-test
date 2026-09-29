@@ -28,6 +28,27 @@ describe.skipIf(!HAS)('실제 수학 시험지', () => {
   it('반복되는 쪽 머리글은 문항 영역에 들어가지 않는다', () => {
     for (const q of parsed.questions) for (const r of q.regions) expect(r.y0, `${q.no}번`).toBeGreaterThan(0.07);
   });
+  it('문제지만 보고 답 쓰는 방식을 알아낸다', () => {
+    const q = Object.fromEntries(parsed.questions.map((x) => [x.no, x]));
+    expect(q[7]).toMatchObject({ type: 'short', draw: true }); // 반지름을 그어 보고 … ( )
+    expect(q[10]).toMatchObject({ type: 'draw', draw: true }); // 똑같이 그려 보세요
+    expect(q[11]).toMatchObject({ type: 'mc', choiceCount: 2, choiceLabels: ['왼쪽', '오른쪽'] }); // ( ) ( ) 중 ○표
+    expect(q[5].fillBoxes).toBe(true);
+    expect(q[14].type).toBe('short'); // 다음 문항의 "서술형" 머리표에 속지 않음
+    expect(q[15]).toMatchObject({ type: 'essay', manual: true }); // 풀이 과정
+    const k11 = buildKey(q[11], '오른쪽');
+    expect(k11.key.choices).toEqual([2]);
+    expect(buildKey(q[11], '2').key.choices).toEqual([2]);
+    expect(buildKey(q[11], '(1)').key.choices).toEqual([1]);
+    const k10 = buildKey(q[10], '');
+    expect(k10.key.draw).toBe(true);
+    const k5 = buildKey(q[5], 'ㄱㄷ, ㄱㄷ');
+    expect(k5.question.blankCount).toBe(2);
+    expect(gradeAnswer(k5.question, k5.key, ['ㄱㄷ', 'ㄱㄷ']).status).toBe('correct');
+    expect(gradeAnswer(k5.question, k5.key, ['ㄱㄷ', 'ㄴㄹ']).status).toBe('wrong');
+    expect(isBlank(['ㄱㄷ', ''], k5.question)).toBe(true);
+  });
+
   it('그리기 문항', () => {
     const q7 = buildKey(parsed.questions[6], '그리기 + 3 cm');
     expect(q7.question).toMatchObject({ type: 'short', draw: true });
@@ -35,7 +56,8 @@ describe.skipIf(!HAS)('실제 수학 시험지', () => {
     const q10 = buildKey(parsed.questions[9], '그리기');
     expect(q10.question.type).toBe('draw');
     const strokes = [{ t: 'line', p: [0, 0, 10, 10] }];
-    expect(isBlank({ strokes }, q7.question)).toBe(true); // 답도 써야 함
+    expect(isBlank({ strokes }, q7.question)).toBe(false); // 그렸으면 답 칸은 비워도 됨
+    expect(isBlank({ strokes: [], text: '' }, q7.question)).toBe(true);
     expect(isBlank({ strokes, text: '3cm' }, q7.question)).toBe(false);
     expect(gradeAnswer(q7.question, q7.key, { strokes, text: '3cm' }).status).toBe('review');
     expect(gradeAnswer(q10.question, q10.key, { strokes }).status).toBe('review');

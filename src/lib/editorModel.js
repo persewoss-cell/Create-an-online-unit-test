@@ -36,6 +36,9 @@ export function fromItems(items) {
       group: it.group || null,
       draw: it.type === 'draw' || !!it.draw,
       manual: !!it.manual,
+      oxBlanks: !!it.oxBlanks,
+      fillBoxes: !!it.fillBoxes,
+      blankCount: it.type === 'short' && Number(it.blankCount) > 1 ? Number(it.blankCount) : 0,
       regions: it.regions || [],
       anchor: it.anchor || null,
       blanks: it.blanks || [],
@@ -92,7 +95,7 @@ export function validateItems(items, pageCount) {
     if (it.type === 'match' && !(Array.from({ length: Number(it.matchCount) || 2 }, (_, i) => it.keyPairs?.[i]).every(Boolean))) {
       errs.push(`${it.no}번: 선 잇기 정답을 모두 선택해 주세요.`);
     }
-    if (it.type === 'short' && !String(it.answerText || '').trim()) errs.push(`${it.no}번: 정답을 입력해 주세요.`);
+    if (it.type === 'short' && !it.draw && !String(it.answerText || '').trim()) errs.push(`${it.no}번: 정답을 입력해 주세요.`);
     if (it.type === 'essay' && !String(it.model || '').trim() && !String(it.keywordsText || '').trim()) {
       errs.push(`${it.no}번: 모범 답안이나 핵심어를 입력해 주세요.`);
     }

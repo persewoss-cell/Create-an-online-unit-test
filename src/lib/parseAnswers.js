@@ -123,8 +123,17 @@ export function splitAlternatives(text) {
  * 문제지만으로 판단한 유형이 정답을 보고 바뀔 수 있다(예: 정답이 ③이면 객관식).
  */
 export function buildKey(question, raw) {
+  let q = { ...question };
+  const flags = (k) => ({ ...k, ...(q.draw ? { draw: true } : {}), ...(q.manual ? { manual: true } : {}) });
+  if (raw == null || String(raw).trim() === '') return { question: q, key: flags(emptyKey(q.type)) };
+  // 그림만 그리는 문항으로 인식했는데 답을 적었다면 → 그림 + 답 문항
+  if (q.type === 'draw' && !/^\s*그리기/.test(String(raw))) q = { ...q, type: 'short' };
+  const built = buildKeyInner(q, raw);
+  return { question: built.question, key: flags(built.key) };
+}
+
+function buildKeyInner(question, raw) {
   const q = { ...question };
-  if (raw == null || String(raw).trim() === '') return { question: q, key: emptyKey(q.type) };
   const special = buildSpecialKey(q, String(raw));
   if (special) return special;
   const choice = parseChoiceAnswer(raw);
@@ -157,7 +166,12 @@ export function buildKey(question, raw) {
       : extractKeywords(text);
     return { question: q, key: { model: text, keywords } };
   }
-  return { question: q, key: { accepted: splitAlternatives(text) } };
+  const accepted = splitAlternatives(text);
+  // "□ 안에 알맞은 수를 써넣으세요" 에 답이 여러 개(쉼표) → 칸마다 따로 입력
+  const parts = accepted[0] ? accepted[0].split(/\s*[,，、]\s*/).filter(Boolean) : [];
+  if (q.fillBoxes && parts.length >= 2 && parts.length <= 8) q.blankCount = parts.length;
+  else delete q.blankCount;
+  return { question: q, key: { accepted } };
 }
 
 const PAREN_LABELS = (n) => Array.from({ length: n }, (_, i) => `(${i + 1})`);
@@ -165,6 +179,14 @@ const PAREN_LABELS = (n) => Array.from({ length: n }, (_, i) => `(${i + 1})`);
 /** 선 잇기, ㉮㉯㉰ 기호, (1)(2)(3) ○표, (예) 예시 답안 같은 특수 정답 */
 function buildSpecialKey(q, raw) {
   const s = raw.replace(LEAD_RE, '').trim();
+  // "왼쪽/오른쪽" 처럼 이름 붙은 칸 중 고르는 문항: 이름이나 번호로 적을 수 있다
+  if (q.type === 'mc' && q.choiceLabels && /^[가-힣]/.test(q.choiceLabels[0])) {
+    const norm = s.replace(/\s|괄호|칸|에|○|표/g, '');
+    const byName = q.choiceLabels.map((l, i) => (norm.includes(l) ? i + 1 : 0)).filter(Boolean);
+    const byNum = byName.length ? [] : (parseChoiceAnswer(s) || []);
+    const picks = byName.length ? byName : byNum.filter((n) => n <= q.choiceCount);
+    if (picks.length) return { question: { ...q, multi: q.multi || picks.length > 1 }, key: { choices: picks } };
+  }
   // 선생님이 직접 채점: 정답 칸에 "검토" 또는 "선생님 채점"
   if (/^(검토|선생님\s*(채점|검토|확인)|직접\s*채점)$/.test(s)) {
     return { question: { ...q, manual: true }, key: { ...emptyKey(q.type), manual: true } };
@@ -218,6 +240,7 @@ function buildSpecialKey(q, raw) {
     // 보기 수: 문제지에서 찾은 보기 수, 없으면 "( ) ( )" 답 칸 수, 그것도 없으면 3
     const blanks = (q.blanks || []).length;
     const count = Math.max(q.type === 'mc' ? q.choiceCount : blanks >= 2 ? blanks : 3, ...picks);
+    if (q.type === 'mc' && q.oxBlanks) return { question: q, key: { choices: picks } };
     return {
       question: {
         ...q, type: 'mc', choiceCount: count, choices: q.type === 'mc' ? q.choices : [],

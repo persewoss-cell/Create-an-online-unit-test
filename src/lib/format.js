@@ -11,6 +11,7 @@ export function answerToText(q, ans) {
   if (ans == null) return '';
   if (q.type === 'draw') return ans.strokes?.length ? '(그림)' : '';
   if (q.draw) return answerToText({ ...q, draw: false }, ans.text);
+  if (Array.isArray(ans) && q.type !== 'mc' && q.type !== 'match') return ans.join(', ');
   if (q.type === 'mc') {
     return (Array.isArray(ans) ? ans : [ans]).map(Number).sort((a, b) => a - b).map((n) => choiceLabel(q, n)).join(', ');
   }

@@ -30,7 +30,7 @@ export function matchQuestionStart(text, allowLoose = true) {
 }
 
 const MULTI_RE = /모두\s*고르|두\s*개를?\s*고르|2\s*개를?\s*고르|세\s*개를?\s*고르|3\s*개를?\s*고르|두\s*가지를?\s*고르|모두\s*찾/;
-const ESSAY_RE = /서술|논술|설명하(?:시오|세요|여라|여\s*쓰)|설명해\s*보|(?:이유|까닭|과정|방법|근거|생각|차이점|공통점)[^?\n]{0,20}(?:쓰시오|쓰세요|써\s*보|적으시오|적어\s*보|설명)/;
+const ESSAY_RE = /서술하|서술해|논술하|풀이\s*과정|설명하(?:시오|세요|여라|여\s*쓰)|설명해\s*보|(?:이유|까닭|과정|방법|근거|생각|차이점|공통점)[^?\n]{0,20}(?:쓰시오|쓰세요|써\s*보|적으시오|적어\s*보|설명)/;
 const POINTS_RE = /[[(（]\s*(\d+(?:\.\d+)?)\s*점\s*[\])）]/;
 
 export const HANGUL_CIRCLED = '㉮㉯㉰㉱㉲㉳㉴㉵㉶㉷';
@@ -94,8 +94,15 @@ function pickSequential(marks) {
   return out;
 }
 
+const SECTION_LABEL_RE = /^[\s❙|｜▎■□◆◇【\[]*(서술형|단답형|객관식|주관식|논술형)[\s❙|｜▎■□◆◇】\]]*$/;
+
 export function analyzeQuestion(no, text, page) {
-  const body = text.trim();
+  // "❙서술형❙" 같은 다음 문항의 머리표는 이 문항 내용이 아니다
+  const body = text
+    .split('\n')
+    .filter((l) => !SECTION_LABEL_RE.test(l))
+    .join('\n')
+    .trim();
   const { stem, choices, labels } = extractChoices(body);
   const pm = body.match(POINTS_RE);
   let type = 'short';
@@ -121,6 +128,52 @@ export function analyzeQuestion(no, text, page) {
     points: pm ? Number(pm[1]) : null,
     text: firstLine.length > 200 ? firstLine.slice(0, 200) + '…' : firstLine,
   };
+}
+
+// ── 문제지를 보고 "답을 어떻게 쓰는 문항인지" 판단 ──
+// 그리기: "그려 보세요", "그어 보고", "표시해 보세요", "색칠하세요" …  (선 잇기 "선으로 이으시오"는 제외)
+const DRAW_RE = /그려\s*(?:보|넣|주|라|야)|그리(?:시오|세요|십시오)|그어\s*(?:보|주|라)|그으(?:시오|세요)|표시(?:해\s*보|하시오|하세요)|색칠|나타내어\s*보|이어\s*(?:보세요|그리)/;
+const OX_RE = /○\s*표|○를|○\s*하|동그라미/;
+const FILL_RE = /써\s*넣|빈\s*칸|□|안에\s*알맞은/;
+
+/** "( ) ( )" 칸들의 이름: 같은 줄이면 왼쪽/오른쪽, 세로로 놓이면 위/아래, 그 밖엔 첫째/둘째… */
+export function blankLabels(blanks) {
+  const n = blanks.length;
+  const sameRow = blanks.every((b) => Math.abs(b.top - blanks[0].top) < 0.012 && b.page === blanks[0].page);
+  const sameCol = blanks.every((b) => Math.abs(b.x0 - blanks[0].x0) < 0.03 && b.page === blanks[0].page);
+  if (sameRow && n === 2) return ['왼쪽', '오른쪽'];
+  if (sameRow && n === 3) return ['왼쪽', '가운데', '오른쪽'];
+  if (sameCol && n === 2) return ['위', '아래'];
+  if (sameCol && n === 3) return ['위', '가운데', '아래'];
+  const ord = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째'];
+  return blanks.map((_, i) => ord[i] || `${i + 1}번째`);
+}
+
+export function inferAnswerFormat(q, text, blanks) {
+  const out = { ...q };
+  // 그림 아래 "( ) ( )" 중 하나에 ○표 → 칸을 고르는 객관식 (왼쪽/오른쪽)
+  if (out.type !== 'mc' && blanks.length >= 2 && blanks.length <= 8 && OX_RE.test(text)) {
+    out.type = 'mc';
+    out.choiceCount = blanks.length;
+    out.choiceLabels = blankLabels(blanks);
+    out.choices = [];
+    out.multi = /모두/.test(text);
+    out.oxBlanks = true;
+    return out;
+  }
+  if (out.type !== 'mc' && out.type !== 'match' && DRAW_RE.test(text) && !/선으로\s*이으/.test(text)) {
+    out.draw = true;
+    // 답 칸도 없고 써넣는 칸도 없으면 그림만 그리는 문항
+    if (!blanks.length && !FILL_RE.test(text)) out.type = 'draw';
+    else if (out.type === 'essay') out.type = 'short';
+  }
+  if (out.type !== 'mc' && FILL_RE.test(text)) out.fillBoxes = true;
+  // "풀이 과정을 쓰고 답을 구해 보세요" → 서술형, 풀이는 선생님이 채점
+  if (/풀이\s*과정/.test(text)) {
+    out.type = 'essay';
+    out.manual = true;
+  }
+  return out;
 }
 
 const GROUP_RE = /[(\[]\s*(\d{1,2})\s*[~∼～\-–]\s*(\d{1,2})\s*[)\]]/;
@@ -186,15 +239,16 @@ export function parseQuestions(pages) {
     const q = analyzeQuestion(a.no, text, lines[a.idx].page);
     const grp = groups.find((g) => a.no >= g.from && a.no <= g.to);
     const first = lines[a.idx];
+    const blanks = hasPos
+      ? seg.flatMap((l) => (l.blanks || []).map((b) => ({ page: l.page, x0: b.x0, x1: b.x1, top: l.top, bottom: l.bottom })))
+      : [];
     questions.push({
-      ...q,
+      ...inferAnswerFormat(q, text, blanks),
       group: grp ? grp.id : null,
       regions,
       anchor: hasPos ? { page: first.page, x: first.x0, top: first.top, bottom: first.bottom, colX1: layout.colBounds(first).x1 } : null,
       // 답을 쓰는 "(   )" 칸 위치 (채점된 시험지에 학생 답을 적을 자리)
-      blanks: hasPos
-        ? seg.flatMap((l) => (l.blanks || []).map((b) => ({ page: l.page, x0: b.x0, x1: b.x1, top: l.top, bottom: l.bottom })))
-        : [],
+      blanks,
     });
   });
 

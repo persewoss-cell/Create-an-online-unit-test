@@ -20,9 +20,12 @@ const NO_ANSWER_RE = /^(모름|모르겠|몰라|없음|\?+|x|-+|\.+)$/;
 export function isBlank(answer, question) {
   if (answer == null) return true;
   if (question?.draw || question?.type === 'draw') {
-    // 그리기 문항: 한 획 이상 그려야 하고, 답 칸이 있으면 답도 써야 한다
-    if (!answer.strokes?.length) return true;
-    return question.type !== 'draw' && isBlank(answer.text, { ...question, draw: false });
+    // 그리기 문항: 그림을 그렸으면 답 칸은 비워도 제출할 수 있다 (그림+답 문항은 둘 중 하나만 해도 됨)
+    if (answer.strokes?.length) return false;
+    return question.type === 'draw' || isBlank(answer.text, { ...question, draw: false });
+  }
+  if (question?.blankCount > 1) {
+    return !Array.isArray(answer) || answer.length < question.blankCount || answer.some((v) => !String(v ?? '').trim());
   }
   if (question?.type === 'match') {
     return !Array.isArray(answer) || answer.length < (question.matchCount || 1) || answer.some((v) => !v);
@@ -77,7 +80,31 @@ function compareShort(expected, answer, rule) {
   return { status: 'wrong' };
 }
 
+/** 칸이 여러 개인 문항: 칸마다 순서대로 비교 */
+function gradeBoxes(key, answers, rule) {
+  const accepted = (key.accepted || []).filter((a) => String(a).trim());
+  if (!accepted.length) return { status: 'review', reason: '정답이 등록되지 않음' };
+  let best = { status: 'wrong' };
+  let compared = false;
+  for (const alt of accepted) {
+    const parts = alt.split(/\s*[,，、]\s*/).filter(Boolean);
+    if (parts.length !== answers.length) continue;
+    compared = true;
+    const rs = parts.map((p, i) => compareShort(p, String(answers[i] ?? ''), rule));
+    if (rs.every((r) => r.status === 'correct')) return { status: 'correct' };
+    if (rs.every((r) => r.status !== 'wrong')) best = { status: 'review', reason: '칸 일부 확인 필요' };
+  }
+  // 정답의 칸 수가 학생 칸 수와 다르게 등록된 경우에만 이어 붙여서 비교
+  if (!compared) return gradeShortText(key, answers.join(', '), rule);
+  return best;
+}
+
 function gradeShort(key, answer, rule) {
+  if (Array.isArray(answer)) return gradeBoxes(key, answer, rule);
+  return gradeShortText(key, answer, rule);
+}
+
+function gradeShortText(key, answer, rule) {
   const accepted = (key.accepted || []).filter((a) => String(a).trim());
   if (!accepted.length) return { status: 'review', reason: '정답이 등록되지 않음' };
   let best = { status: 'wrong' };
@@ -167,11 +194,13 @@ export function gradeAnswer(question, key, answer, leniency = 'normal') {
   if (question.type === 'draw') return { status: 'review', reason: '그린 그림 — 선생님 확인' };
   if (question.draw) {
     // 그림 + 답: 답은 자동으로 확인하되, 그림 때문에 최종 판정은 선생님이
+    if (isBlank(answer.text, { ...question, draw: false })) return { status: 'review', reason: '그린 그림 확인 필요 (답 칸 비움)' };
     const r = gradeAnswer({ ...question, draw: false }, key, answer.text, leniency);
     return { status: 'review', reason: `그린 그림 확인 필요 · 적은 답 ${r.status === 'correct' ? '맞음' : r.status === 'wrong' ? '틀림' : '확인 필요'}` };
   }
   if (question.type === 'mc') return gradeChoice(key || {}, answer);
   if (question.type === 'match') return gradeMatch(key || {}, answer);
+  if (Array.isArray(answer)) return gradeShort(key || {}, answer, rule); // □ 칸이 여러 개
   const text = String(answer).trim();
   if (NO_ANSWER_RE.test(normalizeText(text))) return { status: 'wrong', reason: '답 없음' };
   if (question.type === 'essay') {

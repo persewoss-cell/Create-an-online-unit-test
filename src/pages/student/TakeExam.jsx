@@ -95,8 +95,9 @@ export default function TakeExam() {
       const clean = {};
       for (const x of qs) {
         const v = answers[x.no];
-        if (x.type === 'draw' || x.draw) clean[x.no] = { strokes: v.strokes, ...(x.type === 'draw' ? {} : { text: String(v.text).trim() }) };
-        else clean[x.no] = x.type === 'mc' || x.type === 'match' ? v.map(Number) : String(v).trim();
+        if (x.type === 'draw' || x.draw) clean[x.no] = { strokes: v.strokes || [], ...(x.type === 'draw' ? {} : { text: String(v.text ?? '').trim() }) };
+        else if (x.type === 'mc' || x.type === 'match') clean[x.no] = v.map(Number);
+        else clean[x.no] = Array.isArray(v) ? v.map((t) => String(t ?? '').trim()) : String(v).trim();
       }
       await submitAnswers(id, p, clean);
       clearDraft(id, p);
@@ -184,7 +185,11 @@ export default function TakeExam() {
       ) : (
         <AnswerInput q={q} value={answers[q.no]} onChange={(v) => setAnswer(q.no, v)} />
       )}
-      {isDraw && <div className="small muted" style={{ marginTop: 8 }}>왼쪽 문제 그림 위에 직접 그리세요.</div>}
+      {isDraw && (
+        <div className="small muted" style={{ marginTop: 8 }}>
+          왼쪽 문제 그림 위에 직접 그리세요.{q.type !== 'draw' && ' 그림을 그렸으면 답 칸은 비워도 제출할 수 있어요.'}
+        </div>
+      )}
       {missing.includes(q.no) && <div className="small" style={{ color: 'var(--bad)', marginTop: 8 }}>답을 입력해야 제출할 수 있어요.</div>}
     </div>
   );
