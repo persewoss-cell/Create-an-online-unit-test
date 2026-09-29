@@ -154,7 +154,7 @@ button.mark { cursor: pointer; }
 .qedit { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; }
 .qedit + .qedit { margin-top: 10px; }
 .qedit.warn { border-color: #e9c46a; background: #fffdf5; }
-.qedit .top { display: grid; grid-template-columns: 60px 110px 80px 80px 70px 1fr auto; gap: 8px; align-items: end; }
+.qedit .top { display: grid; grid-template-columns: 60px 200px 80px 80px 70px 1fr auto; gap: 8px; align-items: end; }
 .qedit .top label { font-size: 12px; color: var(--muted); font-weight: 600; }
 .qedit .top input, .qedit .top select { padding: 6px 8px; font-size: 14px; }
 @media (max-width: 800px) { .qedit .top { grid-template-columns: repeat(3, 1fr); } }
@@ -352,4 +352,6 @@ button.mark { cursor: pointer; }
 .save-state { color: var(--muted, #6b7280); margin-right: 10px; white-space: nowrap; }
 .save-state.saved { color: #1f8a4c; }
 .choice-row input.lab.need { border-color: var(--warn, #d97706); background: #fff8eb; }
-.qedit .top select { min-width: 190px; }
+.qedit .top > label:has(select) { width: auto !important; min-width: 200px; }
+.qedit .top select { width: 100%; }
+.recog-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px dashed var(--line, #e5e7eb); }

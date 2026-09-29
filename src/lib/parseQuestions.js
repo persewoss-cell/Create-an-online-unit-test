@@ -183,9 +183,9 @@ export function pickAnswerBlanks(seg, text) {
   const strip = ({ alone, isRef, ...b }) => b;
   const common = /공통(?:으로|적으로)?\s*(?:들어갈|알맞은|쓸)/.test(text);
   const alone = all.filter((b) => b.alone);
-  if (alone.length) return { blanks: alone.map(strip), common };
+  if (alone.length) return { blanks: alone.map(strip), common, info: all };
   const inText = all.filter((b) => !b.isRef);
-  return { blanks: inText.map(strip), common };
+  return { blanks: inText.map(strip), common, info: all };
 }
 
 export function inferAnswerFormat(q, text, blanks) {
@@ -287,10 +287,13 @@ export function parseQuestions(pages) {
     const q = analyzeQuestion(a.no, text, lines[a.idx].page);
     const grp = groups.find((g) => a.no >= g.from && a.no <= g.to);
     const first = lines[a.idx];
-    const { blanks, common } = hasPos ? pickAnswerBlanks(seg, text) : { blanks: [], common: false };
+    const { blanks, common, info } = hasPos ? pickAnswerBlanks(seg, text) : { blanks: [], common: false, info: [] };
     questions.push({
       ...inferAnswerFormat(q, text, blanks),
       ...(common ? { commonBlank: true } : {}),
+      // "답안 유형 다시 인식하기"에 쓰는 원본 정보: 문항 전체 글과 모든 괄호 칸
+      fullText: text.length > 1500 ? text.slice(0, 1500) : text,
+      blankInfo: info,
       group: grp ? grp.id : null,
       regions,
       anchor: hasPos ? { page: first.page, x: first.x0, top: first.top, bottom: first.bottom, colX1: layout.colBounds(first).x1 } : null,

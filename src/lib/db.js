@@ -8,7 +8,7 @@
 
 import {
   collection, collectionGroup, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp, updateDoc, deleteField,
-  setDoc, deleteDoc, onSnapshot,
+  setDoc, deleteDoc, onSnapshot, getDocFromServer, increment,
 } from 'firebase/firestore';
 import {
   signInWithEmailAndPassword, signOut, signInAnonymously, onAuthStateChanged, reauthenticateWithCredential,
@@ -129,6 +129,49 @@ export function watchExam(id, cb, onError) {
   return onSnapshot(doc(db, 'exams', id), (snap) => cb(snap.exists() ? { id, ...snap.data() } : null), onError);
 }
 
+/**
+ * 시험 보는 학생 화면용: 실시간 연결이 끊기거나(학교 와이파이, 화면 꺼짐) 늦어도 선생님이 고친 내용이 반드시 들어오도록
+ *  1) 실시간 구독 — 오류가 나면 3초 뒤 다시 연결
+ *  2) 20초마다, 그리고 화면을 다시 켜거나 인터넷이 다시 연결될 때 서버에서 직접 확인
+ */
+export function watchExamLive(id, cb) {
+  let stopped = false;
+  let unsub = () => {};
+  let retry = null;
+  const ref = doc(db, 'exams', id);
+  const emit = (snap) => !stopped && cb(snap.exists() ? { id, ...snap.data() } : null);
+  const subscribe = () => {
+    unsub();
+    unsub = onSnapshot(ref, emit, () => {
+      clearTimeout(retry);
+      retry = setTimeout(() => !stopped && subscribe(), 3000);
+    });
+  };
+  const check = () => {
+    if (stopped || document.visibilityState === 'hidden') return;
+    getDocFromServer(ref).then(emit).catch(() => {});
+  };
+  const onVisible = () => {
+    if (document.visibilityState !== 'visible') return;
+    check();
+    subscribe(); // 화면이 꺼졌다 켜지면 연결도 새로
+  };
+  subscribe();
+  const timer = setInterval(check, 20000);
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', onVisible);
+  window.addEventListener('focus', check);
+  return () => {
+    stopped = true;
+    unsub();
+    clearTimeout(retry);
+    clearInterval(timer);
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('online', onVisible);
+    window.removeEventListener('focus', check);
+  };
+}
+
 /** 정답을 실시간으로 (제출한 학생의 결과 화면: 정답을 고치면 점수도 바로 다시 계산) */
 export function watchKeys(examId, cb, onError) {
   return onSnapshot(doc(db, 'exams', examId, 'private', 'key'), (snap) => cb(snap.exists() ? snap.data().keys || {} : {}), onError);
@@ -139,9 +182,13 @@ export async function getKeys(examId) {
   return snap.exists() ? snap.data().keys || {} : {};
 }
 
-export async function saveQuestionsAndKeys(examId, questions, keys) {
-  await updateExam(examId, { questions });
+/**
+ * 문항·정답 저장. 정답을 먼저 저장한 뒤 평가 문서에 "고친 번호"와 수정 차례(revision)를 남긴다
+ * → 시험 보는 학생 화면은 revision이 바뀐 것을 보고 바로 알림을 띄운다.
+ */
+export async function saveQuestionsAndKeys(examId, questions, keys, changedNos = []) {
   await setDoc(doc(db, 'exams', examId, 'private', 'key'), { keys: stringKeys(keys) });
+  await updateExam(examId, { questions, revision: increment(1), lastEdit: { nos: changedNos, at: Date.now() } });
 }
 
 export async function deleteExam(examId) {

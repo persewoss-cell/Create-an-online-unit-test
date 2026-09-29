@@ -6,7 +6,7 @@ import { AnswerInput, FitRegions, regionsOf, stackRatio, useSize, unitsPerCm } f
 import { DrawLayer, DrawToolbar } from '../../components/Drawing.jsx';
 import { loadStudent, loadDraft, saveDraft, clearDraft } from '../../lib/student.js';
 import {
-  ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf, watchExam,
+  ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf, watchExamLive,
   loadServerDraft, saveServerDraft, deleteServerDraft,
 } from '../../lib/db.js';
 import { isBlank } from '../../lib/grading.js';
@@ -69,10 +69,52 @@ export default function TakeExam() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState('');
   const [mainRef, main] = useSize();
+  const examRef = useRef(null);
+  const noticeTimer = useRef(null);
+
+  function showNotice(text, ms = 8000) {
+    setNotice(text);
+    clearTimeout(noticeTimer.current);
+    if (ms) noticeTimer.current = setTimeout(() => setNotice(''), ms);
+  }
+
+  /** 서버에서 받은 최신 평가를 화면에 반영 (같은 내용이 여러 번 와도 한 번만) */
+  function applyExam(next) {
+    const prev = examRef.current;
+    if (!next || !prev) return;
+    if (next.status !== 'open') {
+      setError('선생님이 평가를 마감했어요.');
+      return;
+    }
+    const newRev = (next.revision || 0) > (prev.revision || 0);
+    if (!newRev && stableKey(next.questions) === stableKey(prev.questions)) return;
+    // 학생 화면에 보이는 것만 비교 (영역·위치 정보 등은 제외)
+    const view = (x) => (x ? { ...x, regions: undefined, anchor: undefined, blanks: undefined, answerSpots: undefined, text: undefined, blankInfo: undefined, fullText: undefined } : null);
+    const changed = new Set(
+      next.questions.filter((q) => stableKey(view(prev.questions.find((o) => o.no === q.no))) !== stableKey(view(q))).map((q) => q.no),
+    );
+    if (newRev) for (const no of next.lastEdit?.nos || []) changed.add(no);
+    examRef.current = next;
+    setExam(next);
+    // 형식이 바뀐 문항의 답은 지운다 (예: 단답형 → 객관식)
+    setAnswers((a) => {
+      const out = { ...a };
+      for (const q of next.questions) {
+        const oq = prev.questions.find((o) => o.no === q.no);
+        if (out[q.no] != null && (!oq || shapeOf(oq) !== shapeOf(q))) delete out[q.no];
+      }
+      return out;
+    });
+    setCur((c) => Math.min(c, next.questions.length - 1));
+    const nos = [...changed].sort((x, y) => x - y);
+    if (nos.length) showNotice(`선생님이 ${nos.join(', ')}번 문제를 고쳤어요. 다시 확인해 주세요.`, 15000);
+    else if (newRev) showNotice('선생님이 문제를 고쳤어요. 다시 확인해 주세요.', 15000);
+  }
 
   useEffect(() => {
     if (!p) return undefined;
     let unsubExam = () => {};
+    let alive = true;
     (async () => {
       try {
         await ensureStudentSession(p);
@@ -91,54 +133,22 @@ export default function TakeExam() {
         setAnswers(restored);
         if (n) {
           setCur(Math.min(Math.max(0, Number(draft.cur) || 0), e.questions.length - 1));
-          setNotice(`지난번에 풀던 답 ${n}문항을 불러왔어요. 이어서 풀어요.`);
-          setTimeout(() => setNotice(''), 6000);
+          showNotice(`지난번에 풀던 답 ${n}문항을 불러왔어요. 이어서 풀어요.`, 6000);
         }
         setReady(true);
         setPages(await getPages(id));
-        // 시험 중 선생님이 문제·정답을 고치면 바로 반영
-        unsubExam = watchExam(
-          id,
-          (next) => {
-            if (!next) return;
-            if (next.status !== 'open') {
-              setError('선생님이 평가를 마감했어요.');
-              return;
-            }
-            setExam((prev) => {
-              if (!prev) return next;
-              const changed = next.questions
-                .filter((q) => {
-                  const old = prev.questions.find((o) => o.no === q.no);
-                  // 학생 화면에 보이는 것만 비교 (영역·위치 정보 등은 제외)
-                  const view = (x) => ({ ...x, regions: undefined, anchor: undefined, blanks: undefined, answerSpots: undefined, text: undefined });
-                  return !old || stableKey(view(old)) !== stableKey(view(q));
-                })
-                .map((q) => q.no);
-              if (changed.length) {
-                // 형식이 바뀐 문항의 답은 지운다 (예: 단답형 → 객관식)
-                setAnswers((a) => {
-                  const out = { ...a };
-                  for (const no of changed) {
-                    const oq = prev.questions.find((o) => o.no === no);
-                    const nq = next.questions.find((o) => o.no === no);
-                    if (!oq || shapeOf(oq) !== shapeOf(nq)) delete out[no];
-                  }
-                  return out;
-                });
-                setNotice(`선생님이 ${changed.join(', ')}번 문제를 고쳤어요. 다시 확인해 주세요.`);
-                setTimeout(() => setNotice(''), 8000);
-              }
-              return next;
-            });
-          },
-          () => {},
-        );
+        // 시험 중 선생님이 문제·정답을 고치면 바로 반영 (실시간 + 연결이 끊겨도 주기적으로 확인)
+        examRef.current = e;
+        if (!alive) return;
+        unsubExam = watchExamLive(id, applyExam);
       } catch (err) {
         setError(err.code === 'permission-denied' ? '지금은 볼 수 없는 평가입니다.' : err.message);
       }
     })();
-    return () => unsubExam();
+    return () => {
+      alive = false;
+      unsubExam();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -401,8 +411,8 @@ export default function TakeExam() {
         </button>
       </footer>
       {notice && (
-        <div className="missing-toast notice-toast" role="status">
-          🔔 {notice}
+        <div className="missing-toast notice-toast" role="status" onClick={() => setNotice('')}>
+          🔔 {notice} <button type="button" className="btn xs" style={{ marginLeft: 8 }}>확인</button>
         </div>
       )}
       {missing.length > 0 && (

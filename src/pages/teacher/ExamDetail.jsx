@@ -12,7 +12,7 @@ import {
 } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
 import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
-import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL } from '../../lib/format.js';
+import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '../../lib/format.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { STATUS } from './Dashboard.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
@@ -343,7 +343,15 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
     const { questions, keys: k } = fromItems(items);
     setBusy(true);
     try {
-      await saveQuestionsAndKeys(exam.id, questions, k);
+      // 고친 문항 번호 (문항 형식이나 정답이 바뀐 것) → 학생 화면 알림에 쓴다
+      const view = (q) => (q ? { ...q, regions: undefined, anchor: undefined, blanks: undefined, answerSpots: undefined, blankInfo: undefined, fullText: undefined } : null);
+      const changed = questions
+        .filter((q) => {
+          const old = exam.questions.find((o) => o.no === q.no);
+          return stableKey(view(old)) !== stableKey(view(q)) || stableKey(keys[q.no] ?? keys[String(q.no)]) !== stableKey(k[q.no]);
+        })
+        .map((q) => q.no);
+      await saveQuestionsAndKeys(exam.id, questions, k, changed);
       onSaved(questions, k);
       setMsg('저장했습니다. 모든 학생의 점수가 새 정답으로 다시 채점됩니다.');
     } catch (err) {

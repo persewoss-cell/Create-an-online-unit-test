@@ -80,6 +80,9 @@ export function fromItems(items) {
       anchor: it.anchor || null,
       blanks: it.blanks || [],
       answerSpots: it.answerSpots || [],
+      ...(it.fullText ? { fullText: it.fullText } : {}),
+      ...(it.blankInfo?.length ? { blankInfo: it.blankInfo } : {}),
+      ...(it.commonBlank ? { commonBlank: true } : {}),
     };
     let k = key;
     if (hasParts) {

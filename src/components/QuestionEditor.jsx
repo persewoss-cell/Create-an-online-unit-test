@@ -3,6 +3,7 @@ import { numberToCircled, extractKeywords } from '../lib/korean.js';
 import { choiceLabel } from '../lib/parseQuestions.js';
 import { parseAnswerText, buildKey } from '../lib/parseAnswers.js';
 import { newItem, toItems, newPart, partMissing } from '../lib/editorModel.js';
+import { nextRecognition, applyRecognition } from '../lib/rerecognize.js';
 
 /**
  * 인식된 문항·정답을 교사가 확인하고 고치는 편집기
@@ -302,12 +303,13 @@ function AnswerFields({ it, onChange, idPrefix }) {
 
 export function QuestionRow({ it, pageCount, onChange, onRemove }) {
   const hasParts = it.parts?.length > 0;
+  const [recog, setRecog] = useState({ step: 0, msg: '' });
   const noAnswer = !it.manual && (hasParts ? it.parts.some(partMissing) : !(it.draw && it.type === 'short') && partMissing(it));
   const setPart = (i, patch) => onChange({ parts: it.parts.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
   const addPart = () => {
     if (hasParts) return onChange({ parts: [...it.parts, newPart('short')] });
     // 지금 답 형식을 (1)로, 새 칸을 (2)로
-    const { no, page, points, text, regions, anchor, group, blanks, answerSpots, manual, oxBlanks, fillBoxes, parts, draw, ...first } = it;
+    const { no, page, points, text, regions, anchor, group, blanks, answerSpots, manual, oxBlanks, fillBoxes, parts, draw, fullText, blankInfo, commonBlank, ...first } = it;
     onChange({ parts: [{ ...first, type: it.type === 'draw' ? 'short' : it.type }, newPart('short')], draw: false });
   };
   const removePart = (i) => {
@@ -316,8 +318,23 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
     else onChange({ parts: rest });
   };
 
+  const recognizeAgain = () => {
+    const r = nextRecognition(it, recog.step);
+    if (!r) return setRecog({ ...recog, msg: '다른 방법으로 읽을 수 있는 답안 유형이 없어요. 아래에서 직접 고쳐 주세요.' });
+    onChange(applyRecognition(it, r.option.patch));
+    setRecog({ step: r.nextStep, msg: `다시 인식 (${r.index}/${r.total}): ${r.option.label}` });
+  };
+
   return (
     <div className={`qedit ${noAnswer ? 'warn' : ''}`} data-testid={`edit-${it.no}`}>
+      <div className="recog-bar">
+        <button type="button" className="btn sm primary" onClick={recognizeAgain} aria-label={`${it.no}번 답안 유형 다시 인식하기`}>
+          🔄 답안 유형 다시 인식하기
+        </button>
+        <span className="small muted" data-testid={`recog-${it.no}`}>
+          {recog.msg ? `${recog.msg} — 또 틀리면 한 번 더 누르세요` : '인식이 틀렸으면 누르세요. 누를 때마다 다른 방법으로 다시 읽어요.'}
+        </span>
+      </div>
       <div className="top">
         <label>번호<input type="number" value={it.no} onChange={(e) => onChange({ no: e.target.value })} /></label>
         {!hasParts && (
