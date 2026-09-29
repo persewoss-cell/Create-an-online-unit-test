@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { numberToCircled, extractKeywords } from '../lib/korean.js';
 import { choiceLabel } from '../lib/parseQuestions.js';
 import { parseAnswerText, buildKey } from '../lib/parseAnswers.js';
-import { newItem, toItems, newPart, partMissing } from '../lib/editorModel.js';
+import { newItem, toItems, newPart, partMissing, boxAnswersOf } from '../lib/editorModel.js';
+
+const BOX_ORD = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째'];
 import { nextRecognition, applyRecognition } from '../lib/rerecognize.js';
 
 /**
@@ -265,15 +267,56 @@ function AnswerFields({ it, onChange, idPrefix }) {
       )}
       {it.type === 'short' && (
         <div className="stack" style={{ gap: 6 }}>
-          <label className="field">
-            <span className="small">정답 <span className="muted" style={{ fontWeight: 400 }}>— 여러 답 인정: <code>/</code> · 칸이 여러 개면 순서대로 <code>,</code></span></span>
-            <input type="text" value={it.answerText} onChange={(e) => onChange({ answerText: e.target.value })} aria-label={`${idPrefix} 정답`} />
-          </label>
           <label className="small row" style={{ gap: 6 }}>
             답 칸 수
-            <input type="number" min="1" max="8" value={Math.max(1, Number(it.blankCount) || 1)} onChange={(e) => onChange({ blankCount: Number(e.target.value) })} style={{ width: 70 }} aria-label={`${idPrefix} 답 칸 수`} />
-            <span className="muted">(2 이상이면 학생 화면에 입력칸이 그 수만큼)</span>
+            <input
+              type="number"
+              min="1"
+              max="8"
+              value={Math.max(1, Number(it.blankCount) || 1)}
+              onChange={(e) => {
+                const n = Math.max(1, Math.min(8, Number(e.target.value) || 1));
+                const cur = boxAnswersOf(it);
+                const boxes = Array.from({ length: n }, (_, i) => cur[i] ?? '');
+                // 칸이 하나로 돌아가면 칸별 정답을 한 줄 정답으로
+                onChange(n > 1 ? { blankCount: n, boxAnswers: boxes } : { blankCount: 0, answerText: it.answerText || cur.filter(Boolean).join(', ') });
+              }}
+              style={{ width: 70 }}
+              aria-label={`${idPrefix} 답 칸 수`}
+            />
+            <span className="muted">(2 이상이면 학생 화면에 입력칸이 그 수만큼, 정답도 칸마다)</span>
           </label>
+          {Number(it.blankCount) > 1 ? (
+            <div className="box-answers">
+              <div className="small">
+                칸별 정답 <span className="muted">— 학생이 쓰는 순서대로 · 한 칸에 여러 답 인정은 <code>/</code></span>
+              </div>
+              {boxAnswersOf(it).map((v, i) => (
+                <label key={i} className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+                  <span className="small" style={{ width: 64, flexShrink: 0, fontWeight: 600 }}>{BOX_ORD[i]} 칸</span>
+                  <input
+                    type="text"
+                    value={v}
+                    onChange={(e) => {
+                      const next = boxAnswersOf(it);
+                      next[i] = e.target.value;
+                      onChange({ boxAnswers: next, answerText: '' });
+                    }}
+                    aria-label={`${idPrefix} ${BOX_ORD[i]} 칸 정답`}
+                  />
+                </label>
+              ))}
+              <label className="small row" style={{ gap: 4 }}>
+                <input type="checkbox" checked={!!it.anyOrder} onChange={(e) => onChange({ anyOrder: e.target.checked })} aria-label={`${idPrefix} 순서 무관`} />
+                순서가 달라도 정답으로 인정 <span className="muted">(끄면 칸 순서대로 맞아야 정답)</span>
+              </label>
+            </div>
+          ) : (
+            <label className="field">
+              <span className="small">정답 <span className="muted" style={{ fontWeight: 400 }}>— 여러 답 인정: <code>/</code></span></span>
+              <input type="text" value={it.answerText} onChange={(e) => onChange({ answerText: e.target.value })} aria-label={`${idPrefix} 정답`} />
+            </label>
+          )}
         </div>
       )}
       {it.type === 'essay' && (

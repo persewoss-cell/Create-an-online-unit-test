@@ -41,7 +41,25 @@ export function keyToText(q, key) {
     const kw = (key.keywords || []).length ? ` [핵심어: ${key.keywords.join(', ')}]` : '';
     return `${key.model || ''}${kw}`;
   }
+  if (key.boxes?.length) {
+    const alts = boxAlternatives(key);
+    const text = alts.length > 1 ? alts.map((a, i) => `[${i + 1}] ${a.join(' / ')}`).join('  ') : alts.flat().join(' / ');
+    return key.anyOrder ? `${text} (순서 무관)` : text;
+  }
   return (key.accepted || []).join(' / ');
+}
+
+/**
+ * 칸이 여러 개인 단답형의 칸별 정답 (칸마다 "가 / 나"처럼 여러 답 인정 가능)
+ * 새 형식 key.boxes, 예전 형식 key.accepted("가, 나" 쉼표로 칸 구분) 모두 읽는다.
+ * @returns {string[][]} 칸마다 인정하는 답 목록
+ */
+export function boxAlternatives(key, n) {
+  if (!key) return [];
+  if (key.boxes?.length) return key.boxes.map((b) => String(b || '').split(/\s*\/\s*/).map((x) => x.trim()).filter(Boolean));
+  const sets = (key.accepted || []).map((a) => String(a).split(/\s*[,，、]\s*/).filter(Boolean));
+  const len = n || Math.max(0, ...sets.map((s) => s.length));
+  return Array.from({ length: len }, (_, i) => [...new Set(sets.map((s) => s[i]).filter(Boolean))]);
 }
 
 /** 채점된 시험지에 빨간 글씨로 쓸 짧은 정답 */
@@ -54,12 +72,13 @@ export function shortKeyText(q, key) {
     const t = key.examples?.length ? key.examples[0] : key.model || '';
     return t.length > 24 ? `${t.slice(0, 24)}…` : t;
   }
+  if (q.type === 'short' && key.boxes?.length) return boxAlternatives(key).map((a) => a[0] || '').join(', ');
   if (q.type === 'short') return (key.accepted || [])[0] || '';
   return keyToText(q, key);
 }
 
 function hasKeyContent(key) {
-  return !!(key.choices?.length || key.pairs?.some(Boolean) || key.accepted?.some((a) => a.trim()) || key.model?.trim() || key.keywords?.length);
+  return !!(key.choices?.length || key.pairs?.some(Boolean) || key.accepted?.some((a) => a.trim()) || key.boxes?.some((b) => String(b).trim()) || key.model?.trim() || key.keywords?.length);
 }
 
 /** 비교용: 빈 값·기본값을 빼고 키 순서를 맞춘 문자열 (실제로 바뀐 문항만 찾기 위해) */

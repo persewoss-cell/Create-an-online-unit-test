@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { buildGrid, findSpot, occupy, textWidth } from '../lib/placement.js';
 import { StrokeShape, stackToPage } from './Drawing.jsx';
 import { choiceLabel } from '../lib/parseQuestions.js';
-import { matchLabel, shortKeyText, answerToText } from '../lib/format.js';
+import { matchLabel, shortKeyText, answerToText, keyToText, boxAlternatives } from '../lib/format.js';
 
 const A4 = 210 / 297;
 export const aspectOf = (exam, page) => exam?.pageAspects?.[page - 1] || A4;
@@ -234,7 +234,7 @@ export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled
   if (q.type === 'short' && q.blankCount > 1) {
     const vals = Array.isArray(value) ? value : [];
     const ord = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째'];
-    const keyParts = show ? String((answerKey.accepted || [])[0] || '').split(/\s*[,，、]\s*/) : [];
+    const keyParts = show ? boxAlternatives(answerKey, q.blankCount).map((a) => a.join(' / ')) : [];
     return (
       <div className="stack" style={{ gap: 8 }}>
         <div className="small muted">□ 칸마다 순서대로 답을 쓰세요.</div>
@@ -257,7 +257,7 @@ export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled
         ))}
         {show && (
           <div className="key-box">
-            <b>정답</b> {(answerKey.accepted || []).join(' / ')}
+            <b>정답</b> {keyToText(q, answerKey)}
           </div>
         )}
       </div>

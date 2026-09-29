@@ -8,6 +8,7 @@ import {
   normalizeText, sameWord, containsWord, jamoSimilarity, diceSimilarity, parseNumeric, hasNegation,
   samePredicate, predicateStem, extractKeywords,
 } from './korean.js';
+import { boxAlternatives } from './format.js';
 
 export const LENIENCY = {
   strict: { label: '엄격', essayCorrect: 0.8, essayReview: 0.4, diceReview: 0.4, typoReview: 0.85, containCorrect: false },
@@ -100,6 +101,44 @@ function compareShort(expected, answer, rule) {
 
 /** 칸이 여러 개인 문항: 칸마다 순서대로 비교 */
 function gradeBoxes(key, answers, rule) {
+  // 칸마다 정답을 따로 적은 경우 (새 형식)
+  if (key.boxes?.length === answers.length) {
+    const alts = boxAlternatives(key);
+    if (alts.every((a) => !a.length)) return { status: 'review', reason: '정답이 등록되지 않음' };
+    const cmp = (i, j) => {
+      // 칸 i의 학생 답을 정답 칸 j와 비교 (가장 좋은 결과)
+      const rs = alts[j].map((exp) => compareShort(exp, String(answers[i] ?? ''), rule));
+      return rs.find((r) => r.status === 'correct') || rs.find((r) => r.status === 'review') || { status: 'wrong' };
+    };
+    const rank = { correct: 2, review: 1, wrong: 0 };
+    let assign = answers.map((_, i) => cmp(i, i));
+    if (key.anyOrder) {
+      // 순서가 달라도 정답: 칸과 정답을 가장 잘 맞게 짝짓는다 (칸 수가 적어서 모두 따져 봄)
+      let best = null;
+      const used = new Array(answers.length).fill(false);
+      const pick = (i, acc) => {
+        if (i === answers.length) {
+          const score = acc.reduce((s, r) => s + rank[r.status] * 10 + (r.status === 'correct' ? 1 : 0), 0);
+          if (!best || score > best.score) best = { score, acc: [...acc] };
+          return;
+        }
+        for (let j = 0; j < answers.length; j++) {
+          if (used[j]) continue;
+          used[j] = true;
+          acc.push(cmp(i, j));
+          pick(i + 1, acc);
+          acc.pop();
+          used[j] = false;
+        }
+      };
+      if (answers.length <= 7) pick(0, []);
+      if (best) assign = best.acc;
+    }
+    if (assign.every((r) => r.status === 'correct')) return { status: 'correct' };
+    if (assign.some((r) => r.status === 'wrong')) return { status: 'wrong' };
+    const bad = assign.map((r, i) => (r.status === 'review' ? i + 1 : 0)).filter(Boolean);
+    return { status: 'review', reason: `${bad.join(', ')}번째 칸 확인 필요` };
+  }
   const accepted = (key.accepted || []).filter((a) => String(a).trim());
   if (!accepted.length) return { status: 'review', reason: '정답이 등록되지 않음' };
   let best = { status: 'wrong' };
