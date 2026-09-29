@@ -30,6 +30,13 @@ describe('단답형', () => {
   it('오타는 교사 검토', () => {
     expect(gradeAnswer(short, key, '광합썽').status).toBe('review');
   });
+  it('정답의 일부만 쓰면 선생님 검토', () => {
+    expect(gradeAnswer(short, { accepted: ['점 ㅇ'] }, 'ㅇ').status).toBe('review');
+    expect(gradeAnswer(short, { accepted: ['점 ㅇ'] }, '점 ㅇ').status).toBe('correct');
+    expect(gradeAnswer(short, { accepted: ['점 ㅇ'] }, 'ㄱ').status).toBe('wrong');
+    expect(gradeAnswer(short, { accepted: ['12 cm'] }, '1').status).toBe('wrong');
+    expect(gradeAnswer(short, { accepted: ['로제타 선생님'] }, '로제타').status).toBe('review');
+  });
   it('다른 답은 오답', () => {
     expect(gradeAnswer(short, key, '호흡').status).toBe('wrong');
     expect(gradeAnswer(short, key, '모름').status).toBe('wrong');

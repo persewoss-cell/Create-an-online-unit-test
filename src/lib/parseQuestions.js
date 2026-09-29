@@ -168,6 +168,15 @@ export function inferAnswerFormat(q, text, blanks) {
     else if (out.type === 'essay') out.type = 'short';
   }
   if (out.type !== 'mc' && FILL_RE.test(text)) out.fillBoxes = true;
+  // "두 가지를 쓰시오", "세 개 찾아 쓰세요" → 답 칸을 그 수만큼
+  const cm = text.match(/(두|세|네|다섯|2|3|4|5)\s*(?:가지|개|곳|군데)(?:를|을|씩)?\s*(?:찾아\s*)?(?:쓰|적|써)/);
+  if (cm && (out.type === 'short' || out.type === 'essay') && !out.draw) {
+    const n = { 두: 2, 세: 3, 네: 4, 다섯: 5 }[cm[1]] || Number(cm[1]);
+    if (n >= 2) {
+      out.type = 'short';
+      out.blankCount = n;
+    }
+  }
   // "풀이 과정을 쓰고 답을 구해 보세요" → 서술형, 풀이는 선생님이 채점
   if (/풀이\s*과정/.test(text)) {
     out.type = 'essay';

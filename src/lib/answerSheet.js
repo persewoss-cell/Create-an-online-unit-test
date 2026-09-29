@@ -27,7 +27,11 @@ export function answerHint(q) {
     return `${labels.join(' ')} 중에서 적기${q.multi ? ' (여러 개면 2, 4 처럼)' : ''} (예: ${labels[0]})` + tail;
   }
   if (q.type === 'match') return '(1)-① (2)-② 처럼 적기' + tail;
-  if (q.fillBoxes) return '□ 칸에 들어갈 답. 칸이 여러 개면 순서대로 쉼표로 (예: 3, 6)' + tail;
+  if (q.blankCount > 1) {
+    const ex = Array.from({ length: q.blankCount }, (_, i) => [3, 6, 9, 12, 15, 18, 21, 24][i]).join(', ');
+    return `답 칸 ${q.blankCount}개 — 순서대로 쉼표로 구분 (예: ${ex})` + tail;
+  }
+  if (q.fillBoxes) return '□ 칸에 들어갈 답 (칸이 여러 개면 순서대로 쉼표로, 예: 3, 6)' + tail;
   if (q.type === 'essay') return '모범 답안 문장 또는 (예) 예시 / 예시 등' + tail;
   return '답 그대로 적기 (여러 답 인정: 답1 / 답2)' + tail;
 }

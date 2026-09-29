@@ -70,6 +70,17 @@ function compareShort(expected, answer, rule) {
       return { status: 'review', reason: '정답과 일부만 일치' };
     }
   }
+  // 정답의 한 부분(낱말)만 쓴 경우 — 예: 정답 "점 ㅇ", 학생 "ㅇ" → 틀렸다고 하지 말고 선생님 확인
+  const words = String(expected)
+    .split(/[\s,.·/()]+/)
+    .map((w) => normalizeText(w))
+    .filter(Boolean);
+  if (words.length >= 2 && words.some((w) => w === na || (na.length >= 2 && (w.includes(na) || na.includes(w))))) {
+    return { status: 'review', reason: '정답의 일부만 씀 — 선생님 확인' };
+  }
+  if (na.length >= 1 && ne.includes(na) && na.length / ne.length >= 0.25 && !/^\d+$/.test(na)) {
+    return { status: 'review', reason: '정답과 일부만 일치' };
+  }
   const sim = jamoSimilarity(expected, answer);
   if (ne.length >= 2 && sim >= rule.typoReview) {
     return { status: 'review', reason: `철자가 비슷함 (유사도 ${Math.round(sim * 100)}%)` };

@@ -42,6 +42,7 @@ export function fromItems(items) {
       regions: it.regions || [],
       anchor: it.anchor || null,
       blanks: it.blanks || [],
+      answerSpots: it.answerSpots || [],
     };
     questions.push(q);
     if (it.type === 'draw') {

@@ -302,6 +302,17 @@ function slashPath(cx, cy, r, seed) {
   return `M${cx - r * 0.9},${cy + r * 1.25} Q${cx + bend},${cy + bend} ${cx + r * 1.5},${cy - r * 1.35}`;
 }
 
+/** 답 칸(□, ( )) 한가운데에 글자 크기를 칸에 맞춰 쓴다 */
+function inSpot(sp, text, W, H, maxFs = 24) {
+  const bw = (sp.x1 - sp.x0) * W - 6;
+  const bh = (sp.bottom - sp.top) * H;
+  let fs = maxFs;
+  while (fs > 11 && (textWidth(text, fs) > bw || fs * 1.1 > bh + 6)) fs -= 1;
+  const w = textWidth(text, fs);
+  const h = fs * 1.1;
+  return { x: ((sp.x0 + sp.x1) / 2) * W - w / 2, y: ((sp.top + sp.bottom) / 2) * H - h / 2, w, h, fs, text };
+}
+
 const grow = (b, up, down) => ({ x0: b.x0 - 6, y0: b.y0 - up, x1: b.x1 + 6, y1: b.y1 + down });
 
 function placeLabels(exam, pages, grids, byNo, keys, answers, result) {
@@ -361,15 +372,32 @@ function placeLabels(exam, pages, grids, byNo, keys, answers, result) {
           res.mine = { ...spot, text: '○', fs };
         }
       }
-      const mineText = oxBlanks || q.type === 'draw' ? '' : answerToText(q, answers?.[q.no]);
+      // 칸이 여러 개인 답: 칸마다 제자리에
+      const ans = answers?.[q.no];
+      const spots = (q.answerSpots || []).filter((sp) => sp.page === page);
+      if (Array.isArray(ans) && q.type === 'short' && spots.length && spots.length === ans.length) {
+        res.multi = [];
+        ans.forEach((v, i) => {
+          const text = String(v ?? '').trim();
+          if (!text) return;
+          const spot = inSpot(spots[i], text, W, H, 22);
+          occupy(g, spot);
+          res.multi.push(spot);
+          if (!res.mine) res.mine = { ...spot, text: '' };
+        });
+      }
+      const mineText = oxBlanks || q.type === 'draw' || res.multi ? '' : answerToText(q, answers?.[q.no]);
       if (mineText) {
         const text = mineText.length > 22 ? `${mineText.slice(0, 22)}…` : mineText;
         const fs = 24;
         const w = textWidth(text, fs);
         const h = fs * 1.15;
         const blank = pageBlanks[0];
+        const box1 = spots.length === 1 && spots[0].kind === 'box' ? spots[0] : null;
         let spot = null;
-        if (blank) {
+        if (box1) {
+          spot = inSpot(box1, text, W, H, fs);
+        } else if (blank) {
           const c = { x: ((blank.x0 + blank.x1) / 2) * W, y: ((blank.top + blank.bottom) / 2) * H };
           spot = findSpot(g, c, w, h, { x0: blank.x0 * W - 30, y0: blank.top * H - 16, x1: blank.x1 * W + 30, y1: blank.bottom * H + 16 });
           if (!spot) spot = findSpot(g, c, w, h, box);
@@ -380,7 +408,7 @@ function placeLabels(exam, pages, grids, byNo, keys, answers, result) {
         if (!spot) spot = findSpot(g, { x: box.x1 - w / 2, y: box.y1 }, w, h, grow(box, 60, 160));
         if (!spot) spot = { x: Math.max(0, box.x1 - w - 10), y: a.top * H, w, h, overlap: true };
         occupy(g, spot);
-        res.mine = { ...spot, text, fs };
+        res.mine = { fs, ...spot, text };
       }
       if (it.status === 'review') {
         const text = '선생님 확인 중';
@@ -523,7 +551,12 @@ export function GradedPaper({ exam, pages, keys, answers, result }) {
                         )}
                       </>
                     )}
-                    {lab.mine && (
+                    {(lab.multi || []).map((m, i) => (
+                      <text key={i} x={m.x + 3} y={m.y + m.h * 0.8} className={`hand blue ${m.overlap ? 'halo' : ''}`} fontSize={m.fs}>
+                        {m.text}
+                      </text>
+                    ))}
+                    {lab.mine?.text && (
                       <text x={lab.mine.x + 3} y={lab.mine.y + lab.mine.h * 0.8} className={`hand blue ${lab.mine.overlap ? 'halo' : ''}`} fontSize={lab.mine.fs}>
                         {lab.mine.text}
                       </text>
