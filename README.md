@@ -1,5 +1,8 @@
 # 온라인 단원평가
 
+**사이트 주소**: https://persewoss-cell.github.io/Create-an-online-unit-test/ (GitHub Pages, 이 브랜치에 push하면 자동 배포)  
+같은 사이트가 Firebase Hosting(https://create-an-online-unit-test.web.app)에도 있습니다.
+
 교사가 **문제 PDF와 정답 PDF**를 올리면 온라인 평가로 바뀌고, 학생은 **학년·반·번호·이름**으로 들어와 평가를 본 뒤 **바로 자동 채점 결과**를 확인합니다. 교사는 결과를 **엑셀로 내려받고**, 자동 채점이 애매한 답안은 **검토 요청** 목록에서 직접 정답/오답을 정합니다.
 
 ## 주요 기능
