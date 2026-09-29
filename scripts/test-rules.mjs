@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc, getDocs, updateDoc, writeBatch, serverTimestamp,
-  terminate, query, where, collectionGroup,
+  terminate, query, where, collectionGroup, deleteDoc,
 } from 'firebase/firestore';
 
 const PROJECT = 'demo-unit-test';
@@ -114,6 +114,13 @@ function submit(c, uid, sid, extra = {}) {
   b.set(doc(c.db, 'exams', examId, 'submitters', uid), { studentId: sid, at: serverTimestamp() });
   return b.commit();
 }
+const draft = (c, sid, extra = {}) =>
+  setDoc(doc(c.db, 'exams', examId, 'drafts', sid), { studentId: sid, answers: { 1: [2] }, shapes: {}, cur: 0, at: Date.now(), ...extra });
+await expectOk('풀던 답 임시 저장', () => draft(S, '5-1-3'));
+await expectOk('임시 저장한 답 읽기', () => getDoc(doc(S.db, 'exams', examId, 'drafts', '5-1-3')));
+await expectDenied('다른 학생 번호로 임시 저장', () => draft(S, '5-1-5'));
+await expectDenied('임시 저장에 다른 칸 넣기', () => draft(S, '5-1-3', { score: 100 }));
+await expectOk('교사가 임시 저장 읽기', () => getDoc(doc(T.db, 'exams', examId, 'drafts', '5-1-3')));
 await expectDenied('다른 학생 번호로 제출', () => submit(S, sUser.uid, '5-1-5'));
 await expectDenied('번호와 문서 ID가 다른 제출', () => submit(S, sUser.uid, '5-1-3', { number: 4 }));
 await expectDenied('점수를 직접 넣은 제출', () => submit(S, sUser.uid, '5-1-3', { overrides: { 1: 'correct' } }));
@@ -128,11 +135,14 @@ await expectDenied('스스로 정답 판정하기', () =>
 const s2 = (await signInAnonymously(S2.auth)).user;
 await session(S2, s2.uid, '5-1-5', '김철수');
 await expectDenied('다른 학생 답안 읽기', () => getDoc(doc(S2.db, 'exams', examId, 'submissions', '5-1-3')));
+await expectDenied('다른 학생 임시 저장 읽기', () => getDoc(doc(S2.db, 'exams', examId, 'drafts', '5-1-3')));
 await expectOk('아직 없는 답안 확인', () => getDoc(doc(S2.db, 'exams', examId, 'submissions', '5-1-9')));
 const S4 = client();
 const s4 = (await signInAnonymously(S4.auth)).user;
 await session(S4, s4.uid, '5-1-3', '홍길동');
 await expectDenied('같은 번호로 다시 제출 (다른 기기)', () => submit(S4, s4.uid, '5-1-3'));
+await expectOk('다른 기기에서 풀던 답 불러오기', () => getDoc(doc(S4.db, 'exams', examId, 'drafts', '5-1-3')));
+await expectOk('제출 후 임시 저장 지우기', () => deleteDoc(doc(S4.db, 'exams', examId, 'drafts', '5-1-3')));
 await expectOk('다른 기기에서 내 결과 보기', () => getDoc(doc(S4.db, 'exams', examId, 'submissions', '5-1-3')));
 await expectOk('다른 기기에서 정답(채점용) 읽기', () => getDoc(doc(S4.db, 'exams', examId, 'private', 'key')));
 await expectOk('내 결과 모아 보기', () =>
@@ -153,6 +163,7 @@ const s3 = (await signInAnonymously(S3.auth)).user;
 await expectDenied('마감된 평가 읽기 (응시 안 한 학생)', () => getDoc(doc(S3.db, 'exams', examId)));
 await expectOk('마감된 평가도 응시한 학생은 결과 보기', () => getDoc(doc(S4.db, 'exams', examId)));
 await expectDenied('마감된 평가에 제출', () => submit(S3, s3.uid, '5-1-5'));
+await expectDenied('마감된 평가에 임시 저장', () => draft(S2, '5-1-5'));
 
 for (const c of [T, T2, S, S2, S3, S4]) {
   await signOut(c.auth);

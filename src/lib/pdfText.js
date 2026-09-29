@@ -51,10 +51,12 @@ export async function extractPages(doc) {
 }
 
 /**
- * 페이지를 JPEG data URL로 렌더링 (Firestore 문서 1MB 제한을 넘지 않도록 품질 조절)
- * @returns {Promise<{src:string, aspect:number}[]>}  aspect = 가로/세로
+ * 페이지를 고화질 JPEG data URL로 렌더링.
+ * 기본 폭 2600px(A4 기준 약 310dpi) — 태블릿 고해상도 화면에서 확대해도 글자가 또렷하다.
+ * 크기가 너무 크면(maxBytes) 품질·크기를 조금씩 줄인다. 저장할 때 여러 문서로 나눠 저장한다(db.js).
+ * @returns {Promise<{src:string, aspect:number, widthCm:number}[]>}  aspect = 가로/세로
  */
-export async function renderPages(doc, { targetWidth = 1100, maxBytes = 850_000, onProgress } = {}) {
+export async function renderPages(doc, { targetWidth = 2600, maxBytes = 3_500_000, onProgress } = {}) {
   const out = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
@@ -62,7 +64,7 @@ export async function renderPages(doc, { targetWidth = 1100, maxBytes = 850_000,
     let scale = targetWidth / base.width;
     let dataUrl = '';
     const aspect = base.width / base.height;
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < 8; attempt++) {
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
@@ -71,10 +73,11 @@ export async function renderPages(doc, { targetWidth = 1100, maxBytes = 850_000,
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvas, canvasContext: ctx, viewport }).promise;
-      const quality = Math.max(0.45, 0.8 - attempt * 0.1);
+      const quality = Math.max(0.8, 0.95 - attempt * 0.05);
       dataUrl = canvas.toDataURL('image/jpeg', quality);
+      canvas.width = 0; // 메모리 바로 돌려주기 (태블릿·아이패드)
       if (dataUrl.length <= maxBytes) break;
-      scale *= 0.85;
+      if (attempt >= 2) scale *= 0.88;
     }
     out.push({ src: dataUrl, aspect, widthCm: (base.width / 72) * 2.54 });
     onProgress?.(p, doc.numPages);

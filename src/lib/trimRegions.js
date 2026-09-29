@@ -1,15 +1,17 @@
 // 문항 영역 아래쪽의 빈 공간을 잘라낸다 (그림·밑줄 같은 글자 아닌 내용은 남긴다).
 // 페이지 이미지의 픽셀을 보고, 영역 아래에서부터 위로 올라가며 처음으로 내용이 있는 줄을 찾는다.
 
-export async function loadPixels(src) {
+// 분석(여백 자르기·빈칸 찾기)은 폭 1100px 기준으로 한다 → 고화질 이미지는 줄여서 분석
+export async function loadPixels(src, maxW = 1100) {
   const img = new Image();
   img.src = src;
   await img.decode();
   const c = document.createElement('canvas');
-  c.width = img.naturalWidth;
-  c.height = img.naturalHeight;
+  const k = Math.min(1, maxW / img.naturalWidth);
+  c.width = Math.round(img.naturalWidth * k);
+  c.height = Math.round(img.naturalHeight * k);
   const ctx = c.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0);
+  ctx.drawImage(img, 0, 0, c.width, c.height);
   return { data: ctx.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height };
 }
 

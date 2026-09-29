@@ -22,17 +22,20 @@ export function draftKey(examId, p) {
   return `draft:${examId}:${p.grade}-${p.classNo}-${p.number}`;
 }
 
+/** @returns {{answers:object, shapes?:object, cur?:number, at:number}|null} */
 export function loadDraft(examId, p) {
   try {
-    return JSON.parse(localStorage.getItem(draftKey(examId, p)) || '{}');
+    const d = JSON.parse(localStorage.getItem(draftKey(examId, p)) || 'null');
+    if (!d) return null;
+    return d.answers && typeof d.at === 'number' ? d : { answers: d, at: 0 }; // 예전 형식(답만 저장)
   } catch {
-    return {};
+    return null;
   }
 }
 
-export function saveDraft(examId, p, answers) {
+export function saveDraft(examId, p, draft) {
   try {
-    localStorage.setItem(draftKey(examId, p), JSON.stringify(answers));
+    localStorage.setItem(draftKey(examId, p), JSON.stringify(draft));
   } catch {
     /* 저장 공간이 없으면 무시 */
   }

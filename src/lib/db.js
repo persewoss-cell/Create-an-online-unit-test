@@ -57,6 +57,34 @@ export function logout() {
 // ─────────────── 평가 (교사) ───────────────
 
 const pad = (n) => String(n).padStart(3, '0');
+const PAGE_CHUNK = 900_000; // 문서 하나에 넣는 이미지 글자 수
+
+/** 페이지 이미지 저장. 고화질 이미지는 Firestore 문서 1MB 제한보다 커서 여러 조각으로 나눠 저장한다 */
+async function writePages(examId, pages, onProgress) {
+  for (let i = 0; i < pages.length; i++) {
+    const parts = [];
+    for (let at = 0; at < pages[i].length; at += PAGE_CHUNK) parts.push(pages[i].slice(at, at + PAGE_CHUNK));
+    for (let j = 0; j < parts.length; j++) {
+      await setDoc(doc(db, 'exams', examId, 'pages', j ? `${pad(i + 1)}-${j}` : pad(i + 1)), {
+        index: i + 1, part: j, parts: parts.length, data: parts[j],
+      });
+    }
+    onProgress?.(i + 1, pages.length);
+  }
+}
+
+/** 문제지 이미지만 새로(고화질로) 바꾼다. 문항·정답·응시 기록은 그대로 */
+export async function replacePages(examId, pages, patch, onProgress) {
+  const old = await getDocs(collection(db, 'exams', examId, 'pages'));
+  const keep = new Set();
+  await writePages(examId, pages, onProgress);
+  pages.forEach((pg, i) => {
+    const n = Math.ceil(pg.length / PAGE_CHUNK);
+    for (let j = 0; j < n; j++) keep.add(j ? `${pad(i + 1)}-${j}` : pad(i + 1));
+  });
+  for (const d of old.docs) if (!keep.has(d.id)) await deleteDoc(d.ref);
+  await updateExam(examId, { ...patch, pageCount: pages.length });
+}
 
 /** 평가 생성: 평가 문서 → 정답 → 페이지 이미지 순서로 저장 */
 export async function createExam({ meta, questions, keys, pages, ownerUid, ownerName }, onProgress) {
@@ -72,10 +100,7 @@ export async function createExam({ meta, questions, keys, pages, ownerUid, owner
     updatedAt: serverTimestamp(),
   });
   await setDoc(doc(db, 'exams', ref.id, 'private', 'key'), { keys: stringKeys(keys) });
-  for (let i = 0; i < pages.length; i++) {
-    await setDoc(doc(db, 'exams', ref.id, 'pages', pad(i + 1)), { index: i + 1, data: pages[i] });
-    onProgress?.(i + 1, pages.length);
-  }
+  await writePages(ref.id, pages, onProgress);
   return ref.id;
 }
 
@@ -120,7 +145,7 @@ export async function saveQuestionsAndKeys(examId, questions, keys) {
 }
 
 export async function deleteExam(examId) {
-  for (const sub of ['pages', 'submissions', 'submitters', 'private']) {
+  for (const sub of ['pages', 'submissions', 'submitters', 'private', 'drafts']) {
     const snap = await getDocs(collection(db, 'exams', examId, sub));
     for (const d of snap.docs) await deleteDoc(d.ref);
   }
@@ -276,7 +301,46 @@ export async function listOpenExams(grade, classNo) {
 
 export async function getPages(examId) {
   const snap = await getDocs(collection(db, 'exams', examId, 'pages'));
-  return snap.docs.map((d) => d.data()).sort((a, b) => a.index - b.index).map((p) => p.data);
+  const byPage = new Map();
+  for (const d of snap.docs) {
+    const x = d.data();
+    if (!byPage.has(x.index)) byPage.set(x.index, []);
+    byPage.get(x.index).push(x);
+  }
+  return [...byPage.keys()]
+    .sort((a, b) => a - b)
+    .map((i) => byPage.get(i).sort((a, b) => (a.part || 0) - (b.part || 0)).map((x) => x.data).join(''));
+}
+
+// ─────────────── 풀던 답 임시 저장 (서버) ───────────────
+// 다른 기기에서 다시 로그인하거나 브라우저 저장소가 지워져도 풀던 답이 남도록 한다.
+
+export async function saveServerDraft(examId, profile, draft) {
+  const studentId = studentIdOf(profile);
+  await setDoc(doc(db, 'exams', examId, 'drafts', studentId), {
+    studentId,
+    answers: JSON.parse(JSON.stringify(draft.answers || {})),
+    shapes: draft.shapes || {},
+    cur: Number(draft.cur) || 0,
+    at: Number(draft.at) || Date.now(),
+  });
+}
+
+export async function loadServerDraft(examId, profile) {
+  try {
+    const snap = await getDoc(doc(db, 'exams', examId, 'drafts', studentIdOf(profile)));
+    return snap.exists() ? snap.data() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteServerDraft(examId, profile) {
+  try {
+    await deleteDoc(doc(db, 'exams', examId, 'drafts', studentIdOf(profile)));
+  } catch {
+    /* 무시 */
+  }
 }
 
 /** @returns {'none'|'mine'|'taken'} */

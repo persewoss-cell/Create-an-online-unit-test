@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { AnswerInput, FitRegions, regionsOf, stackRatio, useSize, unitsPerCm } from '../../components/ExamViews.jsx';
 import { DrawLayer, DrawToolbar } from '../../components/Drawing.jsx';
 import { loadStudent, loadDraft, saveDraft, clearDraft } from '../../lib/student.js';
-import { ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf, watchExam } from '../../lib/db.js';
+import {
+  ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf, watchExam,
+  loadServerDraft, saveServerDraft, deleteServerDraft,
+} from '../../lib/db.js';
 import { isBlank } from '../../lib/grading.js';
 import { TYPE_LABEL, stableKey } from '../../lib/format.js';
 
@@ -32,13 +35,30 @@ function cleanAnswer(x, v) {
   return Array.isArray(v) ? v.map((t) => String(t ?? '').trim()) : String(v).trim();
 }
 
+/** 임시 저장한 답 중 지금 문항 형식과 맞는 것만 남긴다 */
+function restoreDraft(draft, questions) {
+  const out = {};
+  if (!draft?.answers) return out;
+  for (const q of questions) {
+    const v = draft.answers[q.no];
+    if (v == null) continue;
+    if (draft.shapes && draft.shapes[q.no] && draft.shapes[q.no] !== shapeOf(q)) continue;
+    out[q.no] = v;
+  }
+  return out;
+}
+
 export default function TakeExam() {
   const { id } = useParams();
   const nav = useNavigate();
   const p = loadStudent();
   const [exam, setExam] = useState(null);
   const [pages, setPages] = useState(null);
-  const [answers, setAnswers] = useState(() => (p ? loadDraft(id, p) : {}));
+  const [answers, setAnswers] = useState({});
+  const [ready, setReady] = useState(false); // 임시 저장한 답을 불러온 뒤에만 저장
+  const [saveState, setSaveState] = useState(''); // '' | 'saving' | 'saved' | 'local'
+  const serverTimer = useRef(null);
+  const pendingDraft = useRef(null);
   const [cur, setCur] = useState(0);
   const [tool, setTool] = useState('pen');
   const [ruler, setRuler] = useState({ show: false, x: 60, y: 120, a: 0 });
@@ -61,7 +81,20 @@ export default function TakeExam() {
         if (state === 'taken') return nav(`/exam/${id}/result`, { replace: true });
         const e = await getExam(id);
         if (!e || e.status !== 'open') throw new Error('지금은 볼 수 없는 평가입니다.');
+        // 풀던 답 불러오기: 이 기기(localStorage)와 서버 중 더 최근 것
+        const local = loadDraft(id, p);
+        const server = await loadServerDraft(id, p);
+        const draft = [local, server].filter(Boolean).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+        const restored = restoreDraft(draft, e.questions);
+        const n = Object.keys(restored).length;
         setExam(e);
+        setAnswers(restored);
+        if (n) {
+          setCur(Math.min(Math.max(0, Number(draft.cur) || 0), e.questions.length - 1));
+          setNotice(`지난번에 풀던 답 ${n}문항을 불러왔어요. 이어서 풀어요.`);
+          setTimeout(() => setNotice(''), 6000);
+        }
+        setReady(true);
         setPages(await getPages(id));
         // 시험 중 선생님이 문제·정답을 고치면 바로 반영
         unsubExam = watchExam(
@@ -109,9 +142,42 @@ export default function TakeExam() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // 답을 고칠 때마다 이 기기에 바로 저장 + 서버에도 잠깐 뒤 저장 (사이트가 꺼져도 답이 남도록)
   useEffect(() => {
-    if (p && exam) saveDraft(id, p, answers);
-  }, [answers, exam, id, p]);
+    if (!p || !exam || !ready) return;
+    const shapes = {};
+    for (const q of exam.questions) shapes[q.no] = shapeOf(q);
+    const draft = { answers, shapes, cur, at: Date.now() };
+    saveDraft(id, p, draft);
+    pendingDraft.current = draft;
+    setSaveState('saving');
+    clearTimeout(serverTimer.current);
+    serverTimer.current = setTimeout(flushDraft, 1200);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answers, cur, ready]);
+
+  function flushDraft() {
+    clearTimeout(serverTimer.current);
+    const d = pendingDraft.current;
+    if (!d || !p) return;
+    pendingDraft.current = null;
+    saveServerDraft(id, p, d)
+      .then(() => setSaveState((s) => (pendingDraft.current ? s : 'saved')))
+      .catch(() => setSaveState('local'));
+  }
+
+  // 화면을 닫거나 다른 앱으로 넘어갈 때 곧바로 서버에 저장
+  useEffect(() => {
+    const onHide = () => document.visibilityState === 'hidden' && flushDraft();
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', flushDraft);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', flushDraft);
+      flushDraft();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const answeredCount = useMemo(
     () => (exam ? exam.questions.filter((q) => !isBlank(answers[q.no], q)).length : 0),
@@ -159,7 +225,10 @@ export default function TakeExam() {
       const clean = {};
       for (const x of qs) clean[x.no] = cleanAnswer(x, answers[x.no]);
       await submitAnswers(id, p, clean);
+      clearTimeout(serverTimer.current);
+      pendingDraft.current = null;
       clearDraft(id, p);
+      deleteServerDraft(id, p);
       nav(`/exam/${id}/result`, { replace: true });
     } catch (err) {
       setError(err.message);
@@ -259,6 +328,9 @@ export default function TakeExam() {
         <b className="exam-title">{exam.title}</b>
         <span className="muted small">{who}</span>
         <div className="exam-progress">
+          <span className={`save-state small ${saveState}`} data-testid="save-state">
+            {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '✓ 자동 저장됨' : saveState === 'local' ? '✓ 이 기기에 저장됨' : ''}
+          </span>
           <span className="small">답한 문항 <b>{answeredCount}</b>/{total}</span>
           <div className="progress"><div style={{ width: `${(answeredCount / total) * 100}%` }} /></div>
         </div>

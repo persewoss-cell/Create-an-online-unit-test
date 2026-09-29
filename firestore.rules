@@ -112,6 +112,18 @@ service cloud.firestore {
         allow delete: if isOwner(examId);
       }
 
+      // 풀던 답 임시 저장: 본인(명단 확인된 세션)만 읽고 쓴다. 평가가 열려 있을 때만 저장 가능
+      match /drafts/{studentId} {
+        allow read: if isOwner(examId) || (hasSession() && mySid() == studentId);
+        allow create, update: if hasSession()
+          && mySid() == studentId
+          && examDoc(examId).data.status == 'open'
+          && request.resource.data.keys().hasOnly(['studentId', 'answers', 'shapes', 'cur', 'at'])
+          && request.resource.data.studentId == studentId
+          && request.resource.data.answers is map;
+        allow delete: if isOwner(examId) || (hasSession() && mySid() == studentId);
+      }
+
       match /submitters/{uid} {
         allow read: if isOwner(examId) || (signedIn() && request.auth.uid == uid);
         allow create: if signedIn()

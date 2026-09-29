@@ -349,3 +349,5 @@ button.mark { cursor: pointer; }
 .key-toggle.on { background: var(--ok); border-color: var(--ok); color: #fff; }
 .part-edit { border: 1px dashed #c2cde0; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .notice-toast { background: var(--primary); bottom: 130px; }
+.save-state { color: var(--muted, #6b7280); margin-right: 10px; white-space: nowrap; }
+.save-state.saved { color: #1f8a4c; }

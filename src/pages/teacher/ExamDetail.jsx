@@ -8,13 +8,15 @@ import { DrawLayer } from '../../components/Drawing.jsx';
 import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
-  getExam, getKeys, watchSubmissions, setOverride, deleteSubmission, updateExam, saveQuestionsAndKeys, deleteExam, getPages,
+  getExam, getKeys, watchSubmissions, setOverride, deleteSubmission, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
 } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
 import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
 import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL } from '../../lib/format.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { STATUS } from './Dashboard.jsx';
+import FileDrop from '../../components/FileDrop.jsx';
+import { openPdf, renderPages, readFileAsArrayBuffer } from '../../lib/pdfText.js';
 
 const MARK = { correct: 'O', wrong: 'X', review: '?' };
 const TABS = [
@@ -142,6 +144,7 @@ export default function ExamDetail() {
           <SettingsTab
             exam={exam}
             onSaved={(patch) => setExam({ ...exam, ...patch })}
+            onPages={setPages}
             onDeleted={() => nav('/teacher/dashboard')}
           />
         )}
@@ -364,7 +367,7 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
   );
 }
 
-function SettingsTab({ exam, onSaved, onDeleted }) {
+function SettingsTab({ exam, onSaved, onPages, onDeleted }) {
   const [meta, setMeta] = useState(() => ({
     subject: SUBJECTS.includes(exam.subject) ? exam.subject : '기타',
     subjectCustom: SUBJECTS.includes(exam.subject) ? '' : exam.subject,
@@ -376,6 +379,31 @@ function SettingsTab({ exam, onSaved, onDeleted }) {
     leniency: exam.leniency || 'normal',
   }));
   const [msg, setMsg] = useState('');
+  const [imgMsg, setImgMsg] = useState({ kind: '', text: '' });
+
+  /** 같은 문제지 PDF를 다시 올려 이미지만 고화질로 바꾸기 */
+  async function reimage(file) {
+    try {
+      setImgMsg({ kind: 'info', text: '문제지를 읽는 중…' });
+      const pdf = await openPdf(await readFileAsArrayBuffer(file));
+      const count = exam.pageCount || exam.pageAspects?.length;
+      if (count && pdf.numPages !== count) {
+        return setImgMsg({ kind: 'error', text: `쪽수가 달라요 (지금 ${count}쪽, 올린 파일 ${pdf.numPages}쪽). 같은 문제지 PDF를 올려 주세요.` });
+      }
+      const imgs = await renderPages(pdf, { onProgress: (i, n) => setImgMsg({ kind: 'info', text: `고화질 이미지 만드는 중… (${i}/${n})` }) });
+      setImgMsg({ kind: 'info', text: '저장 중…' });
+      const patch = {
+        pageAspects: imgs.map((x) => x.aspect),
+        pageWidthsCm: imgs.map((x) => Math.round(x.widthCm * 100) / 100),
+      };
+      await replacePages(exam.id, imgs.map((x) => x.src), patch, (i, n) => setImgMsg({ kind: 'info', text: `저장 중… (${i}/${n})` }));
+      onSaved(patch);
+      onPages(imgs.map((x) => x.src));
+      setImgMsg({ kind: 'success', text: '문제지 이미지를 고화질로 바꿨어요. 학생 화면도 다음에 열 때부터 선명하게 보여요.' });
+    } catch (err) {
+      setImgMsg({ kind: 'error', text: `바꾸지 못했습니다: ${err.message}` });
+    }
+  }
 
   async function save() {
     const patch = {
@@ -406,6 +434,14 @@ function SettingsTab({ exam, onSaved, onDeleted }) {
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn primary" onClick={save}>설정 저장</button>
         </div>
+      </div>
+      <div className="card stack">
+        <div>
+          <b>문제지 이미지 고화질로 바꾸기</b>
+          <div className="muted small">예전에 만든 평가의 문제가 흐리게 보이면, 같은 문제지 PDF를 다시 올려 주세요. 문항·정답·응시 기록은 그대로 두고 이미지만 바꿉니다.</div>
+        </div>
+        <FileDrop accept=".pdf,application/pdf" onFile={reimage} label="같은 문제지 PDF" compact testId="reimage" />
+        {imgMsg.text && <div className={`alert ${imgMsg.kind}`}>{imgMsg.kind === 'info' && <span className="spinner" />} {imgMsg.text}</div>}
       </div>
       <div className="card row" style={{ justifyContent: 'space-between' }}>
         <div>
