@@ -71,6 +71,7 @@ export async function markAnswerSpots(pageSrcs, questions) {
     for (const b of q.blanks || []) spots.push({ ...b, kind: 'paren' });
     spots.sort((a, b) => a.page - b.page || (Math.abs(a.top - b.top) < 0.012 ? a.x0 - b.x0 : a.top - b.top));
     q.answerSpots = spots;
-    if (q.type === 'short' && !q.draw && spots.length >= 2 && spots.length <= 8) q.blankCount = Math.max(q.blankCount || 0, spots.length);
+    // "공통으로 들어갈 말"은 칸이 여러 개여도 답은 하나
+    if (q.type === 'short' && !q.draw && !q.commonBlank && spots.length >= 2 && spots.length <= 8) q.blankCount = Math.max(q.blankCount || 0, spots.length);
   }
 }

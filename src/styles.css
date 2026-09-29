@@ -351,3 +351,5 @@ button.mark { cursor: pointer; }
 .notice-toast { background: var(--primary); bottom: 130px; }
 .save-state { color: var(--muted, #6b7280); margin-right: 10px; white-space: nowrap; }
 .save-state.saved { color: #1f8a4c; }
+.choice-row input.lab.need { border-color: var(--warn, #d97706); background: #fff8eb; }
+.qedit .top select { min-width: 190px; }

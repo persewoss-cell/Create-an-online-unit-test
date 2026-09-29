@@ -195,6 +195,14 @@ const PAREN_LABELS = (n) => Array.from({ length: n }, (_, i) => `(${i + 1})`);
 /** 선 잇기, ㉮㉯㉰ 기호, (1)(2)(3) ○표, (예) 예시 답안 같은 특수 정답 */
 function buildSpecialKey(q, raw) {
   const s = raw.replace(LEAD_RE, '').trim();
+  // O/X 문항: 정답 칸에 O 또는 X (○, × 도 됨)
+  const isOXq = q.type === 'mc' && q.choiceLabels?.[0] === 'O' && q.choiceLabels?.[1] === 'X';
+  if (/^[OoXx○◯×✕]$/.test(s) && (q.type !== 'mc' || isOXq)) {
+    return {
+      question: { ...q, type: 'mc', choiceCount: 2, choiceLabels: ['O', 'X'], choices: [], multi: false, blankCount: 0 },
+      key: { choices: [/^[OoＯ○◯]$/.test(s) ? 1 : 2] },
+    };
+  }
   // "왼쪽/오른쪽" 처럼 이름 붙은 칸 중 고르는 문항: 이름이나 번호로 적을 수 있다
   if (q.type === 'mc' && q.choiceLabels && /^[가-힣]/.test(q.choiceLabels[0])) {
     const norm = s.replace(/\s|괄호|칸|에|○|표/g, '');

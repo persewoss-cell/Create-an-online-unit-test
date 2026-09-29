@@ -85,23 +85,52 @@ export default function QuestionEditor({ items, onChange, pageCount }) {
 
 const TYPE_OPTIONS = [
   ['mc', '객관식 (고르기)'],
+  ['mc-ox', '객관식 O/X'],
+  ['mc-custom', '객관식 (보기 직접 입력)'],
   ['short', '단답형'],
   ['essay', '서술형'],
   ['match', '선 잇기'],
   ['draw', '그리기'],
 ];
+const isOX = (it) => it.type === 'mc' && Number(it.choiceCount) === 2 && it.choiceLabels?.[0] === 'O' && it.choiceLabels?.[1] === 'X';
+
+/** 유형 선택 칸에 보일 값 */
+function typeValue(it) {
+  if (isOX(it)) return 'mc-ox';
+  if (it.type === 'mc' && it.customLabels) return 'mc-custom';
+  return it.type;
+}
+
+/** 유형을 바꿀 때 함께 바꿀 칸들 */
+function typePatch(v, it) {
+  if (v === 'mc-ox') {
+    return { type: 'mc', choiceCount: 2, choiceLabels: ['O', 'X'], choices: ['', ''], keyChoices: [], multi: false, customLabels: false };
+  }
+  if (v === 'mc-custom') {
+    const n = it.type === 'mc' && !isOX(it) ? Math.max(2, Number(it.choiceCount) || 3) : 3;
+    return { type: 'mc', choiceCount: n, choiceLabels: Array(n).fill(''), choices: Array.from({ length: n }, (_, i) => it.choices?.[i] || ''), keyChoices: [], customLabels: true };
+  }
+  if (v === 'mc') {
+    return { type: 'mc', customLabels: false, ...(isOX(it) || it.type !== 'mc' ? { choiceCount: it.type === 'mc' ? 5 : Number(it.choiceCount) || 5, choiceLabels: null, choices: [], keyChoices: [] } : {}) };
+  }
+  return { type: v, customLabels: false };
+}
+
 const LABEL_SETS = {
   circled: { name: '①②③', make: (n) => Array.from({ length: n }, (_, i) => numberToCircled(i + 1)) },
   paren: { name: '(1)(2)(3)', make: (n) => Array.from({ length: n }, (_, i) => `(${i + 1})`) },
   hangul: { name: '㉮㉯㉰', make: (n) => Array.from({ length: n }, (_, i) => '㉮㉯㉰㉱㉲㉳㉴㉵㉶㉷'[i] || `${i + 1}`) },
   korean: { name: '㉠㉡㉢', make: (n) => Array.from({ length: n }, (_, i) => '㉠㉡㉢㉣㉤㉥㉦㉧㉨㉩'[i] || `${i + 1}`) },
   side: { name: '왼쪽/오른쪽', make: (n) => (n === 2 ? ['왼쪽', '오른쪽'] : n === 3 ? ['왼쪽', '가운데', '오른쪽'] : Array.from({ length: n }, (_, i) => `${i + 1}번째`)) },
+  ox: { name: 'O / X', make: () => ['O', 'X'] },
+  custom: { name: '직접 입력', make: (n) => Array(n).fill('') },
 };
 
 /** 객관식 보기 편집: 보기 추가·삭제, 기호와 내용 고치기, 정답 표시 */
 function ChoiceEditor({ it, onChange, idPrefix }) {
   const n = Math.max(2, Number(it.choiceCount) || 5);
-  const labels = Array.from({ length: n }, (_, i) => it.choiceLabels?.[i] || numberToCircled(i + 1));
+  const custom = !!it.customLabels;
+  const labels = Array.from({ length: n }, (_, i) => it.choiceLabels?.[i] || (custom ? '' : numberToCircled(i + 1)));
   const texts = Array.from({ length: n }, (_, i) => it.choices?.[i] || '');
   const keys = it.keyChoices || [];
   const setCount = (m) => {
@@ -110,9 +139,11 @@ function ChoiceEditor({ it, onChange, idPrefix }) {
     const kind = Object.entries(LABEL_SETS).find(([, v]) => v.make(n).join() === labels.join())?.[0];
     // ①②③처럼 차례가 있는 기호는 이어서 만들고, 그 밖(왼쪽/오른쪽 등)은 기존 기호를 그대로 두고 뒤에 붙인다 (정답 위치가 바뀌지 않게)
     const ord = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째', '아홉째', '열째'];
-    const nextLabels = kind && kind !== 'side'
-      ? LABEL_SETS[kind].make(c)
-      : Array.from({ length: c }, (_, i) => labels[i] || ord[i] || `${i + 1}`);
+    const nextLabels = custom
+      ? Array.from({ length: c }, (_, i) => labels[i] || '')
+      : kind && kind !== 'side' && kind !== 'ox'
+        ? LABEL_SETS[kind].make(c)
+        : Array.from({ length: c }, (_, i) => labels[i] || ord[i] || `${i + 1}`);
     onChange({
       choiceCount: c,
       choiceLabels: nextLabels,
@@ -136,13 +167,24 @@ function ChoiceEditor({ it, onChange, idPrefix }) {
       <div className="row small" style={{ gap: 6 }}>
         <span className="muted">보기 기호:</span>
         {Object.entries(LABEL_SETS).map(([k, v]) => (
-          <button type="button" key={k} className="btn xs" onClick={() => onChange({ choiceLabels: v.make(n) })}>{v.name}</button>
+          <button
+            type="button"
+            key={k}
+            className={`btn xs ${(k === 'custom' ? custom : !custom && v.make(n).join() === labels.join() && (k !== 'ox' || n === 2)) ? 'primary' : ''}`}
+            onClick={() => {
+              if (k === 'ox') onChange({ choiceCount: 2, choiceLabels: ['O', 'X'], choices: texts.slice(0, 2), keyChoices: keys.filter((x) => x <= 2), customLabels: false });
+              else onChange({ choiceLabels: v.make(n), customLabels: k === 'custom' });
+            }}
+          >
+            {v.name}
+          </button>
         ))}
         <span className="muted" style={{ marginLeft: 8 }}>보기 수</span>
         <button type="button" className="btn xs" onClick={() => setCount(n - 1)} aria-label={`${idPrefix} 보기 줄이기`}>−</button>
         <b>{n}</b>
         <button type="button" className="btn xs" onClick={() => setCount(n + 1)} aria-label={`${idPrefix} 보기 늘리기`}>+</button>
       </div>
+      {custom && <div className="small muted">보기 기호(예: 가, 나, 다 / 참, 거짓 / ㄱ, ㄴ)와 내용을 직접 적어 주세요. 학생 화면 버튼에 적은 그대로 보입니다.</div>}
       {labels.map((lab, i) => (
         <div key={i} className="choice-row">
           <button
@@ -155,8 +197,9 @@ function ChoiceEditor({ it, onChange, idPrefix }) {
             {keys.includes(i + 1) ? '✓ 정답' : '정답'}
           </button>
           <input
-            className="lab"
+            className={`lab ${custom && !lab ? 'need' : ''}`}
             value={lab}
+            placeholder={custom ? '기호' : ''}
             onChange={(e) => onChange({ choiceLabels: labels.map((l, j) => (j === i ? e.target.value : l)) })}
             aria-label={`${idPrefix} 보기 ${i + 1} 기호`}
           />
@@ -280,7 +323,7 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
         {!hasParts && (
           <label>
             유형
-            <select value={it.type} onChange={(e) => onChange({ type: e.target.value })} aria-label={`${it.no}번 유형`}>
+            <select value={typeValue(it)} onChange={(e) => onChange(typePatch(e.target.value, it))} aria-label={`${it.no}번 유형`}>
               {TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </label>
@@ -324,7 +367,7 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                   <div className="row">
                     <b>({i + 1})</b>
-                    <select value={p.type} onChange={(e) => setPart(i, { type: e.target.value })} aria-label={`${it.no}번 (${i + 1}) 유형`} style={{ width: 160 }}>
+                    <select value={typeValue(p)} onChange={(e) => setPart(i, typePatch(e.target.value, p))} aria-label={`${it.no}번 (${i + 1}) 유형`} style={{ width: 200 }}>
                       {TYPE_OPTIONS.filter(([v]) => v !== 'draw').map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>
                   </div>

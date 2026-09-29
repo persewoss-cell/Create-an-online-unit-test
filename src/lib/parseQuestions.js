@@ -149,6 +149,45 @@ export function blankLabels(blanks) {
   return blanks.map((_, i) => ord[i] || `${i + 1}번째`);
 }
 
+// "( ) 안에", "( )에 들어갈" 처럼 문제 글이 가리키기만 하는 괄호 (답 칸이 아님)
+const REF_PAREN_RE = /\(\s*\)\s*(?:안에|속에|에\s*(?:들어갈|알맞은|공통|넣|쓸|써))/g;
+// 답 칸만 있는 줄에서 괄호 말고 남아도 되는 것: 기호·번호·단위
+const ALONE_JUNK_RE = /\(\s*\)|[\s:：.,]|[㉠-㉭㉮-㉷①-⑩]|\(\d\)|답|cm|mm|km|m|kg|g|L|mL|개|명|번|원|도|°|쪽|장|권|자루|마리|분|초|시간|살|배|층|칸/g;
+
+/**
+ * 문항 안 "( )" 중 학생이 답을 쓰는 칸만 고른다.
+ *  - 문제 글이 가리키는 괄호("( ) 안에 들어갈 말")는 답 칸이 아니다.
+ *  - 답만 쓰는 따로 떨어진 "( )" 줄이 있으면 그것만 답 칸이다 (지문·보기 속 괄호는 빈칸 표시일 뿐).
+ *  - "공통으로 들어갈 말"은 괄호가 여러 개여도 답은 하나.
+ * @returns {{blanks: object[], common: boolean}}
+ */
+export function pickAnswerBlanks(seg, text) {
+  const all = [];
+  for (const l of seg) {
+    const bl = l.blanks || [];
+    if (!bl.length) continue;
+    const t = l.text || '';
+    const lineAlone = t.replace(ALONE_JUNK_RE, '').length <= 2;
+    // 줄 안의 괄호 차례대로: 가리키는 괄호인지, 문장 끝에 붙은 답 칸인지 표시
+    const parens = [...t.matchAll(/\(\s*\)/g)].map((m) => ({ at: m.index, end: m.index + m[0].length }));
+    const refs = new Set([...t.matchAll(REF_PAREN_RE)].map((m) => m.index));
+    const known = parens.length === bl.length;
+    bl.forEach((b, i) => {
+      const pr = known ? parens[i] : null;
+      const isRef = !lineAlone && !!pr && refs.has(pr.at);
+      // "…있다. (   )" 처럼 문장이 끝난 뒤 줄 끝에 있는 괄호도 답 칸
+      const trailing = !!pr && !t.slice(pr.end).replace(ALONE_JUNK_RE, '') && /[.?!다요]\s*$|\t\s*$/.test(t.slice(0, pr.at));
+      all.push({ page: l.page, x0: b.x0, x1: b.x1, top: l.top, bottom: l.bottom, alone: lineAlone || trailing, isRef });
+    });
+  }
+  const strip = ({ alone, isRef, ...b }) => b;
+  const common = /공통(?:으로|적으로)?\s*(?:들어갈|알맞은|쓸)/.test(text);
+  const alone = all.filter((b) => b.alone);
+  if (alone.length) return { blanks: alone.map(strip), common };
+  const inText = all.filter((b) => !b.isRef);
+  return { blanks: inText.map(strip), common };
+}
+
 export function inferAnswerFormat(q, text, blanks) {
   const out = { ...q };
   // 그림 아래 "( ) ( )" 중 하나에 ○표 → 칸을 고르는 객관식 (왼쪽/오른쪽)
@@ -248,11 +287,10 @@ export function parseQuestions(pages) {
     const q = analyzeQuestion(a.no, text, lines[a.idx].page);
     const grp = groups.find((g) => a.no >= g.from && a.no <= g.to);
     const first = lines[a.idx];
-    const blanks = hasPos
-      ? seg.flatMap((l) => (l.blanks || []).map((b) => ({ page: l.page, x0: b.x0, x1: b.x1, top: l.top, bottom: l.bottom })))
-      : [];
+    const { blanks, common } = hasPos ? pickAnswerBlanks(seg, text) : { blanks: [], common: false };
     questions.push({
       ...inferAnswerFormat(q, text, blanks),
+      ...(common ? { commonBlank: true } : {}),
       group: grp ? grp.id : null,
       regions,
       anchor: hasPos ? { page: first.page, x: first.x0, top: first.top, bottom: first.bottom, colX1: layout.colBounds(first).x1 } : null,
