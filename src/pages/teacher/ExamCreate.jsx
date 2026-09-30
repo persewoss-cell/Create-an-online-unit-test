@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import TopBar from '../../components/TopBar.jsx';
+import TeacherBar from '../../components/TeacherBar.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
@@ -14,10 +14,10 @@ import { detectMeta } from '../../lib/detectMeta.js';
 import MetaFields, { defaultTitle, parseClasses, subjectName } from '../../components/MetaFields.jsx';
 
 export default function ExamCreate() {
-  const { teacher } = useTeacher();
+  const { owner } = useTeacher();
   const nav = useNavigate();
   const [meta, setMeta] = useState({
-    subject: '', subjectCustom: '', grade: '', semester: '1', unit: '', title: '', classesText: '', leniency: 'normal',
+    subject: '', subjectCustom: '', grade: owner?.grade ? String(owner.grade) : '', semester: '1', unit: '', title: '', classesText: '', leniency: 'normal',
   });
   const [qFile, setQFile] = useState(null);
   const [groups, setGroups] = useState([]);
@@ -35,7 +35,7 @@ export default function ExamCreate() {
   const run = useRef(0);
   const metaRef = useRef(meta);
   metaRef.current = meta;
-  const autoVals = useRef({ semester: '1' }); // 자동으로 채운 값 (선생님이 고치지 않았으면 다시 올릴 때 바꿔도 됨)
+  const autoVals = useRef({ semester: '1', grade: owner?.grade ? String(owner.grade) : '' }); // 자동으로 채운 값 (선생님이 고치지 않았으면 다시 올릴 때 바꿔도 됨)
 
   /** PDF를 고르면 바로 분석: 문항 인식 + 문항 이미지 + 평가 정보 자동 채우기 */
   async function analyze(file) {
@@ -116,8 +116,7 @@ export default function ExamCreate() {
           questions,
           keys,
           pages,
-          ownerUid: teacher.uid,
-          ownerName: teacher.name,
+          owner,
         },
         (i, n) => setBusy(`문제지 이미지 저장 중… (${i}/${n})`),
       );
@@ -131,9 +130,9 @@ export default function ExamCreate() {
 
   return (
     <>
-      <TopBar home="/teacher/dashboard" who="관리자">
+      <TeacherBar>
         <Link to="/teacher/dashboard" className="btn sm">목록</Link>
-      </TopBar>
+      </TeacherBar>
       <div className="container">
         <h1>새 단원평가 만들기</h1>
         {error && <div className="alert error" style={{ marginBottom: 12 }}>{error}</div>}

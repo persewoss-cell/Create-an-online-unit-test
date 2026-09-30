@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { firebaseReady } from './firebase.js';
 import { TeacherProvider, RequireTeacher } from './components/TeacherAuth.jsx';
 import SetupGuide from './components/SetupGuide.jsx';
-import StudentLogin from './pages/student/StudentLogin.jsx';
+import Home from './pages/Home.jsx';
 import ExamList from './pages/student/ExamList.jsx';
 import TakeExam from './pages/student/TakeExam.jsx';
 import Result from './pages/student/Result.jsx';
@@ -17,11 +17,12 @@ export default function App() {
   return (
     <TeacherProvider>
       <Routes>
-        <Route path="/" element={<StudentLogin />} />
+        <Route path="/" element={<Home />} />
         <Route path="/exams" element={<ExamList />} />
         <Route path="/exam/:id" element={<TakeExam />} />
         <Route path="/exam/:id/result" element={<Result />} />
-        <Route path="/teacher" element={<TeacherLogin />} />
+        <Route path="/admin" element={<TeacherLogin />} />
+        <Route path="/teacher" element={<Navigate to="/?tab=teacher" replace />} />
         <Route path="/teacher/dashboard" element={<RequireTeacher><Dashboard /></RequireTeacher>} />
         <Route path="/teacher/new" element={<RequireTeacher><ExamCreate /></RequireTeacher>} />
         <Route path="/teacher/exam/:id" element={<RequireTeacher><ExamDetail /></RequireTeacher>} />

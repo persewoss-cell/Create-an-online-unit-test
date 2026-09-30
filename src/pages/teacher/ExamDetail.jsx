@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import TopBar from '../../components/TopBar.jsx';
+import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
 import { GradedPaper, Regions, regionsOf, stackRatio } from '../../components/ExamViews.jsx';
 import { DrawLayer } from '../../components/Drawing.jsx';
 import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
-import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
   getExam, getKeys, watchSubmissions, setOverride, deleteSubmission, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
 } from '../../lib/db.js';
@@ -29,7 +28,6 @@ const TABS = [
 
 export default function ExamDetail() {
   const { id } = useParams();
-  const { teacher } = useTeacher();
   const nav = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') || 'results';
@@ -65,8 +63,8 @@ export default function ExamDetail() {
 
   const reviewCount = graded.reduce((a, g) => a + g.r.reviewCount, 0);
 
-  if (error) return (<><TopBar home="/teacher/dashboard" /><div className="container"><div className="alert error">{error}</div></div></>);
-  if (!exam || !keys || !subs) return (<><TopBar home="/teacher/dashboard" /><Loading /></>);
+  if (error) return (<><TeacherBar /><div className="container"><div className="alert error">{error}</div></div></>);
+  if (!exam || !keys || !subs) return (<><TeacherBar /><Loading /></>);
 
   async function judge(sub, no, value) {
     try {
@@ -81,9 +79,9 @@ export default function ExamDetail() {
 
   return (
     <>
-      <TopBar home="/teacher/dashboard" who="관리자">
+      <TeacherBar>
         <Link to="/teacher/dashboard" className="btn sm">목록</Link>
-      </TopBar>
+      </TeacherBar>
       <div className="container">
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>

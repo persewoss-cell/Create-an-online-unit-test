@@ -7,7 +7,8 @@ export function saveStudent(p) {
 
 export function loadStudent() {
   try {
-    return JSON.parse(sessionStorage.getItem(KEY) || 'null');
+    const p = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+    return p?.school ? p : null; // 학교 이름이 없는 예전 로그인 정보는 다시 로그인
   } catch {
     return null;
   }
@@ -49,7 +50,7 @@ export function clearDraft(examId, p) {
   }
 }
 
-// "로그인 정보 저장" — 이 기기에 학년·반·번호·이름을 기억 (체크한 경우만)
+// "로그인 정보 저장" — 이 기기에 학교·학년·반·번호·이름을 기억 (체크한 경우만)
 const REMEMBER = 'student-remember';
 
 export function loadRemembered() {

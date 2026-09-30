@@ -8,7 +8,9 @@ import { adminSignIn } from '../../lib/db.js';
 export const AUTH_ERR = {
   'auth/invalid-credential': '비밀번호가 올바르지 않습니다.',
   'auth/wrong-password': '비밀번호가 올바르지 않습니다.',
-  'auth/user-not-found': '관리자 계정이 아직 만들어지지 않았습니다.',
+  'auth/user-not-found': '계정이 아직 만들어지지 않았습니다.',
+  'auth/email-already-in-use': '이미 있는 계정입니다.',
+  'permission-denied': '권한이 없습니다. 다시 로그인해 주세요.',
   'auth/weak-password': '비밀번호는 6자 이상이어야 합니다.',
   'auth/too-many-requests': '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.',
   'auth/requires-recent-login': '다시 로그인한 뒤 시도해 주세요.',
@@ -79,7 +81,7 @@ export default function TeacherLogin() {
           {error && <div className="alert error">{error}</div>}
           <button className="btn primary block lg" disabled={busy}>{busy ? '확인 중…' : '로그인'}</button>
         </form>
-        <div className="teacher-link"><Link to="/">← 학생 화면으로</Link></div>
+        <div className="teacher-link"><Link to="/?tab=teacher">← 교사 로그인으로</Link></div>
       </div>
     </>
   );

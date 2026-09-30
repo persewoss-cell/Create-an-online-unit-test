@@ -355,3 +355,31 @@ button.mark { cursor: pointer; }
 .qedit .top > label:has(select) { width: auto !important; min-width: 200px; }
 .qedit .top select { width: 100%; }
 .recog-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px dashed var(--line, #e5e7eb); }
+
+/* 관리자가 선생님 방을 보고 있을 때 */
+.view-banner {
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 16px; background: #fff4d6; color: #6b4a00; border-bottom: 1px solid #f0d890; font-size: 14px;
+}
+
+/* 첫 화면: 학생/교사 로그인 탭 */
+.login-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; margin-bottom: 14px; background: #eef2f8; border-radius: 12px; }
+.login-tabs button {
+  padding: 11px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted);
+  font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.login-tabs button.active { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(20, 40, 80, 0.12); }
+.login-form .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.login-form .grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.login-form input:not([type="checkbox"]) { width: 100%; }
+.maker { text-align: center; margin-top: 40px; color: var(--muted); font-size: 14px; }
+
+/* 관리자: 선생님 추가 */
+.admin-add { display: grid; grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(70px, 0.6fr)) minmax(110px, 1fr) auto; gap: 10px; align-items: end; }
+.admin-add .full { grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .admin-add { grid-template-columns: 1fr 1fr; }
+  .admin-add .school, .admin-add .btn { grid-column: 1 / -1; }
+}
+.link-btn { font-family: inherit; letter-spacing: 1px; min-width: 56px; }
+.legacy-move { border-color: #f0d890; background: #fffbef; }

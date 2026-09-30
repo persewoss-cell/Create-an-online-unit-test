@@ -1,26 +1,31 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import TopBar from '../../components/TopBar.jsx';
+import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
-import { listMyExams, listSubmissions, getKeys, logout, changeAdminPassword } from '../../lib/db.js';
+import { listMyExams, listSubmissions, getKeys, logout, changeAdminPassword, changeTeacherPassword } from '../../lib/db.js';
 import { AUTH_ERR } from './TeacherLogin.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
+import { MIN_TEACHER_PASSWORD, teacherLabel } from '../../lib/school.js';
+import AdminPanel from './AdminPanel.jsx';
 
 export const STATUS = { draft: '준비 중', open: '응시 중', closed: '마감' };
 
 export default function Dashboard() {
-  const { teacher, setTeacher } = useTeacher();
+  const { teacher, owner, isAdmin, viewing, setTeacher } = useTeacher();
   const nav = useNavigate();
   const [exams, setExams] = useState(null);
   const [stats, setStats] = useState({});
   const [error, setError] = useState('');
   const [pwOpen, setPwOpen] = useState(false);
+  const [reloadNo, setReloadNo] = useState(0);
 
   useEffect(() => {
+    setExams(null);
+    setError('');
     (async () => {
       try {
-        const list = await listMyExams(teacher.uid);
+        const list = await listMyExams(owner.uid);
         setExams(list);
         // 평가별 응시 인원·검토 대기 수
         for (const e of list) {
@@ -34,38 +39,48 @@ export default function Dashboard() {
                 avg: graded.length ? Math.round((graded.reduce((a, r) => a + r.score100, 0) / graded.length) * 10) / 10 : null,
               },
             }));
-          });
+          }).catch(() => {}); // 로그아웃·방 바꾸기 도중이면 무시
         }
       } catch (err) {
         setError(err.message);
       }
     })();
-  }, [teacher.uid]);
+  }, [owner.uid, reloadNo]);
 
   async function doLogout() {
     await logout();
     setTeacher(null);
-    nav('/teacher');
+    nav('/');
   }
+
+  // 관리자가 선생님 방에 들어가지 않았을 때: 선생님 관리 + (옮기기 전) 관리자 계정의 예전 평가
+  const adminHome = isAdmin && !viewing;
 
   return (
     <>
-      <TopBar home="/teacher/dashboard" who="관리자">
-        <button className="btn sm" onClick={() => setPwOpen(true)}>비밀번호 변경</button>
+      <TeacherBar>
+        {!viewing && <button className="btn sm" onClick={() => setPwOpen(true)}>비밀번호 변경</button>}
         <button className="btn sm" onClick={doLogout}>로그아웃</button>
-      </TopBar>
-      {pwOpen && <PasswordDialog onClose={() => setPwOpen(false)} />}
+      </TeacherBar>
+      {pwOpen && <PasswordDialog teacher={teacher} isAdmin={isAdmin} onClose={() => setPwOpen(false)} />}
       <div className="container">
-        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
-          <h1 style={{ margin: 0 }}>내 단원평가</h1>
-          <div className="row">
-            <Link to="/teacher/students" className="btn">👥 학생 명단</Link>
-            <Link to="/teacher/new" className="btn primary">+ 새 평가 만들기</Link>
+        {adminHome && <AdminPanel onMoved={() => setReloadNo((n) => n + 1)} />}
+        {(!adminHome || exams?.length > 0) && (
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+            <h1 style={{ margin: 0 }}>
+              {adminHome ? '관리자 계정의 평가' : viewing ? `${teacherLabel(viewing)} 단원평가` : '내 단원평가'}
+            </h1>
+            {!adminHome && (
+              <div className="row">
+                <Link to="/teacher/students" className="btn">👥 학생 명단</Link>
+                <Link to="/teacher/new" className="btn primary">+ 새 평가 만들기</Link>
+              </div>
+            )}
           </div>
-        </div>
+        )}
         {error && <div className="alert error">{error}</div>}
         {!exams && !error && <Loading />}
-        {exams && !exams.length && (
+        {exams && !exams.length && !adminHome && (
           <div className="card center">
             <p>아직 만든 평가가 없습니다.</p>
             <Link to="/teacher/new" className="btn primary">문제·정답 PDF로 첫 평가 만들기</Link>
@@ -108,7 +123,8 @@ export default function Dashboard() {
   );
 }
 
-function PasswordDialog({ onClose }) {
+function PasswordDialog({ teacher, isAdmin, onClose }) {
+  const min = isAdmin ? 6 : MIN_TEACHER_PASSWORD;
   const [cur, setCur] = useState('');
   const [next, setNext] = useState('');
   const [next2, setNext2] = useState('');
@@ -117,11 +133,12 @@ function PasswordDialog({ onClose }) {
 
   async function submit(e) {
     e.preventDefault();
-    if (next.length < 6) return setMsg({ type: 'error', text: '새 비밀번호는 6자 이상이어야 합니다.' });
+    if (next.length < min) return setMsg({ type: 'error', text: `새 비밀번호는 ${min}자 이상이어야 합니다.` });
     if (next !== next2) return setMsg({ type: 'error', text: '새 비밀번호가 서로 다릅니다.' });
     setBusy(true);
     try {
-      await changeAdminPassword(cur, next);
+      if (isAdmin) await changeAdminPassword(cur, next);
+      else await changeTeacherPassword(teacher, cur, next);
       setMsg({ type: 'success', text: '비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 쓰세요.' });
       setCur('');
       setNext('');
@@ -138,7 +155,7 @@ function PasswordDialog({ onClose }) {
       <form className="modal stack" onSubmit={submit}>
         <h2>비밀번호 변경</h2>
         <label className="field"><span>현재 비밀번호</span><input type="password" value={cur} onChange={(e) => setCur(e.target.value)} aria-label="현재 비밀번호" /></label>
-        <label className="field"><span>새 비밀번호 (6자 이상)</span><input type="password" value={next} onChange={(e) => setNext(e.target.value)} aria-label="새 비밀번호" /></label>
+        <label className="field"><span>새 비밀번호 ({min}자 이상)</span><input type="password" value={next} onChange={(e) => setNext(e.target.value)} aria-label="새 비밀번호" /></label>
         <label className="field"><span>새 비밀번호 확인</span><input type="password" value={next2} onChange={(e) => setNext2(e.target.value)} aria-label="새 비밀번호 확인" /></label>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
         <div className="row" style={{ justifyContent: 'flex-end' }}>

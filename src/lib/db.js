@@ -1,5 +1,10 @@
 // Firestore 데이터 구조
-//  teachers/{uid}                      관리자(교사) 프로필 — 관리 도구로만 생성
+//  teachers/{uid}                      선생님 프로필 {role:'teacher', school, grade, classNo, name, email}
+//                                      (관리자 프로필은 관리 도구로만 생성)
+//  teacherLogins/{학교_학년_반}         선생님 로그인 찾기표 → {email, uid}
+//  teacherSecrets/{uid}                선생님 비밀번호 (관리자·본인만) — 관리자가 비밀번호를 바꿔 줄 때 사용
+//  roster/{학교_학년-반-번호}            학생 명단 {school, grade, classNo, number, name, ownerUid}
+//  studentSessions/{uid}               학생 로그인 세션 (명단과 일치해야 생성)
 //  exams/{examId}                      평가 정보 + 문항(정답 제외)
 //  exams/{examId}/pages/{n}            학생 화면에 보여줄 문제지 페이지 이미지
 //  exams/{examId}/private/key          정답 (교사만, 또는 제출을 마친 학생만 읽기 가능)
@@ -13,8 +18,14 @@ import {
 import {
   signInWithEmailAndPassword, signOut, signInAnonymously, onAuthStateChanged, reauthenticateWithCredential,
   updatePassword, EmailAuthProvider, setPersistence, browserLocalPersistence, browserSessionPersistence,
+  createUserWithEmailAndPassword, deleteUser,
 } from 'firebase/auth';
-import { auth, db } from '../firebase.js';
+import { auth, db, withHelperAuth } from '../firebase.js';
+import {
+  normalizeSchool, teacherLoginId, teacherAuthPassword, studentIdOf, gsidOf, DEFAULT_TEACHER_PASSWORD, LEGACY_SCHOOL,
+} from './school.js';
+
+export { studentIdOf, gsidOf };
 
 // ─────────────── 교사 ───────────────
 
@@ -27,13 +38,22 @@ export async function getTeacher(uid) {
   return snap.exists() ? { uid, ...snap.data() } : null;
 }
 
-// 관리자(교사) 한 명만 쓰는 사이트: 고정된 관리자 계정에 비밀번호만 입력해 로그인한다.
+// 관리자: 고정된 관리자 계정에 비밀번호만 입력해 로그인한다.
 // 관리자 계정과 teachers 문서는 Firebase 관리 도구로 미리 만들어 둔다(README 참고).
 export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'admin@unit-test.app';
+const TEACHER_EMAIL_DOMAIN = 'teachers.unit-test.app';
+
+export function isAdminUser(user = auth.currentUser) {
+  return !!user && user.email === ADMIN_EMAIL;
+}
+
+async function persist(keep) {
+  await setPersistence(auth, keep ? browserLocalPersistence : browserSessionPersistence);
+}
 
 /** keep=true 면 브라우저를 닫아도 로그인 유지, false 면 브라우저를 닫으면 로그아웃 */
 export async function adminSignIn(password, keep = true) {
-  await setPersistence(auth, keep ? browserLocalPersistence : browserSessionPersistence);
+  await persist(keep);
   const cred = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
   const t = await getTeacher(cred.user.uid);
   if (!t) {
@@ -48,6 +68,200 @@ export async function changeAdminPassword(current, next) {
   const user = auth.currentUser;
   await reauthenticateWithCredential(user, EmailAuthProvider.credential(ADMIN_EMAIL, current));
   await updatePassword(user, next);
+}
+
+/** 선생님 로그인: 학교·학년·반으로 계정을 찾아 비밀번호로 로그인 */
+export async function teacherSignIn({ school, grade, classNo, password }, keep = true) {
+  const login = await getDoc(doc(db, 'teacherLogins', teacherLoginId({ school, grade, classNo })));
+  if (!login.exists()) {
+    throw new Error('등록되지 않은 선생님입니다. 학교·학년·반을 확인하거나 관리자에게 문의해 주세요.');
+  }
+  if (auth.currentUser) await signOut(auth);
+  await persist(keep);
+  const cred = await signInWithEmailAndPassword(auth, login.data().email, teacherAuthPassword(password));
+  const t = await getTeacher(cred.user.uid);
+  if (!t) {
+    await signOut(auth);
+    throw new Error('선생님 계정이 삭제되었습니다. 관리자에게 문의해 주세요.');
+  }
+  return t;
+}
+
+/** 선생님이 직접 비밀번호 변경 */
+export async function changeTeacherPassword(teacher, current, next) {
+  const user = auth.currentUser;
+  await reauthenticateWithCredential(user, EmailAuthProvider.credential(teacher.email, teacherAuthPassword(current)));
+  await updatePassword(user, teacherAuthPassword(next));
+  await setDoc(doc(db, 'teacherSecrets', user.uid), { password: next, at: serverTimestamp() });
+}
+
+// ─────────────── 선생님 관리 (관리자) ───────────────
+
+function randomId(n = 12) {
+  const a = new Uint8Array(n);
+  crypto.getRandomValues(a);
+  return [...a].map((b) => (b % 36).toString(36)).join('');
+}
+
+function teacherInfo({ school, grade, classNo, name }) {
+  const info = { school: normalizeSchool(school), grade: Number(grade), classNo: Number(classNo), name: String(name || '').trim() };
+  if (!info.school || !(info.grade >= 1) || !(info.classNo >= 1)) throw new Error('학교, 학년, 반을 모두 입력해 주세요.');
+  return info;
+}
+
+/** 모든 선생님 (관리자) — 비밀번호 포함 */
+export async function listTeachers() {
+  const [snap, secrets] = await Promise.all([
+    getDocs(query(collection(db, 'teachers'), where('role', '==', 'teacher'))),
+    getDocs(collection(db, 'teacherSecrets')),
+  ]);
+  const pw = Object.fromEntries(secrets.docs.map((d) => [d.id, d.data().password]));
+  return snap.docs
+    .map((d) => ({ uid: d.id, ...d.data(), password: pw[d.id] ?? '' }))
+    .sort((a, b) => a.school.localeCompare(b.school, 'ko') || a.grade - b.grade || a.classNo - b.classNo);
+}
+
+/** 선생님 추가 (관리자). 비밀번호는 기본 0000 */
+export async function addTeacher(input) {
+  const info = teacherInfo(input);
+  const loginId = teacherLoginId(info);
+  if ((await getDoc(doc(db, 'teacherLogins', loginId))).exists()) {
+    throw new Error(`${info.school} ${info.grade}학년 ${info.classNo}반 선생님은 이미 등록되어 있습니다.`);
+  }
+  const email = `t${randomId()}@${TEACHER_EMAIL_DOMAIN}`;
+  const password = DEFAULT_TEACHER_PASSWORD;
+  const uid = await withHelperAuth(async (h) => {
+    const cred = await createUserWithEmailAndPassword(h, email, teacherAuthPassword(password));
+    return cred.user.uid;
+  });
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'teachers', uid), { role: 'teacher', ...info, email, loginId, createdAt: serverTimestamp() });
+  batch.set(doc(db, 'teacherLogins', loginId), { email, uid });
+  batch.set(doc(db, 'teacherSecrets', uid), { password, at: serverTimestamp() });
+  await batch.commit();
+  return { uid, role: 'teacher', ...info, email, loginId, password };
+}
+
+/** 선생님 비밀번호 바꿔 주기 (관리자) — 저장해 둔 비밀번호로 그 계정에 들어가 새 비밀번호로 바꾼다 */
+export async function setTeacherPassword(teacher, next) {
+  const secret = await getDoc(doc(db, 'teacherSecrets', teacher.uid));
+  const current = secret.exists() ? secret.data().password : DEFAULT_TEACHER_PASSWORD;
+  await withHelperAuth(async (h) => {
+    const cred = await signInWithEmailAndPassword(h, teacher.email, teacherAuthPassword(current));
+    await updatePassword(cred.user, teacherAuthPassword(next));
+  });
+  await setDoc(doc(db, 'teacherSecrets', teacher.uid), { password: next, at: serverTimestamp() });
+}
+
+/** 선생님 학교·학년·반·이름 고치기 (관리자). 학교가 바뀌면 그 선생님의 평가·명단도 새 학교로 옮긴다 */
+export async function updateTeacher(teacher, input) {
+  const info = teacherInfo(input);
+  const loginId = teacherLoginId(info);
+  if (loginId !== teacher.loginId && (await getDoc(doc(db, 'teacherLogins', loginId))).exists()) {
+    throw new Error(`${info.school} ${info.grade}학년 ${info.classNo}반 선생님은 이미 등록되어 있습니다.`);
+  }
+  const batch = writeBatch(db);
+  if (teacher.loginId && loginId !== teacher.loginId) batch.delete(doc(db, 'teacherLogins', teacher.loginId));
+  batch.set(doc(db, 'teacherLogins', loginId), { email: teacher.email, uid: teacher.uid });
+  batch.update(doc(db, 'teachers', teacher.uid), { ...info, loginId });
+  await batch.commit();
+  if (info.school !== teacher.school) await moveTeacherData(teacher.uid, { ...teacher, ...info });
+  return { ...teacher, ...info, loginId };
+}
+
+/** 선생님 삭제 (관리자). 로그인 계정도 지운다. 그 선생님이 만든 평가·명단은 남는다 */
+export async function removeTeacher(teacher) {
+  const secret = await getDoc(doc(db, 'teacherSecrets', teacher.uid));
+  if (secret.exists()) {
+    await withHelperAuth(async (h) => {
+      const cred = await signInWithEmailAndPassword(h, teacher.email, teacherAuthPassword(secret.data().password));
+      await deleteUser(cred.user);
+    }).catch(() => {}); // 로그인 계정을 못 지워도 프로필이 없으면 로그인할 수 없다
+  }
+  const batch = writeBatch(db);
+  if (teacher.loginId) batch.delete(doc(db, 'teacherLogins', teacher.loginId));
+  batch.delete(doc(db, 'teacherSecrets', teacher.uid));
+  batch.delete(doc(db, 'teachers', teacher.uid));
+  await batch.commit();
+}
+
+async function commitOps(ops) {
+  for (let i = 0; i < ops.length; i += 400) {
+    const b = writeBatch(db);
+    ops.slice(i, i + 400).forEach((op) => op(b));
+    await b.commit();
+  }
+}
+
+/**
+ * 평가(와 그 답안)·명단을 선생님(owner)에게 옮기고 학교를 붙인다 (관리자).
+ * @param {string} fromUid 원래 주인 uid (그 사람의 평가를 옮김)
+ * @param {object} owner   새 주인 선생님 {uid, school, grade, classNo, name}
+ * @param {{legacyRoster?:boolean}} opt  legacyRoster: 학교가 없는 예전 명단도 옮김
+ */
+async function moveTeacherData(fromUid, owner, opt = {}) {
+  const school = owner.school;
+  const exams = await getDocs(query(collection(db, 'exams'), where('ownerUid', '==', fromUid)));
+  let subCount = 0;
+  for (const e of exams.docs) {
+    await updateDoc(e.ref, { ownerUid: owner.uid, ownerName: teacherName(owner), school, updatedAt: serverTimestamp() });
+    const subs = await getDocs(collection(db, 'exams', e.id, 'submissions'));
+    subCount += subs.size;
+    await commitOps(
+      subs.docs.map((d) => (b) => b.update(d.ref, { school, gsid: `${school}_${d.data().studentId || d.id}` })),
+    );
+  }
+  const roster = await getDocs(collection(db, 'roster'));
+  const moving = roster.docs.filter((d) => {
+    const x = d.data();
+    return x.ownerUid === fromUid || (opt.legacyRoster && !x.school);
+  });
+  await commitOps(
+    moving.flatMap((d) => {
+      const x = d.data();
+      const e = { school, grade: Number(x.grade), classNo: Number(x.classNo), number: Number(x.number), name: x.name, ownerUid: owner.uid };
+      const id = gsidOf(e);
+      return id === d.id ? [(b) => b.set(d.ref, e)] : [(b) => b.set(doc(db, 'roster', id), e), (b) => b.delete(d.ref)];
+    }),
+  );
+  return { exams: exams.size, submissions: subCount, students: moving.length };
+}
+
+/** 관리자 계정으로 만든 예전 평가·명단이 남아 있는지 (학교 구분 전 자료) */
+export async function legacyDataCount(adminUid) {
+  const [exams, roster] = await Promise.all([
+    getDocs(query(collection(db, 'exams'), where('ownerUid', '==', adminUid))),
+    getDocs(collection(db, 'roster')),
+  ]);
+  const students = roster.docs.map((d) => d.data()).filter((x) => !x.school);
+  const classes = {};
+  students.forEach((x) => {
+    const k = `${x.grade}-${x.classNo}`;
+    classes[k] = (classes[k] || 0) + 1;
+  });
+  return { exams: exams.size, students: students.length, classes };
+}
+
+/**
+ * 관리자로 만든 예전 평가·명단을 한 선생님 방으로 옮긴다 (관리자).
+ * 그 학교·학년·반 선생님이 없으면 기본 비밀번호(0000)로 새로 만든다.
+ */
+export async function moveLegacyData(adminUid, { school = LEGACY_SCHOOL, grade, classNo, name }) {
+  const info = teacherInfo({ school, grade, classNo, name });
+  const login = await getDoc(doc(db, 'teacherLogins', teacherLoginId(info)));
+  let owner;
+  let created = false;
+  if (login.exists()) owner = await getTeacher(login.data().uid);
+  if (!owner) {
+    owner = await addTeacher(info);
+    created = true;
+  }
+  const moved = await moveTeacherData(adminUid, owner, { legacyRoster: true });
+  return { owner, created, ...moved };
+}
+
+function teacherName(t) {
+  return t.school ? `${t.school} ${t.grade}-${t.classNo}${t.name ? ` ${t.name}` : ''}` : t.name || '관리자';
 }
 
 export function logout() {
@@ -87,14 +301,15 @@ export async function replacePages(examId, pages, patch, onProgress) {
 }
 
 /** 평가 생성: 평가 문서 → 정답 → 페이지 이미지 순서로 저장 */
-export async function createExam({ meta, questions, keys, pages, ownerUid, ownerName }, onProgress) {
+export async function createExam({ meta, questions, keys, pages, owner }, onProgress) {
   const ref = doc(collection(db, 'exams'));
   await setDoc(ref, {
     ...meta,
     questions,
     pageCount: pages.length,
-    ownerUid,
-    ownerName,
+    ownerUid: owner.uid,
+    ownerName: teacherName(owner),
+    ...(owner.school ? { school: owner.school } : {}),
     status: 'draft',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -230,15 +445,13 @@ export async function deleteSubmission(examId, submission) {
 
 // ─────────────── 학생 ───────────────
 
-export function studentIdOf(p) {
-  return `${p.grade}-${p.classNo}-${p.number}`;
-}
-
 /** 공용 PC에서도 학생마다 새 세션을 쓰도록 매번 새 익명 로그인 */
 async function createSession(uid, p) {
   try {
     await setDoc(doc(db, 'studentSessions', uid), {
       studentId: studentIdOf(p),
+      gsid: gsidOf(p),
+      school: normalizeSchool(p.school),
       name: p.name,
       grade: Number(p.grade),
       classNo: Number(p.classNo),
@@ -248,7 +461,7 @@ async function createSession(uid, p) {
   } catch (e) {
     if (e.code === 'permission-denied') {
       await signOut(auth);
-      throw new Error('학생 명단에 없습니다. 학년·반·번호·이름을 정확히 입력했는지 확인하세요.');
+      throw new Error('학생 명단에 없습니다. 학교 이름·학년·반·번호·이름을 정확히 입력했는지 확인하세요.');
     }
     throw e;
   }
@@ -270,14 +483,14 @@ export async function ensureStudentSession(p) {
   const u = auth.currentUser;
   if (u?.isAnonymous) {
     const snap = await getDoc(doc(db, 'studentSessions', u.uid)).catch(() => null);
-    if (snap?.exists() && snap.data().studentId === studentIdOf(p) && snap.data().name === p.name) return u.uid;
+    if (snap?.exists() && snap.data().gsid === gsidOf(p) && snap.data().name === p.name) return u.uid;
   }
   return startStudentSession(p);
 }
 
 /** 이 학생이 제출한 모든 평가 (마감된 평가 포함) */
 export async function listMyResults(p) {
-  const snap = await getDocs(query(collectionGroup(db, 'submissions'), where('studentId', '==', studentIdOf(p))));
+  const snap = await getDocs(query(collectionGroup(db, 'submissions'), where('gsid', '==', gsidOf(p))));
   const out = [];
   for (const d of snap.docs) {
     const examId = d.ref.parent.parent.id;
@@ -292,17 +505,29 @@ export async function listMyResults(p) {
 }
 
 // ─────────────── 학생 명단 (교사) ───────────────
+// owner = 명단 주인 선생님 {uid, school} (관리자가 선생님 방을 볼 때는 그 선생님)
 
-export async function listRoster() {
-  const snap = await getDocs(collection(db, 'roster'));
+function rosterEntry(owner, e) {
+  return {
+    school: owner.school,
+    grade: Number(e.grade),
+    classNo: Number(e.classNo),
+    number: Number(e.number),
+    name: String(e.name).trim(),
+    ownerUid: owner.uid,
+  };
+}
+
+export async function listRoster(owner) {
+  const snap = await getDocs(query(collection(db, 'roster'), where('ownerUid', '==', owner.uid)));
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) => a.grade - b.grade || a.classNo - b.classNo || a.number - b.number);
 }
 
-export async function saveRosterEntry(entry, oldId) {
-  const e = { grade: Number(entry.grade), classNo: Number(entry.classNo), number: Number(entry.number), name: String(entry.name).trim() };
-  const id = studentIdOf(e);
+export async function saveRosterEntry(owner, entry, oldId) {
+  const e = rosterEntry(owner, entry);
+  const id = gsidOf(e);
   const batch = writeBatch(db);
   if (oldId && oldId !== id) batch.delete(doc(db, 'roster', oldId));
   batch.set(doc(db, 'roster', id), e);
@@ -314,31 +539,27 @@ export function deleteRosterEntry(id) {
   return deleteDoc(doc(db, 'roster', id));
 }
 
-/** 여러 명 한꺼번에 저장 (replace=true면 기존 명단을 지우고 새로) */
-export async function saveRosterBulk(entries, replace) {
-  const ids = new Set(entries.map((e) => studentIdOf(e)));
+/** 여러 명 한꺼번에 저장 (replace=true면 이 선생님의 기존 명단을 지우고 새로) */
+export async function saveRosterBulk(owner, entries, replace) {
+  const rows = entries.map((e) => rosterEntry(owner, e));
+  const ids = new Set(rows.map((e) => gsidOf(e)));
   const ops = [];
   if (replace) {
-    const cur = await getDocs(collection(db, 'roster'));
+    const cur = await getDocs(query(collection(db, 'roster'), where('ownerUid', '==', owner.uid)));
     cur.docs.filter((d) => !ids.has(d.id)).forEach((d) => ops.push((b) => b.delete(d.ref)));
   }
-  entries.forEach((e) =>
-    ops.push((b) =>
-      b.set(doc(db, 'roster', studentIdOf(e)), {
-        grade: Number(e.grade), classNo: Number(e.classNo), number: Number(e.number), name: String(e.name).trim(),
-      }),
-    ),
-  );
-  for (let i = 0; i < ops.length; i += 400) {
-    const b = writeBatch(db);
-    ops.slice(i, i + 400).forEach((op) => op(b));
-    await b.commit();
-  }
+  rows.forEach((e) => ops.push((b) => b.set(doc(db, 'roster', gsidOf(e)), e)));
+  await commitOps(ops);
 }
 
-export async function listOpenExams(grade, classNo) {
+export async function listOpenExams(school, grade, classNo) {
   const snap = await getDocs(
-    query(collection(db, 'exams'), where('status', '==', 'open'), where('grade', '==', Number(grade))),
+    query(
+      collection(db, 'exams'),
+      where('status', '==', 'open'),
+      where('school', '==', normalizeSchool(school)),
+      where('grade', '==', Number(grade)),
+    ),
   );
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
@@ -408,6 +629,8 @@ export async function submitAnswers(examId, profile, answers) {
   batch.set(doc(db, 'exams', examId, 'submissions', studentId), {
     uid,
     studentId,
+    gsid: gsidOf(profile),
+    school: normalizeSchool(profile.school),
     grade: Number(profile.grade),
     classNo: Number(profile.classNo),
     number: Number(profile.number),

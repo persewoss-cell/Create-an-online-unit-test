@@ -16,7 +16,7 @@ export default function ExamList() {
     (async () => {
       try {
         await ensureStudentSession(p);
-        const [open, mine] = await Promise.all([listOpenExams(p.grade, p.classNo), listMyResults(p)]);
+        const [open, mine] = await Promise.all([listOpenExams(p.school, p.grade, p.classNo), listMyResults(p)]);
         setData({ open, mine });
       } catch (e) {
         if (e.message.startsWith('학생 명단')) {

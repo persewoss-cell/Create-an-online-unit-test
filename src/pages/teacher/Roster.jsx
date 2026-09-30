@@ -1,43 +1,58 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import TopBar from '../../components/TopBar.jsx';
+import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
+import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { listRoster, saveRosterEntry, deleteRosterEntry, saveRosterBulk } from '../../lib/db.js';
 import { downloadRosterTemplate, readRosterSheet } from '../../lib/rosterSheet.js';
 
 const empty = { grade: '', classNo: '', number: '', name: '' };
 
+function saveError(e) {
+  return e.code === 'permission-denied'
+    ? '저장하지 못했습니다. 같은 학교의 다른 선생님 명단에 이미 있는 학생이면 그 선생님(또는 관리자)이 먼저 지워야 합니다.'
+    : `저장하지 못했습니다: ${e.message}`;
+}
+
 export default function Roster() {
+  const { owner } = useTeacher();
   const [list, setList] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(() => ({
+    ...empty, grade: owner?.grade ? String(owner.grade) : '', classNo: owner?.classNo ? String(owner.classNo) : '', number: '1',
+  }));
   const [editing, setEditing] = useState(null); // {id, ...values}
   const [upload, setUpload] = useState(null); // {entries, errors}
-  const [defGrade, setDefGrade] = useState('3');
+  const [defGrade, setDefGrade] = useState(owner?.grade ? String(owner.grade) : '3');
   const [filter, setFilter] = useState('');
 
   async function reload() {
     try {
-      setList(await listRoster());
+      setList(await listRoster(owner));
     } catch (e) {
       setError(e.message);
     }
   }
   useEffect(() => {
     reload();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner?.uid]);
 
   const valid = (e) => Number(e.grade) >= 1 && Number(e.grade) <= 6 && Number(e.classNo) > 0 && Number(e.number) > 0 && String(e.name).trim();
 
   async function add(ev) {
     ev.preventDefault();
     if (!valid(form)) return setError('학년·반·번호·이름을 모두 입력해 주세요.');
-    const id = `${Number(form.grade)}-${Number(form.classNo)}-${Number(form.number)}`;
-    if (list.some((x) => x.id === id) && !confirm(`${form.grade}학년 ${form.classNo}반 ${form.number}번이 이미 있습니다. 이름을 바꿀까요?`)) return;
+    const sid = `${Number(form.grade)}-${Number(form.classNo)}-${Number(form.number)}`;
+    if (list.some((x) => `${x.grade}-${x.classNo}-${x.number}` === sid) && !confirm(`${form.grade}학년 ${form.classNo}반 ${form.number}번이 이미 있습니다. 이름을 바꿀까요?`)) return;
     setError('');
-    await saveRosterEntry(form);
+    try {
+      await saveRosterEntry(owner, form);
+    } catch (e) {
+      return setError(saveError(e));
+    }
     setForm({ ...empty, grade: form.grade, classNo: form.classNo, number: String(Number(form.number) + 1) });
     setMsg(`${form.name} 학생을 추가했습니다.`);
     reload();
@@ -46,7 +61,11 @@ export default function Roster() {
   async function saveEdit() {
     if (!valid(editing)) return setError('학년·반·번호·이름을 모두 입력해 주세요.');
     setError('');
-    await saveRosterEntry(editing, editing.id);
+    try {
+      await saveRosterEntry(owner, editing, editing.id);
+    } catch (e) {
+      return setError(saveError(e));
+    }
     setEditing(null);
     reload();
   }
@@ -69,7 +88,11 @@ export default function Roster() {
 
   async function applyUpload(replace) {
     if (replace && !confirm('지금 명단을 모두 지우고 엑셀의 명단으로 바꿀까요?')) return;
-    await saveRosterBulk(upload.entries, replace);
+    try {
+      await saveRosterBulk(owner, upload.entries, replace);
+    } catch (e) {
+      return setError(saveError(e));
+    }
     setMsg(`${upload.entries.length}명을 ${replace ? '새 명단으로 저장' : '명단에 추가'}했습니다.`);
     setUpload(null);
     reload();
@@ -80,12 +103,14 @@ export default function Roster() {
 
   return (
     <>
-      <TopBar home="/teacher/dashboard" who="관리자">
+      <TeacherBar>
         <Link to="/teacher/dashboard" className="btn sm">목록</Link>
-      </TopBar>
+      </TeacherBar>
       <div className="container" style={{ maxWidth: 900 }}>
-        <h1>학생 명단</h1>
-        <p className="muted">명단에 있는 학생만 학년·반·번호·이름으로 로그인할 수 있습니다. 이름까지 정확히 같아야 합니다.</p>
+        <h1>학생 명단 <span className="muted small">{owner?.school}</span></h1>
+        <p className="muted">
+          명단에 있는 학생만 학교 이름(<b>{owner?.school || '-'}</b>)·학년·반·번호·이름으로 로그인할 수 있습니다. 이름까지 정확히 같아야 합니다.
+        </p>
         {error && <div className="alert error" style={{ marginBottom: 12 }}>{error}</div>}
         {msg && <div className="alert success" style={{ marginBottom: 12 }}>{msg}</div>}
 

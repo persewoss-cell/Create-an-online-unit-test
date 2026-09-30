@@ -1,13 +1,19 @@
 rules_version = '2';
 
-// 단원평가 사이트 보안 규칙
-//  - 관리자(교사): 고정된 관리자 계정 비밀번호 로그인 + teachers/{uid} 문서가 있어야 함
-//  - 학생: 익명 로그인 후 "학생 세션"을 만든다. 세션은 학생 명단(roster)에 있는
+// 단원평가 사이트 보안 규칙 (여러 학교·여러 선생님)
+//  - 관리자: 고정된 관리자 계정(admin@unit-test.app) — 모든 선생님의 방(평가·명단)을 보고 고칠 수 있다
+//  - 교사: 관리자가 만든 계정. 학교·학년·반 + 비밀번호로 로그인. 자기 평가·명단만 다룬다
+//  - 학생: 익명 로그인 후 "학생 세션"을 만든다. 세션은 그 학교 학생 명단(roster)의
 //          학년·반·번호·이름과 정확히 일치해야만 만들 수 있다 → 명단에 없는 학생은 로그인 불가
-//  - 학생은 자기 번호의 답안·결과만 볼 수 있고, 답안은 1회만 제출할 수 있다
+//  - 학생은 자기 학교 평가에만 제출하고, 자기 답안·결과만 볼 수 있으며, 답안은 1회만 제출할 수 있다
 //  - 정답(private/key)은 교사, 또는 이미 제출을 마친 학생만 읽을 수 있다
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 학교가 적혀 있지 않은 예전 자료(학교 구분 전에 만든 답안)는 이 학교 것으로 본다
+    function legacySchool() {
+      return '광양중동초등학교';
+    }
     function signedIn() {
       return request.auth != null;
     }
@@ -16,11 +22,21 @@ service cloud.firestore {
         && request.auth.token.firebase.sign_in_provider == 'password'
         && exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
     }
+    function isAdmin() {
+      return isTeacher() && request.auth.token.email == 'admin@unit-test.app';
+    }
+    function myTeacher() {
+      return get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data;
+    }
     function examDoc(examId) {
       return get(/databases/$(database)/documents/exams/$(examId));
     }
+    function examSchool(examId) {
+      return examDoc(examId).data.get('school', legacySchool());
+    }
+    // 평가 주인(선생님) 또는 관리자
     function isOwner(examId) {
-      return isTeacher() && examDoc(examId).data.ownerUid == request.auth.uid;
+      return isAdmin() || (isTeacher() && examDoc(examId).data.ownerUid == request.auth.uid);
     }
     function sessionPath() {
       return /databases/$(database)/documents/studentSessions/$(request.auth.uid);
@@ -28,54 +44,99 @@ service cloud.firestore {
     function hasSession() {
       return signedIn() && exists(sessionPath());
     }
+    function session() {
+      return get(sessionPath()).data;
+    }
     function mySid() {
-      return get(sessionPath()).data.studentId;
+      return session().studentId;
+    }
+    // 학교까지 붙인 학생 번호 (학교이름_학년-반-번호)
+    function myGsid() {
+      return session().get('gsid', '');
+    }
+    function mySchool() {
+      return session().get('school', '');
     }
     // 이 학생이 이 평가를 이미 제출했는지
     function submittedBySession(examId) {
-      return hasSession() && exists(/databases/$(database)/documents/exams/$(examId)/submissions/$(mySid()));
+      return hasSession()
+        && examSchool(examId) == mySchool()
+        && exists(/databases/$(database)/documents/exams/$(examId)/submissions/$(mySid()));
+    }
+    function sidOf(d) {
+      return string(d.grade) + '-' + string(d.classNo) + '-' + string(d.number);
     }
 
-    // 관리자(교사) 프로필은 관리 도구로만 만든다. 사이트에서는 새 교사를 만들 수 없다.
+    // 교사 프로필: 관리자만 만들고 고친다. 교사는 자기 것만 읽는다
     match /teachers/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
-      allow write: if false;
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin() && uid != request.auth.uid;
     }
 
-    // 학생 명단: 교사만 읽고 쓸 수 있다 (학생은 명단을 볼 수 없음)
-    match /roster/{studentId} {
-      allow read, write: if isTeacher();
+    // 교사 로그인 찾기표 (학교_학년_반 → 로그인용 이메일). 로그인 전에도 한 건씩은 읽을 수 있다
+    match /teacherLogins/{loginId} {
+      allow get: if true;
+      allow list, write: if isAdmin();
     }
 
-    // 학생 세션: 명단과 학년·반·번호·이름이 일치할 때만 만들 수 있다
+    // 교사 비밀번호: 관리자가 바꿔 줄 수 있도록 관리자와 본인만 읽고 쓴다
+    match /teacherSecrets/{uid} {
+      allow read: if isAdmin() || (isTeacher() && request.auth.uid == uid);
+      allow write: if isAdmin()
+        || (isTeacher() && request.auth.uid == uid && request.resource.data.keys().hasOnly(['password', 'at']));
+    }
+
+    // 학생 명단: 문서 ID = 학교이름_학년-반-번호. 선생님은 자기 학교·자기 명단만, 관리자는 모두
+    match /roster/{rid} {
+      allow read, delete: if isAdmin() || (isTeacher() && resource.data.ownerUid == request.auth.uid);
+      allow create: if rid == request.resource.data.school + '_' + sidOf(request.resource.data)
+        && (isAdmin()
+          || (isTeacher()
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.school == myTeacher().school));
+      allow update: if rid == request.resource.data.school + '_' + sidOf(request.resource.data)
+        && (isAdmin()
+          || (isTeacher()
+            && resource.data.ownerUid == request.auth.uid
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.school == myTeacher().school));
+    }
+
+    // 학생 세션: 그 학교 명단과 학년·반·번호·이름이 일치할 때만 만들 수 있다
     match /studentSessions/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow create: if signedIn()
         && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['studentId', 'name', 'grade', 'classNo', 'number', 'at'])
-        && request.resource.data.studentId == string(request.resource.data.grade) + '-' + string(request.resource.data.classNo) + '-' + string(request.resource.data.number)
-        && exists(/databases/$(database)/documents/roster/$(request.resource.data.studentId))
-        && get(/databases/$(database)/documents/roster/$(request.resource.data.studentId)).data.name == request.resource.data.name;
+        && request.resource.data.keys().hasOnly(['studentId', 'gsid', 'school', 'name', 'grade', 'classNo', 'number', 'at'])
+        && request.resource.data.studentId == sidOf(request.resource.data)
+        && request.resource.data.gsid == request.resource.data.school + '_' + request.resource.data.studentId
+        && exists(/databases/$(database)/documents/roster/$(request.resource.data.gsid))
+        && get(/databases/$(database)/documents/roster/$(request.resource.data.gsid)).data.name == request.resource.data.name;
       allow update, delete: if false;
     }
 
     // 학생이 자기 결과 목록을 모아 볼 때 (collectionGroup 조회)
     match /{path=**}/submissions/{studentId} {
-      allow read: if hasSession() && resource.data.studentId == mySid();
+      allow read: if hasSession() && resource.data.gsid == myGsid();
     }
 
     match /exams/{examId} {
-      allow read: if (isTeacher() && resource.data.ownerUid == request.auth.uid)
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.ownerUid == request.auth.uid)
         || (signedIn() && resource.data.status == 'open')
         || submittedBySession(examId);
-      allow create: if isTeacher()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.status in ['draft', 'open', 'closed'];
-      allow update: if isTeacher()
-        && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.status in ['draft', 'open', 'closed'];
-      allow delete: if isTeacher() && resource.data.ownerUid == request.auth.uid;
+      allow create: if request.resource.data.status in ['draft', 'open', 'closed']
+        && (isAdmin()
+          || (isTeacher()
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.school == myTeacher().school));
+      allow update: if request.resource.data.status in ['draft', 'open', 'closed']
+        && (isAdmin()
+          || (isTeacher()
+            && resource.data.ownerUid == request.auth.uid
+            && request.resource.data.ownerUid == resource.data.ownerUid
+            && request.resource.data.get('school', '') == resource.data.get('school', '')));
+      allow delete: if isAdmin() || (isTeacher() && resource.data.ownerUid == request.auth.uid);
 
       match /pages/{pageId} {
         allow read: if isOwner(examId) || (signedIn() && examDoc(examId).data.status == 'open') || submittedBySession(examId);
@@ -94,34 +155,39 @@ service cloud.firestore {
         allow read: if isOwner(examId)
           || (signedIn() && resource == null)
           || (signedIn() && resource.data.uid == request.auth.uid)
-          || (hasSession() && resource.data.studentId == mySid());
+          || (hasSession() && resource.data.get('gsid', legacySchool() + '_' + resource.data.studentId) == myGsid());
         allow create: if hasSession()
           && mySid() == studentId
-          && get(sessionPath()).data.name == request.resource.data.name
+          && session().name == request.resource.data.name
           && examDoc(examId).data.status == 'open'
+          && examSchool(examId) == mySchool()
           && request.resource.data.uid == request.auth.uid
-          && request.resource.data.keys().hasOnly(['uid', 'studentId', 'grade', 'classNo', 'number', 'name', 'answers', 'submittedAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'studentId', 'gsid', 'school', 'grade', 'classNo', 'number', 'name', 'answers', 'submittedAt'])
           && request.resource.data.studentId == studentId
-          && studentId == string(request.resource.data.grade) + '-' + string(request.resource.data.classNo) + '-' + string(request.resource.data.number)
+          && request.resource.data.gsid == myGsid()
+          && request.resource.data.school == mySchool()
+          && studentId == sidOf(request.resource.data)
           && request.resource.data.answers is map
           && request.resource.data.submittedAt == request.time
           && existsAfter(/databases/$(database)/documents/exams/$(examId)/submitters/$(request.auth.uid));
-        // 학생은 제출 후 수정 불가. 교사는 판정(overrides)만 수정
+        // 학생은 제출 후 수정 불가. 교사는 판정(overrides)만 수정. 관리자는 예전 답안에 학교를 붙일 수 있다
         allow update: if isOwner(examId)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['overrides', 'reviewedAt']);
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['overrides', 'reviewedAt'])
+            || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['school', 'gsid'])));
         allow delete: if isOwner(examId);
       }
 
       // 풀던 답 임시 저장: 본인(명단 확인된 세션)만 읽고 쓴다. 평가가 열려 있을 때만 저장 가능
       match /drafts/{studentId} {
-        allow read: if isOwner(examId) || (hasSession() && mySid() == studentId);
+        allow read: if isOwner(examId) || (hasSession() && mySid() == studentId && examSchool(examId) == mySchool());
         allow create, update: if hasSession()
           && mySid() == studentId
           && examDoc(examId).data.status == 'open'
+          && examSchool(examId) == mySchool()
           && request.resource.data.keys().hasOnly(['studentId', 'answers', 'shapes', 'cur', 'at'])
           && request.resource.data.studentId == studentId
           && request.resource.data.answers is map;
-        allow delete: if isOwner(examId) || (hasSession() && mySid() == studentId);
+        allow delete: if isOwner(examId) || (hasSession() && mySid() == studentId && examSchool(examId) == mySchool());
       }
 
       match /submitters/{uid} {
