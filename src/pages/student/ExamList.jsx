@@ -16,7 +16,10 @@ export default function ExamList() {
     (async () => {
       try {
         await ensureStudentSession(p);
-        const [open, mine] = await Promise.all([listOpenExams(p.school, p.grade, p.classNo), listMyResults(p)]);
+        const [open, mine] = await Promise.all([
+          listOpenExams(p.school, p.grade, p.classNo),
+          listMyResults(p).catch(() => []), // 지난 결과를 못 불러와도 볼 수 있는 평가는 보여 준다
+        ]);
         setData({ open, mine });
       } catch (e) {
         if (e.message.startsWith('학생 명단')) {
