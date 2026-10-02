@@ -387,3 +387,7 @@ button.mark { cursor: pointer; }
 /* 학생 결과: 오답 재응시 */
 .retake-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .btn.retake-done, .btn.retake-done:disabled { background: #fff; color: var(--muted); border-color: var(--line); opacity: 1; cursor: default; }
+.retake-q { max-width: 640px; }
+.retake-rows td { padding-top: 6px; padding-bottom: 6px; }
+.retake-rows td:first-child { width: 110px; }
+.retake-rows td:last-child { width: auto; }

@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { GradedPaper } from '../../components/ExamViews.jsx';
+import RetakeHistory from '../../components/RetakeHistory.jsx';
 import { loadStudent } from '../../lib/student.js';
 import { getExam, getKeys, getMySubmission, getPages, studentIdOf, watchMySubmission, ensureStudentSession, watchExam, watchKeys } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
@@ -17,6 +18,7 @@ export default function Result() {
   const [error, setError] = useState('');
 
   const [updated, setUpdated] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   useEffect(() => {
     if (!p) return undefined;
     let unsub = () => {};
@@ -124,13 +126,25 @@ export default function Result() {
                 {!rt.done && rt.fixed.length > 0 && ` 다시 풀어 맞힌 문제: ${rt.fixed.join(', ')}번`}
               </div>
             </div>
-            {rt.done ? (
-              <button className="btn retake-done" disabled aria-label="오답 재응시 완료">✔ 오답 재응시 완료</button>
-            ) : (
-              <button className="btn primary" onClick={() => nav(`/exam/${id}/retake`)}>
-                오답 재응시 ({rt.remaining.length}문제)
-              </button>
-            )}
+            <div className="row">
+              {rt.attempts > 0 && (
+                <button className="btn" onClick={() => setShowHistory(!showHistory)} aria-expanded={showHistory}>
+                  {showHistory ? '재응시 결과 닫기' : '재응시 결과 보기'}
+                </button>
+              )}
+              {rt.done ? (
+                <button className="btn retake-done" disabled aria-label="오답 재응시 완료">✔ 오답 재응시 완료</button>
+              ) : (
+                <button className="btn primary" onClick={() => nav(`/exam/${id}/retake`)}>
+                  오답 재응시 ({rt.remaining.length}문제)
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {rt.enabled && showHistory && (
+          <div style={{ marginBottom: 16 }}>
+            <RetakeHistory exam={exam} pages={pages} history={rt.history} />
           </div>
         )}
         <GradedPaper exam={exam} pages={pages} keys={keys} answers={sub.answers} result={result} hideKeys />

@@ -30,6 +30,8 @@ describe('오답 재응시', () => {
     const sub = { ...base, retake: { on: true }, retakes: [{ answers: { 2: '>', 3: [1] } }, { answers: { 2: '<' } }, { answers: { 3: [2] } }] };
     const st = retakeState(exam, keys, sub);
     expect(st.attempts).toBe(3);
+    expect(st.history[2].map((h) => [h.round, h.answer, h.status])).toEqual([[0, '>', 'wrong'], [1, '>', 'wrong'], [2, '<', 'correct']]);
+    expect(st.history[3].map((h) => [h.round, h.status])).toEqual([[0, 'wrong'], [1, 'wrong'], [3, 'correct']]);
     expect(st.remaining).toEqual([]);
     expect(st.done).toBe(true);
   });
