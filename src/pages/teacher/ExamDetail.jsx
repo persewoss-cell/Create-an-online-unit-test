@@ -157,21 +157,28 @@ export default function ExamDetail() {
   );
 }
 
+/** [시험 개시] [응시 마감] — 지금 상태에서 누를 수 없는 버튼은 흐리게 */
 function StatusButtons({ exam, onChange }) {
-  if (exam.status === 'open') {
-    return (
+  const open = exam.status === 'open';
+  return (
+    <>
+      <button
+        className="btn ok"
+        disabled={open}
+        onClick={() => onChange('open')}
+        title={open ? '이미 응시 중입니다' : '학생 목록에 이 시험이 보이고 응시할 수 있게 됩니다'}
+      >
+        {exam.status === 'closed' ? '시험 다시 개시' : '시험 개시'}
+      </button>
       <button
         className="btn danger"
+        disabled={!open}
         onClick={() => confirm('응시를 마감할까요?\n마감하면 학생 목록에서 시험이 빠지고, 제출한 학생은 결과만 볼 수 있어요.') && onChange('closed')}
+        title={open ? '응시를 마감합니다' : '응시 중일 때만 마감할 수 있습니다'}
       >
         응시 마감
       </button>
-    );
-  }
-  return (
-    <button className="btn ok" onClick={() => onChange('open')}>
-      {exam.status === 'closed' ? '시험 다시 개시' : '시험 개시'}
-    </button>
+    </>
   );
 }
 
@@ -200,12 +207,18 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys }) {
     if (!confirm(`${s.classNo}반 ${s.number}번 ${s.name} 학생의 응시 기록을 모두 삭제할까요?\n삭제하면 이 학생이 처음부터 다시 응시할 수 있습니다.`)) return;
     await deleteSubmission(examId, s);
   }
+  const retakeError = (err) =>
+    alert(
+      err.code === 'permission-denied'
+        ? '저장하지 못했습니다. Firebase 보안 규칙이 아직 오답 재응시용 새 규칙이 아닙니다.\nFirebase 콘솔 → Firestore Database → 규칙 탭에 새 규칙을 붙여 넣고 게시해 주세요.'
+        : `저장 실패: ${err.message}`,
+    );
   async function toggleWrongRetake(s) {
     const on = !states[s.id].enabled;
     try {
       await setRetake(examId, [s.id], on);
     } catch (err) {
-      alert(`저장 실패: ${err.message}`);
+      retakeError(err);
     }
   }
   // 틀린 문제가 있는데 아직 오답 재응시가 꺼진 학생
@@ -215,7 +228,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys }) {
     try {
       await setRetake(examId, waiting.map(({ s }) => s.id), true);
     } catch (err) {
-      alert(`저장 실패: ${err.message}`);
+      retakeError(err);
     }
   }
   return (

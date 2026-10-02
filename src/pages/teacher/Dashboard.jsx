@@ -9,7 +9,7 @@ import { gradeSubmission } from '../../lib/grading.js';
 import { MIN_TEACHER_PASSWORD, teacherLabel } from '../../lib/school.js';
 import AdminPanel from './AdminPanel.jsx';
 
-export const STATUS = { draft: '준비 중', open: '응시 중', closed: '마감' };
+export const STATUS = { draft: '개시 전', open: '응시 중', closed: '마감' };
 
 export default function Dashboard() {
   const { teacher, owner, isAdmin, viewing, setTeacher } = useTeacher();
