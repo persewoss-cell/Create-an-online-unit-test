@@ -36,6 +36,7 @@ export default function Dashboard({ adminRoute = false }) {
 
   async function toggleShare(e) {
     const on = !e.shared;
+    if (on && e.importedFrom) return; // 다른 선생님에게서 가져온 시험지는 다시 공유할 수 없음
     if (on && !confirm(`"${e.title}" 시험지를 공유할까요?\n모든 학교 선생님이 이 시험지(문항·정답·문제지)를 보고 가져갈 수 있어요. 학생 답안은 공유되지 않아요.`)) return;
     setBusyId(e.id);
     try {
@@ -137,7 +138,7 @@ export default function Dashboard({ adminRoute = false }) {
             </h1>
             {!adminHome && (
               <div className="row">
-                <Link to="/teacher/students" state={backState(location)} className="btn">👥 학생 명단</Link>
+                <Link to="/teacher/students" state={backState(location)} className="btn">👥 학생 명단 추가·수정</Link>
                 <Link to="/teacher/new" state={backState(location)} className="btn primary">+ 새 평가 만들기</Link>
                 <button type="button" className="btn" onClick={() => setImportOpen(true)}>📥 공유 시험지 가져오기</button>
               </div>
@@ -189,9 +190,16 @@ export default function Dashboard({ adminRoute = false }) {
                         <button
                           type="button"
                           className={`btn xs ${e.shared ? 'shared-on' : ''}`}
-                          disabled={busyId === e.id}
+                          // 공유 시험지에서 가져온 평가는 공유할 수 없음 (이미 공유 중이었다면 그만두기만 가능)
+                          disabled={busyId === e.id || (!!e.importedFrom && !e.shared)}
                           onClick={() => toggleShare(e)}
-                          title={e.shared ? '공유 중 — 누르면 공유를 그만둡니다' : '모든 학교 선생님과 이 시험지를 공유합니다'}
+                          title={
+                            e.shared
+                              ? '공유 중 — 누르면 공유를 그만둡니다'
+                              : e.importedFrom
+                                ? '공유 시험지에서 가져온 평가라 다시 공유할 수 없어요'
+                                : '모든 학교 선생님과 이 시험지를 공유합니다'
+                          }
                         >
                           {e.shared ? '✓ 공유 중' : '공유'}
                         </button>

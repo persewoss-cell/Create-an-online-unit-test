@@ -489,7 +489,11 @@ export async function saveQuestionsAndKeys(examId, questions, keys, changedNos =
 // ─────────────── 시험지 공유 ───────────────
 
 /** 시험지 공유 켜기/끄기 — 공유하면 모든 학교 선생님이 보고 자기 반으로 가져갈 수 있다 (학생 답안은 공유되지 않음) */
-export function setExamShared(examId, on, owner) {
+export async function setExamShared(examId, on, owner) {
+  if (on) {
+    const e = await getExam(examId);
+    if (e?.importedFrom) throw new Error('공유 시험지에서 가져온 평가는 다시 공유할 수 없어요.');
+  }
   return updateExam(examId, on
     ? { shared: true, sharedAt: serverTimestamp(), sharedBy: teacherName(owner) }
     : { shared: false });
