@@ -12,11 +12,8 @@ export function defaultTitle(m) {
   return `${m.grade}학년 ${m.semester}학기 ${subjectName(m)}${m.unit ? ` ${m.unit}` : ''} 단원평가`;
 }
 
-export function parseClasses(text) {
-  return [...new Set(String(text || '').split(/[\s,]+/).map(Number).filter((n) => n > 0))].sort((a, b) => a - b);
-}
-
-export default function MetaFields({ meta, setMeta }) {
+/** lockedGrade: 선생님 방에서는 학년을 그 선생님 학년으로 고정 (평가는 늘 그 반에만 나간다) */
+export default function MetaFields({ meta, setMeta, lockedGrade }) {
   const set = (k) => (e) => setMeta({ ...meta, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   return (
     <>
@@ -33,7 +30,7 @@ export default function MetaFields({ meta, setMeta }) {
         </label>
         <label className="field">
           <span>학년 *</span>
-          <select value={meta.grade} onChange={set('grade')} aria-label="대상 학년">
+          <select value={meta.grade} onChange={set('grade')} aria-label="대상 학년" disabled={!!lockedGrade}>
             <option value="">선택</option>
             {[1, 2, 3, 4, 5, 6].map((g) => <option key={g} value={g}>{g}학년</option>)}
           </select>
@@ -55,10 +52,6 @@ export default function MetaFields({ meta, setMeta }) {
         <input type="text" value={meta.title} onChange={set('title')} placeholder={defaultTitle(meta) || '비워 두면 자동으로 만들어집니다'} aria-label="평가 제목" />
       </label>
       <div className="grid2">
-        <label className="field">
-          <span>응시할 반</span>
-          <input type="text" value={meta.classesText} onChange={set('classesText')} placeholder="비워 두면 학년 전체 (예: 1, 3)" aria-label="응시할 반" />
-        </label>
         <label className="field">
           <span>서술형·단답형 채점 기준</span>
           <select value={meta.leniency} onChange={set('leniency')} aria-label="채점 기준">

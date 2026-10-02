@@ -12,7 +12,6 @@ export const SORT_COLUMNS = {
   subject: (e) => e.subject || null,
   unit: (e) => e.unit || e.title || null, // "2. 원", "10. 비" 처럼 앞 번호를 숫자로 비교 (단원이 없으면 제목)
   title: (e) => e.title || null,
-  classes: (e) => (e.classes?.length ? Math.min(...e.classes) : 0), // 반 지정 없음(학년 전체)이 먼저
   status: (e) => STATUS_ORDER[e.status] ?? null,
   count: (e, st) => st?.count ?? null,
   avg: (e, st) => st?.avg ?? null,

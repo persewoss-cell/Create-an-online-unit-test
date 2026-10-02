@@ -12,13 +12,15 @@ import { createExam } from '../../lib/db.js';
 import SaveErrorDialog, { ErrorLine } from '../../components/SaveErrorDialog.jsx';
 import { LENIENCY } from '../../lib/grading.js';
 import { detectMeta } from '../../lib/detectMeta.js';
-import MetaFields, { defaultTitle, parseClasses, subjectName } from '../../components/MetaFields.jsx';
+import MetaFields, { defaultTitle, subjectName } from '../../components/MetaFields.jsx';
+import { classTarget } from '../../lib/school.js';
 
 export default function ExamCreate() {
   const { owner } = useTeacher();
+  const target = classTarget(owner); // 평가는 늘 이 선생님 학년·반에만 나간다
   const nav = useNavigate();
   const [meta, setMeta] = useState({
-    subject: '', subjectCustom: '', grade: owner?.grade ? String(owner.grade) : '', semester: '1', unit: '', title: '', classesText: '', leniency: 'normal',
+    subject: '', subjectCustom: '', grade: target ? String(target.grade) : '', semester: '1', unit: '', title: '', leniency: 'normal',
   });
   const [qFile, setQFile] = useState(null);
   const [groups, setGroups] = useState([]);
@@ -57,7 +59,7 @@ export default function ExamCreate() {
   const run = useRef(0);
   const metaRef = useRef(meta);
   metaRef.current = meta;
-  const autoVals = useRef({ semester: '1', grade: owner?.grade ? String(owner.grade) : '' }); // 자동으로 채운 값 (선생님이 고치지 않았으면 다시 올릴 때 바꿔도 됨)
+  const autoVals = useRef({ semester: '1', grade: target ? String(target.grade) : '' }); // 자동으로 채운 값 (선생님이 고치지 않았으면 다시 올릴 때 바꿔도 됨)
 
   /** PDF를 고르면 바로 분석: 문항 인식 + 문항 이미지 + 평가 정보 자동 채우기 */
   async function analyze(file) {
@@ -76,6 +78,7 @@ export default function ExamCreate() {
       const cur = metaRef.current;
       const nextMeta = { ...cur };
       for (const [k, v] of Object.entries(found)) {
+        if (k === 'grade' && target) continue; // 학년은 선생님 학년으로 고정
         if (v && (cur[k] === '' || cur[k] === autoVals.current[k])) {
           nextMeta[k] = v;
           autoVals.current[k] = v;
@@ -125,11 +128,11 @@ export default function ExamCreate() {
         {
           meta: {
             subject: subjectName(meta),
-            grade: Number(meta.grade),
+            grade: target ? target.grade : Number(meta.grade),
             semester: Number(meta.semester),
             unit: meta.unit.trim(),
             title: meta.title.trim() || defaultTitle(meta),
-            classes: parseClasses(meta.classesText),
+            classes: target ? target.classes : [],
             leniency: meta.leniency,
             groups,
             pageAspects: aspects,
@@ -189,7 +192,7 @@ export default function ExamCreate() {
             </div>
             <div className="card stack">
               <h2>2. 평가 정보</h2>
-              <MetaFields meta={meta} setMeta={setMeta} />
+              <MetaFields meta={meta} setMeta={setMeta} lockedGrade={!!target} />
             </div>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn primary lg" disabled={!!busy || !!analyzing}>다음: 문항·정답 확인 →</button>

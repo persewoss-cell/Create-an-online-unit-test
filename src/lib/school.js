@@ -48,3 +48,9 @@ export function teacherLabel(t) {
   if (!t.school) return t.name || '관리자';
   return `${t.school} ${t.grade}학년 ${t.classNo}반${t.name ? ` ${t.name}` : ''}`;
 }
+
+/** 선생님이 만든 평가가 나가는 곳: 그 선생님 학년·반 (학교 없는 관리자 계정이면 null) */
+export function classTarget(owner) {
+  if (!owner?.grade || !owner?.classNo) return null;
+  return { grade: Number(owner.grade), classes: [Number(owner.classNo)] };
+}

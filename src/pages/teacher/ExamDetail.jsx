@@ -5,7 +5,9 @@ import Loading from '../../components/Loading.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
 import { GradedPaper, Regions, regionsOf, stackRatio } from '../../components/ExamViews.jsx';
 import { DrawLayer } from '../../components/Drawing.jsx';
-import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
+import MetaFields, { subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
+import { useTeacher } from '../../components/TeacherAuth.jsx';
+import { classTarget } from '../../lib/school.js';
 import {
   watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
 } from '../../lib/db.js';
@@ -512,14 +514,14 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
 }
 
 function SettingsTab({ exam, onSaved, onPages, onDeleted }) {
+  const target = classTarget(useTeacher().owner);
   const [meta, setMeta] = useState(() => ({
     subject: SUBJECTS.includes(exam.subject) ? exam.subject : '기타',
     subjectCustom: SUBJECTS.includes(exam.subject) ? '' : exam.subject,
-    grade: String(exam.grade),
+    grade: String(target ? target.grade : exam.grade),
     semester: String(exam.semester),
     unit: exam.unit || '',
     title: exam.title,
-    classesText: (exam.classes || []).join(', '),
     leniency: exam.leniency || 'normal',
   }));
   const [msg, setMsg] = useState('');
@@ -552,11 +554,11 @@ function SettingsTab({ exam, onSaved, onPages, onDeleted }) {
   async function save() {
     const patch = {
       subject: subjectName(meta),
-      grade: Number(meta.grade),
+      grade: target ? target.grade : Number(meta.grade),
       semester: Number(meta.semester),
       unit: meta.unit.trim(),
       title: meta.title.trim() || exam.title,
-      classes: parseClasses(meta.classesText),
+      classes: target ? target.classes : exam.classes || [],
       leniency: meta.leniency,
     };
     await updateExam(exam.id, patch);
@@ -573,7 +575,7 @@ function SettingsTab({ exam, onSaved, onPages, onDeleted }) {
   return (
     <div className="stack">
       <div className="card stack">
-        <MetaFields meta={meta} setMeta={setMeta} />
+        <MetaFields meta={meta} setMeta={setMeta} lockedGrade={!!target} />
         {msg && <div className="alert success">{msg}</div>}
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn primary" onClick={save}>설정 저장</button>

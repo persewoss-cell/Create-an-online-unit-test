@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { backState } from '../../lib/nav.js';
 import TeacherBar from '../../components/TeacherBar.jsx';
@@ -11,7 +11,7 @@ import SharedImport from './SharedImport.jsx';
 import { AUTH_ERR } from './TeacherLogin.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
-import { MIN_TEACHER_PASSWORD, teacherLabel } from '../../lib/school.js';
+import { MIN_TEACHER_PASSWORD, classTarget, teacherLabel } from '../../lib/school.js';
 import AdminPanel from './AdminPanel.jsx';
 import { sortExams, nextSort } from '../../lib/examSort.js';
 
@@ -50,6 +50,18 @@ export default function Dashboard({ adminRoute = false }) {
       /* 저장 불가 환경은 무시 */
     }
   };
+  // 평가는 늘 만든 선생님 학년·반에만 나간다: 예전에 "학년 전체"나 다른 반으로 정해 둔 평가는 이 반으로 맞춘다
+  const fixed = useRef(new Set());
+  useEffect(() => {
+    const target = classTarget(owner);
+    if (!target || !exams) return;
+    for (const e of exams) {
+      const ok = e.grade === target.grade && e.classes?.length === 1 && e.classes[0] === target.classes[0];
+      if (ok || fixed.current.has(e.id)) continue;
+      fixed.current.add(e.id);
+      updateExam(e.id, { grade: target.grade, classes: target.classes }).catch(() => fixed.current.delete(e.id));
+    }
+  }, [exams, owner]);
   const sorted = useMemo(() => (exams ? sortExams(exams, stats, sort) : null), [exams, stats, sort]);
   /** 정렬할 수 있는 열 제목: 누를 때마다 ▲ 오름차순 → ▼ 내림차순 → 정렬 해제 */
   const SortTh = ({ k, children, center }) => {
@@ -217,7 +229,6 @@ export default function Dashboard({ adminRoute = false }) {
                   <SortTh k="semester" center>학기</SortTh>
                   <SortTh k="subject">과목</SortTh>
                   <SortTh k="unit">단원</SortTh>
-                  <SortTh k="classes" center>반</SortTh>
                   <SortTh k="status" center>상태</SortTh>
                   <SortTh k="count" center>응시</SortTh>
                   <SortTh k="avg" center>평균</SortTh>
@@ -238,7 +249,6 @@ export default function Dashboard({ adminRoute = false }) {
                         <Link to={`/teacher/exam/${e.id}`} state={backState(location)} title={e.title}><b>{e.unit || e.title}</b></Link>
                         {e.importedFrom && <div className="muted small">공유 시험지({e.importedFrom.by})</div>}
                       </td>
-                      <td className="c nowrap">{e.classes?.length ? `${e.classes.join(', ')}반` : <span className="muted">전체</span>}</td>
                       <td className="c">
                         <button
                           type="button"
