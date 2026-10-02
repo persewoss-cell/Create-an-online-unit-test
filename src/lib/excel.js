@@ -8,6 +8,11 @@ export function sortSubmissions(subs) {
   return [...subs].sort((a, b) => a.grade - b.grade || a.classNo - b.classNo || a.number - b.number);
 }
 
+/** 점수(100점) 등수: 같은 점수는 같은 등수 (1, 1, 3 …) */
+export function ranksOf(scores) {
+  return scores.map((x) => 1 + scores.filter((y) => y > x).length);
+}
+
 export async function exportResultsXlsx(exam, keys, submissions) {
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
@@ -30,31 +35,33 @@ export async function exportResultsXlsx(exam, keys, submissions) {
   ws.addRow([`${exam.grade}학년 ${exam.semester}학기 · ${exam.subject} · ${exam.unit || ''}`]);
   ws.addRow([]);
   const head = ws.addRow([
-    '학년', '반', '번호', '이름', '점수(100점)', '득점', '만점', '맞은 문항', '검토 대기', '제출 시각',
+    '학년', '반', '번호', '이름', '점수(100점)', '득점', '맞은 개수', '등수', '제출 시각',
     ...qs.map((q) => `${q.no}번`),
   ]);
   headerStyle(head);
-  for (const { s, r } of rows) {
+  const ranks = ranksOf(rows.map((x) => x.r.score100));
+  rows.forEach(({ s, r }, ri) => {
     const row = ws.addRow([
-      s.grade, s.classNo, s.number, s.name, r.score100, r.earned, r.total, r.correctCount, r.reviewCount,
+      s.grade, s.classNo, s.number, s.name, r.score100, r.earned, r.correctCount, ranks[ri],
       s.submittedAt?.toDate ? s.submittedAt.toDate() : '',
       ...r.items.map((it) => MARK[it.status]),
     ]);
-    row.getCell(10).numFmt = 'yyyy-mm-dd hh:mm';
+    row.getCell(8).alignment = { horizontal: 'center' };
+    row.getCell(9).numFmt = 'yyyy-mm-dd hh:mm';
     r.items.forEach((it, i) => {
-      const c = row.getCell(11 + i);
+      const c = row.getCell(10 + i);
       c.alignment = { horizontal: 'center' };
       if (it.status === 'wrong') c.font = { color: { argb: 'FFC62828' } };
       if (it.status === 'review') c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3C4' } };
     });
-  }
+  });
   if (rows.length) {
     const avg = rows.reduce((a, x) => a + x.r.score100, 0) / rows.length;
     ws.addRow([]);
     ws.addRow(['', '', '', '평균', Math.round(avg * 10) / 10]).font = { bold: true };
   }
   ws.columns.forEach((col, i) => {
-    col.width = i === 3 ? 10 : i === 9 ? 17 : i >= 10 ? 6 : 9;
+    col.width = i === 3 ? 10 : i === 8 ? 17 : i >= 9 ? 6 : 9;
   });
   ws.views = [{ state: 'frozen', xSplit: 4, ySplit: 4 }];
 
