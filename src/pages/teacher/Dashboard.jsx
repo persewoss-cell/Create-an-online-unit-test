@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { backState } from '../../lib/nav.js';
 import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
-  watchMyExams, watchSubmissionsLive, watchKeysLive, logout, changeAdminPassword, changeTeacherPassword, setExamShared, deleteExam,
+  watchMyExams, watchSubmissionsLive, watchKeysLive, changeAdminPassword, changeTeacherPassword, setExamShared, deleteExam,
 } from '../../lib/db.js';
 import SharedImport from './SharedImport.jsx';
 import { AUTH_ERR } from './TeacherLogin.jsx';
@@ -17,7 +17,7 @@ import AdminPanel from './AdminPanel.jsx';
 export const STATUS = { draft: '개시 전', open: '응시 중', closed: '마감' };
 
 export default function Dashboard({ adminRoute = false }) {
-  const { teacher, owner: roomOwner, isAdmin, viewing, setTeacher, viewAs } = useTeacher();
+  const { teacher, owner: roomOwner, isAdmin, viewing, viewAs } = useTeacher();
   const location = useLocation();
   // 관리자 화면(/teacher/admin)과 선생님 방(/teacher/dashboard)은 주소가 달라서 뒤로가기로 오갈 수 있다
   const owner = adminRoute ? teacher : roomOwner;
@@ -26,7 +26,6 @@ export default function Dashboard({ adminRoute = false }) {
     if (adminRoute) viewAs(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminRoute, location.key]);
-  const nav = useNavigate();
   const [exams, setExams] = useState(null);
   const [stats, setStats] = useState({});
   const [error, setError] = useState('');
@@ -118,12 +117,6 @@ export default function Dashboard({ adminRoute = false }) {
     };
   }, [owner.uid, reloadNo]);
 
-  async function doLogout() {
-    await logout();
-    setTeacher(null);
-    nav('/?tab=teacher', { replace: true });
-  }
-
   // 관리자가 선생님 방에 들어가지 않았을 때: 선생님 관리 + (옮기기 전) 관리자 계정의 예전 평가
   const adminHome = isAdmin && adminRoute;
   if (adminRoute && !isAdmin) return <Navigate to="/teacher/dashboard" replace />;
@@ -133,7 +126,6 @@ export default function Dashboard({ adminRoute = false }) {
     <>
       <TeacherBar>
         {!viewing && <button className="btn sm" onClick={() => setPwOpen(true)}>비밀번호 변경</button>}
-        <button className="btn sm" onClick={doLogout}>로그아웃</button>
       </TeacherBar>
       {pwOpen && <PasswordDialog teacher={teacher} isAdmin={isAdmin} onClose={() => setPwOpen(false)} />}
       <div className="container">
