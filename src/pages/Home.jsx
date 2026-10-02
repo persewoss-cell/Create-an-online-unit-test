@@ -27,6 +27,7 @@ export default function Home() {
           <div className="emoji">{tab === 'teacher' ? '🧑‍🏫' : '✏️'}</div>
           <h1>온라인 단원평가</h1>
         </div>
+        <Link to={`/manual${tab === 'teacher' ? '?for=teacher' : ''}`} className="btn block manual-btn">📖 사용설명서</Link>
         <div className="login-tabs" role="tablist">
           {TABS.map(([k, label]) => (
             <button
