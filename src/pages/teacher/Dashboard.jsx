@@ -6,6 +6,7 @@ import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { listMyExams, listSubmissions, getKeys, logout, changeAdminPassword, changeTeacherPassword } from '../../lib/db.js';
 import { AUTH_ERR } from './TeacherLogin.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
+import { retakeState } from '../../lib/retake.js';
 import { MIN_TEACHER_PASSWORD, teacherLabel } from '../../lib/school.js';
 import AdminPanel from './AdminPanel.jsx';
 
@@ -35,7 +36,7 @@ export default function Dashboard() {
               ...st,
               [e.id]: {
                 count: subs.length,
-                review: graded.reduce((a, r) => a + r.reviewCount, 0),
+                review: graded.reduce((a, r, i) => a + r.reviewCount + retakeState(e, keys, subs[i], r).pending.length, 0),
                 avg: graded.length ? Math.round((graded.reduce((a, r) => a + r.score100, 0) / graded.length) * 10) / 10 : null,
               },
             }));

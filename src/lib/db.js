@@ -21,6 +21,7 @@ import {
   createUserWithEmailAndPassword, deleteUser,
 } from 'firebase/auth';
 import { auth, db, withHelperAuth } from '../firebase.js';
+import { retakeJudgeKey } from './retake.js';
 import {
   normalizeSchool, teacherLoginId, teacherAuthPassword, studentIdOf, gsidOf, DEFAULT_TEACHER_PASSWORD, LEGACY_SCHOOL,
 } from './school.js';
@@ -438,8 +439,16 @@ export function setOverride(examId, studentId, no, value) {
 /** 오답만 재응시 켜기/끄기 (여러 학생 한꺼번에). 처음 점수는 바뀌지 않는다 */
 export async function setRetake(examId, studentIds, on) {
   await commitOps(
-    studentIds.map((sid) => (b) => b.update(doc(db, 'exams', examId, 'submissions', sid), { retake: { on: !!on } })),
+    // retake.on 만 바꾼다 (선생님 판정 retake.judge 는 그대로)
+    studentIds.map((sid) => (b) => b.update(doc(db, 'exams', examId, 'submissions', sid), { 'retake.on': !!on })),
   );
+}
+
+/** 선생님 확인이 필요한 오답 재응시 답 판정: value = 'correct' | 'wrong' | null(취소). 처음 점수는 그대로 */
+export function setRetakeJudge(examId, studentId, round, no, value) {
+  return updateDoc(doc(db, 'exams', examId, 'submissions', studentId), {
+    [`retake.judge.${retakeJudgeKey(round, no)}`]: value ?? deleteField(),
+  });
 }
 
 /** 학생: 오답 재응시 답안 제출 (다시 푼 기록에 한 줄 추가, 처음 답안·점수는 그대로) */

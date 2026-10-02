@@ -39,4 +39,22 @@ describe('오답 재응시', () => {
     const st = retakeState(exam, keys, { ...base, overrides: { 2: 'correct' }, retake: { on: true } });
     expect(st.firstWrong).toEqual([3]);
   });
+  it('그리기처럼 선생님 확인이 필요한 재응시 답은 선생님이 정할 때까지 완료가 아님', () => {
+    const ex = { questions: [{ no: 1, type: 'draw', points: 100 }] };
+    const sub = { answers: { 1: { strokes: [{ p: [0, 0] }] } }, overrides: { 1: 'wrong' }, retake: { on: true }, retakes: [{ answers: { 1: { strokes: [{ p: [1, 1] }] } } }] };
+    let st = retakeState(ex, {}, sub);
+    expect(st.pending.map((p) => [p.no, p.round])).toEqual([[1, 1]]);
+    expect(st.remaining).toEqual([]);
+    expect(st.fixed).toEqual([]);
+    expect(st.done).toBe(false);
+    // 선생님이 오답 처리 → 다시 풀어야 함
+    st = retakeState(ex, {}, { ...sub, retake: { on: true, judge: { r1_q1: 'wrong' } } });
+    expect(st.remaining).toEqual([1]);
+    expect(st.pending).toEqual([]);
+    // 선생님이 정답 인정 → 완료
+    st = retakeState(ex, {}, { ...sub, retake: { on: true, judge: { r1_q1: 'correct' } } });
+    expect(st.done).toBe(true);
+    expect(st.fixed).toEqual([1]);
+    expect(st.history[1][1]).toMatchObject({ round: 1, status: 'correct', judged: true });
+  });
 });

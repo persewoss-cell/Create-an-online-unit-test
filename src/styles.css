@@ -391,3 +391,4 @@ button.mark { cursor: pointer; }
 .retake-rows td { padding-top: 6px; padding-bottom: 6px; }
 .retake-rows td:first-child { width: 110px; }
 .retake-rows td:last-child { width: auto; }
+.drawn-answer { max-width: 420px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; margin: 4px 0; }

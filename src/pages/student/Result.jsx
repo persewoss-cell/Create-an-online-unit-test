@@ -122,8 +122,11 @@ export default function Result() {
               <div className="small muted" style={{ marginTop: 4 }}>
                 {rt.done
                   ? `틀린 문제를 모두 다시 풀어 맞혔어요!${rt.attempts ? ` (${rt.attempts}번 도전)` : ''}`
-                  : `틀린 문제 ${rt.remaining.join(', ')}번을 다시 풀어요. 점수는 처음 제출한 점수 그대로예요.`}
+                  : rt.remaining.length
+                    ? `틀린 문제 ${rt.remaining.join(', ')}번을 다시 풀어요. 점수는 처음 제출한 점수 그대로예요.`
+                    : '다시 푼 답을 선생님이 확인하고 있어요.'}
                 {!rt.done && rt.fixed.length > 0 && ` 다시 풀어 맞힌 문제: ${rt.fixed.join(', ')}번`}
+                {!rt.done && rt.remaining.length > 0 && rt.pending.length > 0 && ` 선생님 확인 중: ${rt.pending.map((x) => x.no).join(', ')}번`}
               </div>
             </div>
             <div className="row">
@@ -134,6 +137,8 @@ export default function Result() {
               )}
               {rt.done ? (
                 <button className="btn retake-done" disabled aria-label="오답 재응시 완료">✔ 오답 재응시 완료</button>
+              ) : !rt.remaining.length ? (
+                <button className="btn retake-done" disabled aria-label="선생님 확인 중">선생님 확인 중</button>
               ) : (
                 <button className="btn primary" onClick={() => nav(`/exam/${id}/retake`)}>
                   오답 재응시 ({rt.remaining.length}문제)

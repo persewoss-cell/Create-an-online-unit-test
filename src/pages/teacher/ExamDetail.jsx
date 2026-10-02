@@ -7,10 +7,11 @@ import { GradedPaper, Regions, regionsOf, stackRatio } from '../../components/Ex
 import { DrawLayer } from '../../components/Drawing.jsx';
 import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
 import {
-  getExam, getKeys, watchSubmissions, setOverride, deleteSubmission, setRetake, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
+  getExam, getKeys, watchSubmissions, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
 } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
+import { DrawnAnswer } from '../../components/RetakeHistory.jsx';
 import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
 import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '../../lib/format.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
@@ -62,7 +63,8 @@ export default function ExamDetail() {
     return sortSubmissions(subs).map((s) => ({ s, r: gradeSubmission(exam, keys, s) }));
   }, [exam, keys, subs]);
 
-  const reviewCount = graded.reduce((a, g) => a + g.r.reviewCount, 0);
+  // 검토 요청 = 처음 답안 중 확인이 필요한 것 + 선생님 확인을 기다리는 오답 재응시 답
+  const reviewCount = graded.reduce((a, g) => a + g.r.reviewCount + retakeState(exam, keys, g.s, g.r).pending.length, 0);
 
   if (error) return (<><TeacherBar /><div className="container"><div className="alert error">{error}</div></div></>);
   if (!exam || !keys || !subs) return (<><TeacherBar /><Loading /></>);
@@ -126,7 +128,7 @@ export default function ExamDetail() {
             keys={keys}
           />
         )}
-        {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} pages={pages} />}
+        {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} pages={pages} examId={id} />}
         {tab === 'analysis' && <AnalysisTab exam={exam} keys={keys} graded={graded} />}
         {tab === 'edit' && (
           <EditTab
@@ -185,6 +187,9 @@ function StatusButtons({ exam, onChange }) {
 /** 결과표의 오답 재응시 진행 상황 */
 function RetakeCell({ st }) {
   if (!st.enabled) return <span className="muted">-</span>;
+  if (st.pending.length && !st.remaining.length) {
+    return <span className="badge review" title={`${st.pending.map((p) => p.no).join(', ')}번 — 검토 요청 탭에서 확인`}>확인 필요 {st.pending.length}</span>;
+  }
   if (st.done) return <span className="badge open">완료{st.attempts ? ` · ${st.attempts}회` : ''}</span>;
   return (
     <span className="badge review" title={`남은 문제: ${st.remaining.join(', ')}번`}>
@@ -290,16 +295,72 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys }) {
   );
 }
 
-function ReviewTab({ exam, keys, graded, onJudge, pages }) {
+function ReviewTab({ exam, keys, graded, onJudge, pages, examId }) {
   const items = [];
+  const retakeItems = [];
   for (const { s, r } of graded) {
     r.items.forEach((it, i) => {
       if (it.status === 'review') items.push({ s, it, q: exam.questions[i] });
     });
+    for (const p of retakeState(exam, keys, s, r).pending) {
+      const q = exam.questions.find((x) => x.no === p.no);
+      if (q) retakeItems.push({ s, p, q });
+    }
   }
-  if (!items.length) return <div className="card center muted">검토할 답안이 없습니다. 👍</div>;
+  if (!items.length && !retakeItems.length) return <div className="card center muted">검토할 답안이 없습니다. 👍</div>;
+  async function judgeRetake(s, p, value) {
+    try {
+      await setRetakeJudge(examId, s.id, p.round, p.no, value);
+    } catch (err) {
+      alert(`저장 실패: ${err.message}`);
+    }
+  }
   return (
     <div>
+      {retakeItems.length > 0 && (
+        <>
+          <p className="muted">
+            <b>오답 재응시</b>에서 다시 푼 답 중 자동 채점으로 판단하기 어려운 답입니다. 정답으로 인정하면 그 문제는 다 맞힌 것으로,
+            오답으로 처리하면 학생이 다시 풀게 됩니다. (처음 점수는 바뀌지 않아요)
+          </p>
+          {retakeItems.map(({ s, p, q }) => (
+            <div key={`${s.id}-r${p.round}-${p.no}`} className="review-item" data-testid="retake-review-item">
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <div>
+                  <b>{q.no}번</b> <span className="muted small">{TYPE_LABEL[q.type]}</span>
+                  <span style={{ marginLeft: 10 }}>{s.classNo}반 {s.number}번 {s.name}</span>
+                </div>
+                <span className="badge review">{p.round}차 오답 재응시{p.reason ? ` · ${p.reason}` : ''}</span>
+              </div>
+              <div className="review-grid">
+                <div className="review-q">
+                  {pages == null ? (
+                    <Loading text="문제 불러오는 중…" />
+                  ) : p.answer?.strokes?.length ? (
+                    <DrawnAnswer exam={exam} pages={pages} q={q} strokes={p.answer.strokes} />
+                  ) : (
+                    <ReviewQuestion exam={exam} q={q} pages={pages} />
+                  )}
+                </div>
+                <div>
+                  <div className="small" style={{ fontWeight: 600 }}>학생이 다시 푼 답</div>
+                  <div className="ans">
+                    {answerToText({ ...q, type: q.type === 'draw' ? 'short' : q.type, draw: false }, p.answer?.strokes ? p.answer.text : p.answer)
+                      || (p.answer?.strokes?.length ? '(왼쪽 그림)' : '')}
+                  </div>
+                  <div className="small" style={{ fontWeight: 600, marginTop: 8 }}>정답</div>
+                  <div className="ans" style={{ background: 'var(--ok-weak)' }}>{keyToText(q, keys[q.no])}</div>
+                  <div className="row" style={{ marginTop: 12 }}>
+                    <button className="btn ok lg" onClick={() => judgeRetake(s, p, 'correct')}>정답 인정</button>
+                    <button className="btn bad lg" onClick={() => judgeRetake(s, p, 'wrong')}>오답 처리</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {items.length > 0 && <h3 style={{ marginTop: 24 }}>처음 제출한 답안</h3>}
+        </>
+      )}
       <p className="muted">자동 채점으로 판단하기 어려운 답안입니다. 정답으로 인정할지 결정해 주세요. 결정하면 학생 점수에 바로 반영됩니다.</p>
       {items.map(({ s, it, q }) => (
         <div key={`${s.id}-${it.no}`} className="review-item" data-testid="review-item">
