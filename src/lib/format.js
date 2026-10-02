@@ -1,3 +1,4 @@
+import { splitCommas } from './korean.js';
 import { choiceLabel } from './parseQuestions.js';
 
 export const TYPE_LABEL = { mc: '객관식', short: '단답형', essay: '서술형', match: '선 잇기', draw: '그리기', parts: '여러 유형' };
@@ -57,7 +58,7 @@ export function keyToText(q, key) {
 export function boxAlternatives(key, n) {
   if (!key) return [];
   if (key.boxes?.length) return key.boxes.map((b) => String(b || '').split(/\s*\/\s*/).map((x) => x.trim()).filter(Boolean));
-  const sets = (key.accepted || []).map((a) => String(a).split(/\s*[,，、]\s*/).filter(Boolean));
+  const sets = (key.accepted || []).map((a) => splitCommas(a));
   const len = n || Math.max(0, ...sets.map((s) => s.length));
   return Array.from({ length: len }, (_, i) => [...new Set(sets.map((s) => s[i]).filter(Boolean))]);
 }

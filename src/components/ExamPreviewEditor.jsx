@@ -41,19 +41,23 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
       const { answers, points } = await readAnswerSheet(await file.arrayBuffer());
       if (!answers.size) throw new Error('엑셀에서 정답을 찾지 못했습니다. 양식의 “번호”, “정답” 칸을 확인해 주세요.');
       let applied = 0;
+      const boxChanged = []; // 엑셀 쉼표 수에 맞춰 답 칸 수가 바뀐 문항
       const next = items.map((it) => {
         const no = Number(it.no);
         if (!answers.has(no)) return it;
         applied++;
         const { question, key } = buildKey(it, answers.get(no));
         const fresh = toItems([question], { [question.no]: key })[0];
+        const before = it.type === 'short' ? Math.max(1, Number(it.blankCount) || 1) : 0;
+        const after = question.type === 'short' ? Math.max(1, Number(question.blankCount) || 1) : 0;
+        if (before && after && before !== after) boxChanged.push(`${no}번 ${before}→${after}칸`);
         return { ...fresh, points: points.get(no) ?? it.points };
       });
       const unknown = [...answers.keys()].filter((n) => !items.some((it) => Number(it.no) === n));
       onChange(next);
       setMsg({
         type: unknown.length ? 'warn' : 'success',
-        text: `${applied}개 문항에 정답을 넣었습니다.${unknown.length ? ` 문제지에 없는 번호: ${unknown.join(', ')}번` : ''}`,
+        text: `${applied}개 문항에 정답을 넣었습니다.${boxChanged.length ? ` 엑셀 정답에 맞춰 답 칸 수를 바꿨습니다: ${boxChanged.join(', ')}.` : ''}${unknown.length ? ` 문제지에 없는 번호: ${unknown.join(', ')}번` : ''}`,
       });
     } catch (e) {
       setMsg({ type: 'error', text: e.message });
@@ -79,7 +83,8 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
           </div>
         </div>
         <div className="small muted">
-          객관식 <code>4</code> 또는 <code>④</code>, 기호 <code>㉮</code>, ○표 <code>(3)</code>, 선 잇기 <code>(1)-① (2)-②</code>, 단답형은 답 그대로,
+          객관식 <code>4</code> 또는 <code>④</code>, 기호 <code>㉮</code>, ○표 <code>(3)</code>, 선 잇기 <code>(1)-① (2)-②</code>, 단답형은 답 그대로
+          (답 칸이 여러 개면 쉼표로 <code>3, 6, 9</code> — 쉼표 수만큼 답 칸이 생겨요),
           서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>), 그리기는 <code>그리기</code>, 선생님이 직접 채점할 문항은 <code>검토</code>. 문항 유형·배점·핵심어는 자동으로 정해집니다.
         </div>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}

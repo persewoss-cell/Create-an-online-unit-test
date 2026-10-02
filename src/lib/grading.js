@@ -6,7 +6,7 @@
 
 import {
   normalizeText, sameWord, containsWord, jamoSimilarity, diceSimilarity, parseNumeric, hasNegation,
-  samePredicate, predicateStem, extractKeywords, plainSymbols, mathSymbols, hasMathSymbol,
+  samePredicate, predicateStem, extractKeywords, plainSymbols, mathSymbols, hasMathSymbol, splitCommas,
 } from './korean.js';
 import { boxAlternatives } from './format.js';
 
@@ -55,7 +55,7 @@ function compareShort(expected, answer, rule) {
   // ①·㉠·㉮·⑴ 같은 원·괄호 기호는 태블릿 키보드로 친 1·ㄱ·가와 같게 본다
   expected = plainSymbols(expected);
   answer = plainSymbols(answer);
-  const parts = expected.split(/\s*[,，、]\s*/).filter(Boolean);
+  const parts = splitCommas(expected);
   if (parts.length > 1) {
     const hits = parts.filter((p) => containsWord(answer, p) || compareShort(p, answer, rule).status === 'correct');
     if (hits.length === parts.length) return { status: 'correct' };
@@ -156,7 +156,7 @@ function gradeBoxes(key, answers, rule) {
   let best = { status: 'wrong' };
   let compared = false;
   for (const alt of accepted) {
-    const parts = alt.split(/\s*[,，、]\s*/).filter(Boolean);
+    const parts = splitCommas(alt);
     if (parts.length !== answers.length) continue;
     compared = true;
     const rs = parts.map((p, i) => compareShort(p, String(answers[i] ?? ''), rule));

@@ -4,7 +4,7 @@
 //   "1③ 2① 3④"              "[서술형 1] 예시 답안: …"
 //   표 형태:  "번호 1 2 3 4 5" / "정답 ③ ① ④ ② ⑤"
 
-import { circledToNumber, numberToCircled, extractKeywords } from './korean.js';
+import { circledToNumber, numberToCircled, extractKeywords, splitCommas } from './korean.js';
 import { HANGUL_CIRCLED, KOREAN_CIRCLED } from './parseQuestions.js';
 
 const EXPLAIN_RE = /(?:\[|<|【|\()?\s*(?:해설|풀이|채점\s*기준|오답\s*피하기|오답\s*풀이|참고)\s*(?:\]|>|】|\))?\s*[:：]?/;
@@ -176,11 +176,11 @@ function buildKeyInner(question, raw) {
     return { question: q, key: { model: text, keywords } };
   }
   const accepted = splitAlternatives(text);
-  // "□ 안에 알맞은 수를 써넣으세요" 에 답이 여러 개(쉼표) → 칸마다 따로 입력
-  const parts = accepted[0] ? accepted[0].split(/\s*[,，、]\s*/).filter(Boolean) : [];
-  // 칸 수: 정답에 쉼표로 여러 개를 적었으면 그 수, 아니면 문제지에서 찾은 칸 수를 그대로
-  if ((q.fillBoxes || q.blankCount > 1) && parts.length >= 2 && parts.length <= 8) q.blankCount = parts.length;
-  else if (!(q.answerSpots?.length >= 2) && !(question.blankCount > 1)) delete q.blankCount;
+  // 답 칸 수는 엑셀 정답을 따른다: 쉼표로 여러 개(예: 3, 6, 9)를 적었으면 그 수만큼 칸,
+  // 하나만 적었으면 칸 하나 (문제지에서 인식한 칸 수보다 엑셀을 우선)
+  const parts = accepted[0] ? splitCommas(accepted[0]) : [];
+  if (parts.length >= 2 && parts.length <= 8) q.blankCount = parts.length;
+  else delete q.blankCount;
   return { question: q, key: { accepted } };
 }
 

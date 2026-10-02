@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { gradeAnswer } from '../src/lib/grading.js';
+import { buildKey } from '../src/lib/parseAnswers.js';
+import { splitCommas } from '../src/lib/korean.js';
 import { toItems, fromItems, validateItems, boxAnswersOf } from '../src/lib/editorModel.js';
 import { keyToText, shortKeyText } from '../src/lib/format.js';
 
@@ -40,5 +42,41 @@ describe('편집 화면 ↔ 저장', () => {
   });
   it('칸 수를 늘리면 칸별 정답 칸도 늘어난다', () => {
     expect(boxAnswersOf({ blankCount: 4, boxAnswers: ['가', '나'] })).toEqual(['가', '나', '', '']);
+  });
+});
+
+describe('엑셀 정답의 쉼표 수에 맞춰 답 칸 수 조정', () => {
+  const one = { no: 2, type: 'short', points: 5, page: 1 };
+  it('칸 하나로 인식했어도 엑셀에 쉼표로 3개 → 칸 3개', () => {
+    const { question, key } = buildKey(one, '3, 6, 9');
+    expect(question.blankCount).toBe(3);
+    expect(gradeAnswer(question, key, ['3', '6', '9']).status).toBe('correct');
+    expect(gradeAnswer(question, key, ['3', '6', '8']).status).toBe('wrong');
+  });
+  it('칸 여러 개로 인식했어도 엑셀 답이 하나 → 칸 하나', () => {
+    const { question } = buildKey({ ...one, blankCount: 3, answerSpots: [{}, {}, {}] }, '24');
+    expect(question.blankCount || 0).toBeLessThan(2);
+  });
+  it('1,000 같은 천 단위 쉼표는 나누지 않음', () => {
+    const { question, key } = buildKey(one, '1,000원');
+    expect(question.blankCount || 0).toBeLessThan(2);
+    expect(gradeAnswer(question, key, '1000원').status).toBe('correct');
+    const two = buildKey(one, '1,000, 2,500');
+    expect(two.question.blankCount).toBe(2);
+    expect(gradeAnswer(two.question, two.key, ['1,000', '2500']).status).toBe('correct');
+  });
+  it('쉼표 나누기', () => {
+    expect(splitCommas('3, 6，9、12')).toEqual(['3', '6', '9', '12']);
+    expect(splitCommas('12,500, 3')).toEqual(['12,500', '3']);
+  });
+});
+
+describe('엑셀로 바뀐 칸 수가 편집기를 거쳐 저장까지', () => {
+  it('toItems → fromItems 해도 칸 수·칸별 정답 유지', () => {
+    const { question, key } = buildKey({ no: 5, type: 'short', points: 5, page: 1 }, '3, 6, 9');
+    const items = toItems([question], { 5: key });
+    const out = fromItems(items);
+    expect(out.questions[0].blankCount).toBe(3);
+    expect(gradeAnswer(out.questions[0], out.keys[5], ['3', '6', '9']).status).toBe('correct');
   });
 });

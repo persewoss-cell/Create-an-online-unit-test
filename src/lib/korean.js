@@ -55,6 +55,17 @@ export function hasMathSymbol(s) {
   return MATH_SYMBOL.test(mathSymbols(s));
 }
 
+/**
+ * 쉼표(, ， 、)로 여러 답 나누기. 단 1,000 · 12,500 같은 숫자의 천 단위 쉼표는 나누지 않는다.
+ */
+export function splitCommas(text) {
+  const s = String(text ?? '').replace(/(\d),(?=\d{3}(?!\d))/g, '$1\u0000');
+  return s
+    .split(/\s*[,，、]\s*/)
+    .map((x) => x.replace(/\u0000/g, ',').trim())
+    .filter(Boolean);
+}
+
 /** 공백·문장부호 제거, 소문자화 */
 export function normalizeText(s) {
   return plainSymbols(s)
