@@ -1,6 +1,4 @@
-import { useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import TopBar from '../components/TopBar.jsx';
+import { useEffect, useRef, useState } from 'react';
 
 // 사용설명서: 학생 / 교사(관리자 포함). 앱의 실제 버튼 모양·아이콘을 그대로 그려서 설명한다.
 
@@ -35,11 +33,11 @@ function Toc({ items }) {
   return (
     <nav className="card m-toc" aria-label="차례">
       <b>차례</b>
-      <ol>
+      <ul>
         {items.map(([id, label]) => (
           <li key={id}><button type="button" className="link-like m-toc-link" onClick={() => go(id)}>{label}</button></li>
         ))}
-      </ol>
+      </ul>
     </nav>
   );
 }
@@ -463,43 +461,46 @@ function TeacherManual() {
   );
 }
 
-/** 사용설명서 페이지 (?for=student | teacher) */
-export default function Manual() {
-  const [params, setParams] = useSearchParams();
-  const nav = useNavigate();
-  const who = params.get('for') === 'teacher' ? 'teacher' : 'student';
-  useEffect(() => window.scrollTo(0, 0), [who]); // 설명서를 열거나 학생/교사를 바꾸면 맨 위부터
+/**
+ * 사용설명서 팝업: 지금 화면 위에 뜨고, 오른쪽 위 ✕ (또는 Esc, 바깥 누르기)로 닫는다.
+ * 학생용/교사용 탭은 팝업 안에서만 바뀐다 (주소가 바뀌지 않음)
+ */
+export default function ManualDialog({ initial = 'student', onClose }) {
+  const [who, setWho] = useState(initial === 'teacher' ? 'teacher' : 'student');
+  const bodyRef = useRef(null);
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden'; // 뒤 화면이 같이 스크롤되지 않게
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0; // 학생/교사를 바꾸면 맨 위부터
+  }, [who]);
   return (
-    <>
-      <TopBar>
-        <button
-          type="button"
-          className="btn sm"
-          onClick={() => ((window.history.state?.idx ?? 0) > 0 ? nav(-1) : nav('/', { replace: true }))}
-        >
-          ← 돌아가기
-        </button>
-      </TopBar>
-      <div className="container manual" style={{ maxWidth: 900 }}>
-        <h1 style={{ marginBottom: 6 }}>📖 사용설명서</h1>
-        <p className="muted" style={{ marginTop: 0 }}>처음 쓰는 분도 순서대로 따라 하면 돼요. 버튼은 앱에 보이는 모양 그대로 그렸어요.</p>
-        <div className="login-tabs" role="tablist">
-          {[['student', '✏️ 학생용'], ['teacher', '🧑‍🏫 교사용']].map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={who === k}
-              className={who === k ? 'active' : ''}
-              onClick={() => setParams(k === 'teacher' ? { for: 'teacher' } : {}, { replace: true })}
-            >
-              {label}
-            </button>
-          ))}
+    <div className="modal-back manual-back" role="dialog" aria-modal="true" aria-labelledby="manual-title" onClick={onClose}>
+      <div className="manual-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="manual-head">
+          <h1 id="manual-title">📖 사용설명서</h1>
+          <div className="login-tabs manual-tabs" role="tablist">
+            {[['student', '✏️ 학생용'], ['teacher', '🧑‍🏫 교사용']].map(([k, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={who === k} className={who === k ? 'active' : ''} onClick={() => setWho(k)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="manual-close" onClick={onClose} aria-label="설명서 닫기" title="닫기">✕</button>
         </div>
-        {who === 'teacher' ? <TeacherManual /> : <StudentManual />}
-        <footer className="maker">만든이: 강형권 선생님</footer>
+        <div className="manual-body manual" ref={bodyRef}>
+          <p className="muted" style={{ marginTop: 0 }}>처음 쓰는 분도 순서대로 따라 하면 돼요. 버튼은 앱에 보이는 모양 그대로 그렸어요.</p>
+          {who === 'teacher' ? <TeacherManual /> : <StudentManual />}
+          <footer className="maker">만든이: 강형권 선생님</footer>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import TopBar from '../components/TopBar.jsx';
 import Loading from '../components/Loading.jsx';
@@ -5,6 +6,7 @@ import { useTeacher } from '../components/TeacherAuth.jsx';
 import StudentLogin from './student/StudentLogin.jsx';
 import TeacherLoginForm from './teacher/TeacherLoginForm.jsx';
 import AlreadyLoggedIn from '../components/AlreadyLoggedIn.jsx';
+import ManualDialog from './Manual.jsx';
 
 const TABS = [
   ['student', '학생 로그인'],
@@ -16,6 +18,8 @@ export default function Home() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') === 'teacher' ? 'teacher' : 'student';
   const { teacher, loading } = useTeacher();
+  const [manual, setManual] = useState(false);
+  const closeManual = useCallback(() => setManual(false), []);
 
   if (tab === 'teacher' && loading) return <Loading />;
 
@@ -27,7 +31,8 @@ export default function Home() {
           <div className="emoji">{tab === 'teacher' ? '🧑‍🏫' : '✏️'}</div>
           <h1>온라인 단원평가</h1>
         </div>
-        <Link to={`/manual${tab === 'teacher' ? '?for=teacher' : ''}`} className="btn block manual-btn">📖 사용설명서</Link>
+        <button type="button" className="btn block manual-btn" onClick={() => setManual(true)}>📖 사용설명서</button>
+        {manual && <ManualDialog initial={tab} onClose={closeManual} />}
         <div className="login-tabs" role="tablist">
           {TABS.map(([k, label]) => (
             <button
