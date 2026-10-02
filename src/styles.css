@@ -489,3 +489,14 @@ th.c .sort-btn { justify-content: center; }
 .status-btn span { opacity: 0.6; margin-left: 2px; }
 .m-sort { white-space: nowrap; }
 .m-sort .sort-arrow { vertical-align: -1px; }
+
+/* 평가 정보: 평가 제목(넓게) + 채점 기준(오른쪽 끝, 작게) 한 줄 */
+.meta-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.meta-row .grow { flex: 1 1 260px; min-width: 0; }
+.meta-row .shrink { flex: 0 0 auto; margin-left: auto; }
+.meta-row .shrink select { width: auto; min-width: 88px; }
+
+/* 내 단원평가 목록: 단원 칸이 남는 폭을 모두 차지, 나머지 칸은 글자 폭만큼 (줄바꿈 없이) */
+table.exam-list th.unit-col { width: 100%; }
+table.exam-list th:not(.unit-col), table.exam-list td:not(.unit-col) { white-space: nowrap; }
+table.exam-list td.unit-col { min-width: 160px; }

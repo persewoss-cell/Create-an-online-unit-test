@@ -47,13 +47,14 @@ export default function MetaFields({ meta, setMeta, lockedGrade }) {
           <input type="text" value={meta.unit} onChange={set('unit')} placeholder="예) 2. 생물과 환경" aria-label="단원" />
         </label>
       </div>
-      <label className="field">
-        <span>평가 제목</span>
-        <input type="text" value={meta.title} onChange={set('title')} placeholder={defaultTitle(meta) || '비워 두면 자동으로 만들어집니다'} aria-label="평가 제목" />
-      </label>
-      <div className="grid2">
-        <label className="field">
-          <span>서술형·단답형 채점 기준</span>
+      {/* 평가 제목은 넓게, 채점 기준은 오른쪽 끝에 작게 한 줄로 */}
+      <div className="meta-row">
+        <label className="field grow">
+          <span>평가 제목</span>
+          <input type="text" value={meta.title} onChange={set('title')} placeholder={defaultTitle(meta) || '비워 두면 자동으로 만들어집니다'} aria-label="평가 제목" />
+        </label>
+        <label className="field shrink" title="서술형·단답형 답을 얼마나 너그럽게 맞다고 볼지">
+          <span>채점 기준</span>
           <select value={meta.leniency} onChange={set('leniency')} aria-label="채점 기준">
             {Object.entries(LENIENCY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>

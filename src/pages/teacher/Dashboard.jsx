@@ -64,10 +64,10 @@ export default function Dashboard({ adminRoute = false }) {
   }, [exams, owner]);
   const sorted = useMemo(() => (exams ? sortExams(exams, stats, sort) : null), [exams, stats, sort]);
   /** 정렬할 수 있는 열 제목: 누를 때마다 ▲ 오름차순 → ▼ 내림차순 → 정렬 해제 */
-  const SortTh = ({ k, children, center }) => {
+  const SortTh = ({ k, children, center, cls = '' }) => {
     const on = sort?.key === k ? sort.dir : '';
     return (
-      <th className={`${center ? 'c ' : ''}sortable`} aria-sort={on === 'asc' ? 'ascending' : on === 'desc' ? 'descending' : 'none'}>
+      <th className={`${center ? 'c ' : ''}${cls ? `${cls} ` : ''}sortable`} aria-sort={on === 'asc' ? 'ascending' : on === 'desc' ? 'descending' : 'none'}>
         <button type="button" className="sort-btn" onClick={() => setSort(nextSort(sort, k))} title="누를 때마다 오름차순 → 내림차순 → 기본(새로 만든 순)">
           {children}
           {/* 회색 ▲ = 기본(새로 만든 순), 파란 ▲ = 오름차순, 파란 ▼ = 내림차순 */}
@@ -222,13 +222,13 @@ export default function Dashboard({ adminRoute = false }) {
         )}
         {exams && exams.length > 0 && (
           <div className="card table-wrap" style={{ padding: 0 }}>
-            <table className="data">
+            <table className="data exam-list">
               <thead>
                 <tr>
                   <SortTh k="grade" center>학년</SortTh>
                   <SortTh k="semester" center>학기</SortTh>
                   <SortTh k="subject">과목</SortTh>
-                  <SortTh k="unit">단원</SortTh>
+                  <SortTh k="unit" cls="unit-col">단원</SortTh>
                   <SortTh k="status" center>상태</SortTh>
                   <SortTh k="count" center>응시</SortTh>
                   <SortTh k="avg" center>평균</SortTh>
@@ -244,7 +244,7 @@ export default function Dashboard({ adminRoute = false }) {
                       <td className="c nowrap">{e.grade}학년</td>
                       <td className="c nowrap">{e.semester}학기</td>
                       <td className="nowrap">{e.subject}</td>
-                      <td>
+                      <td className="unit-col">
                         {/* 단원을 누르면 평가 화면으로 (단원이 비어 있으면 평가 제목) */}
                         <Link to={`/teacher/exam/${e.id}`} state={backState(location)} title={e.title}><b>{e.unit || e.title}</b></Link>
                       </td>
