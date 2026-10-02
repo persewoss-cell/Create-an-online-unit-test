@@ -52,7 +52,7 @@ h3 { font-size: 16px; }
 
 label.field { display: block; font-size: 14px; font-weight: 600; }
 label.field > span { display: block; margin-bottom: 4px; }
-input[type='text'], input[type='number'], input[type='email'], input[type='password'], select, textarea {
+input[type='text'], input[type='number'], input[type='email'], input[type='password'], input[type='search'], select, textarea {
   width: 100%; padding: 9px 11px; font: inherit; font-size: 15px; color: var(--text);
   border: 1px solid var(--line); border-radius: 8px; background: #fff;
 }
