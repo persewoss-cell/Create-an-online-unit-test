@@ -38,6 +38,8 @@ export const KOREAN_CIRCLED = '㉠㉡㉢㉣㉤㉥㉦㉧㉨㉩';
 
 /** 보기 기호 목록. 기본은 ①②③…, ㉮㉯㉰ 보기나 (1)(2)(3) 보기는 그 기호를 그대로 쓴다 */
 export function choiceLabel(q, n) {
+  // 직접 입력한 보기에서 기호를 비워 두었으면 기호 없음
+  if (q?.customLabels && q.choiceLabels && !String(q.choiceLabels[n - 1] || '').trim()) return '';
   return q?.choiceLabels?.[n - 1] || '①②③④⑤⑥⑦⑧⑨⑩'[n - 1] || String(n);
 }
 

@@ -40,7 +40,9 @@ function answerSpec(it) {
     type,
     choiceCount: count,
     choices: type === 'mc' ? Array.from({ length: count }, (_, i) => (it.choices || [])[i] || '') : [],
-    choiceLabels: type === 'mc' && it.choiceLabels?.length ? Array.from({ length: count }, (_, i) => it.choiceLabels[i] || CIRCLED[i] || `${i + 1}`) : null,
+    choiceLabels: type === 'mc' && it.choiceLabels?.length
+      ? Array.from({ length: count }, (_, i) => it.choiceLabels[i] || (it.customLabels ? '' : CIRCLED[i] || `${i + 1}`))
+      : null,
     showChoiceText: type === 'mc' && !!it.showChoiceText,
     customLabels: type === 'mc' && !!it.customLabels,
     multi: type === 'mc' && (!!it.multi || (it.keyChoices || []).length > 1),
@@ -154,8 +156,6 @@ export function validateItems(items, pageCount) {
     if (!(Number(it.no) > 0)) errs.push('문항 번호가 비어 있습니다.');
     if (!(Number(it.points) > 0)) errs.push(`${it.no}번: 배점을 입력해 주세요.`);
     if (pageCount && (Number(it.page) < 1 || Number(it.page) > pageCount)) errs.push(`${it.no}번: 쪽 번호가 범위를 벗어났습니다.`);
-    const labelMissing = (p) => p.type === 'mc' && p.customLabels && Array.from({ length: Number(p.choiceCount) || 2 }, (_, i) => p.choiceLabels?.[i]).some((l) => !String(l || '').trim());
-    if (labelMissing(it) || it.parts?.some(labelMissing)) errs.push(`${it.no}번: 보기 기호를 모두 입력해 주세요.`);
     if (it.manual) continue; // 선생님이 직접 채점하는 문항은 정답을 비워 둬도 된다
     if (it.parts?.length) {
       it.parts.forEach((p, i) => {

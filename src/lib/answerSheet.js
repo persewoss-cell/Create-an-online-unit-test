@@ -25,7 +25,8 @@ export function answerHint(q) {
   if (q.type === 'draw') return '✏️ 그리기 문항 — 비워 두면 학생 그림을 선생님이 채점' + tail;
   if (q.draw) return '✏️ 그리기 + 답 칸 — ( ) 칸에 들어갈 답만 적기 (예: 3 cm), 그림은 선생님이 채점' + tail;
   if (q.type === 'mc') {
-    const labels = q.choiceLabels || CIRCLED_SET.slice(0, q.choiceCount || 5).split('');
+    // 직접 입력 보기에서 기호를 비워 두었으면 번호로 적기
+    const labels = (q.choiceLabels || CIRCLED_SET.slice(0, q.choiceCount || 5).split('')).map((l, i) => String(l || '').trim() || `${i + 1}`);
     if (q.oxBlanks) return `○표 할 괄호: ${labels.join(' / ')} 중에서 적기 (예: ${labels[labels.length - 1]})` + tail;
     return `${labels.join(' ')} 중에서 적기${q.multi ? ' (여러 개면 2, 4 처럼)' : ''} (예: ${labels[0]})` + tail;
   }

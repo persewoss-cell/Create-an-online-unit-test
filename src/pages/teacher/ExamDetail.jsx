@@ -107,7 +107,7 @@ export default function ExamDetail() {
 
         <div className="tabs">
           {TABS.map(([k, label]) => (
-            <button key={k} className={tab === k ? 'active' : ''} onClick={() => setParams({ tab: k })}>
+            <button key={k} className={tab === k ? 'active' : ''} onClick={() => setParams({ tab: k }, { replace: true })}>
               {label}{k === 'review' && reviewCount ? ` (${reviewCount})` : ''}
             </button>
           ))}

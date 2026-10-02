@@ -6,6 +6,11 @@ export const TYPE_LABEL = { mc: '객관식', short: '단답형', essay: '서술�
 const partQ = (q, i) => ({ ...q.parts[i], no: q.no, parts: undefined, draw: false, manual: false });
 export const STATUS_LABEL = { correct: '정답', wrong: '오답', review: '검토 대기' };
 
+/** 글로 적을 때의 보기 이름: 기호 → (기호가 없으면) 보기 내용 → n번 */
+export function choiceName(q, n) {
+  return choiceLabel(q, n) || String(q?.choices?.[n - 1] || '').trim() || `${n}번`;
+}
+
 export function matchLabel(q, n) {
   return q?.matchLabels?.[n - 1] || choiceLabel(null, n);
 }
@@ -19,7 +24,7 @@ export function answerToText(q, ans) {
   if (q.draw) return answerToText({ ...q, draw: false }, ans.text);
   if (Array.isArray(ans) && q.type !== 'mc' && q.type !== 'match') return ans.join(', ');
   if (q.type === 'mc') {
-    return (Array.isArray(ans) ? ans : [ans]).map(Number).sort((a, b) => a - b).map((n) => choiceLabel(q, n)).join(', ');
+    return (Array.isArray(ans) ? ans : [ans]).map(Number).sort((a, b) => a - b).map((n) => choiceName(q, n)).join(', ');
   }
   if (q.type === 'match') {
     return (Array.isArray(ans) ? ans : []).map((v, i) => `(${i + 1})-${v ? matchLabel(q, v) : '?'}`).join(' ');
@@ -35,7 +40,7 @@ export function keyToText(q, key) {
   if (q.manual && !hasKeyContent(key)) return '(선생님이 직접 채점)';
   if (q.type === 'draw') return '(그리기 — 선생님 확인)';
   if (q.draw) return `(그리기) ${keyToText({ ...q, draw: false }, key)}`;
-  if (q.type === 'mc') return (key.choices || []).map((n) => choiceLabel(q, n)).join(', ');
+  if (q.type === 'mc') return (key.choices || []).map((n) => choiceName(q, n)).join(', ');
   if (q.type === 'match') return answerToText(q, key.pairs || []);
   if (q.type === 'essay') {
     if (key.examples?.length) return `(예) ${key.examples.join(' / ')}`;

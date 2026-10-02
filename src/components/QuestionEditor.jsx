@@ -184,7 +184,12 @@ function ChoiceEditor({ it, onChange, idPrefix }) {
         <b>{n}</b>
         <button type="button" className="btn xs" onClick={() => setCount(n + 1)} aria-label={`${idPrefix} 보기 늘리기`}>+</button>
       </div>
-      {custom && <div className="small muted">보기 기호(예: 가, 나, 다 / 참, 거짓 / ㄱ, ㄴ)와 내용을 직접 적어 주세요. 학생 화면 버튼에 적은 그대로 보입니다.</div>}
+      {custom && (
+        <div className="small muted">
+          보기 기호(예: 가, 나, 다 / 참, 거짓 / ㄱ, ㄴ)와 내용을 직접 적어 주세요. 학생 화면 버튼에 적은 그대로 보입니다.
+          기호는 비워 둬도 돼요 — 기호가 없으면 보기 내용만, 내용도 없으면 1, 2, 3 번호로 보여요.
+        </div>
+      )}
       {labels.map((lab, i) => (
         <div key={i} className="choice-row">
           <button
@@ -197,9 +202,9 @@ function ChoiceEditor({ it, onChange, idPrefix }) {
             {keys.includes(i + 1) ? '✓ 정답' : '정답'}
           </button>
           <input
-            className={`lab ${custom && !lab ? 'need' : ''}`}
+            className="lab"
             value={lab}
-            placeholder={custom ? '기호' : ''}
+            placeholder={custom ? '기호(없어도 됨)' : ''}
             onChange={(e) => onChange({ choiceLabels: labels.map((l, j) => (j === i ? e.target.value : l)) })}
             aria-label={`${idPrefix} 보기 ${i + 1} 기호`}
           />

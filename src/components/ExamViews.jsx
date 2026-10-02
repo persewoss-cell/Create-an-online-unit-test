@@ -191,8 +191,13 @@ export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled
             aria-label={`${q.no}번 ${k}번 보기`}
             disabled={disabled && !show}
           >
-            <span className="num">{choiceLabel(q, k)}</span>
-            {hasText && <span>{q.choices[k - 1]}</span>}
+            {/* 직접 입력 보기에서 기호를 비워 두었으면 내용만, 내용도 없으면 번호 */}
+            {choiceLabel(q, k) ? (
+              <span className="num">{choiceLabel(q, k)}</span>
+            ) : (
+              !String(q.choices?.[k - 1] || '').trim() && <span className="num">{k}</span>
+            )}
+            {(hasText || !choiceLabel(q, k)) && q.choices?.[k - 1] && <span>{q.choices[k - 1]}</span>}
             {show && keySet.has(k) && <span className="key-check">✓ 정답</span>}
           </button>
         ))}
