@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import TeacherBar, { ListButton } from '../../components/TeacherBar.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
@@ -8,7 +8,8 @@ import { openPdf, extractPages, renderPages, readFileAsArrayBuffer } from '../..
 import { parseQuestions, fillDefaultPoints } from '../../lib/parseQuestions.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { trimRegions, markAnswerSpots } from '../../lib/trimRegions.js';
-import { createExam } from '../../lib/db.js';
+import { createExam, watchMyExams } from '../../lib/db.js';
+import { findSameExam, sameExamMessage } from '../../lib/examDup.js';
 import SaveErrorDialog, { ErrorLine } from '../../components/SaveErrorDialog.jsx';
 import { LENIENCY } from '../../lib/grading.js';
 import { detectMeta } from '../../lib/detectMeta.js';
@@ -53,6 +54,18 @@ export default function ExamCreate() {
   const [pages, setPages] = useState([]);
   const [items, setItems] = useState([]);
   const [saveErrors, setSaveErrors] = useState([]);
+  // 이미 만든 평가 (같은 학년·학기·과목·단원으로 또 만들지 않도록)
+  const [myExams, setMyExams] = useState([]);
+  useEffect(() => (owner?.uid ? watchMyExams(owner.uid, setMyExams, () => {}) : undefined), [owner?.uid]);
+  /** 겹치는 평가가 있으면 경고하고 true */
+  function warnSame() {
+    const same = findSameExam(myExams, { ...meta, subject: subjectName(meta), unit: meta.unit.trim() });
+    if (!same) return false;
+    const text = sameExamMessage(same);
+    setError(text.replace(/\n+/g, ' '));
+    alert(text);
+    return true;
+  }
   const [errorPopup, setErrorPopup] = useState(null); // 지금 화면에 띄울 저장 오류
   const [analyzed, setAnalyzed] = useState(null); // PDF 분석 결과 (문항 수, 채운 항목)
   const [analyzing, setAnalyzing] = useState('');
@@ -111,6 +124,7 @@ export default function ExamCreate() {
     if (!qFile) return setError('문제지 PDF를 먼저 올려 주세요.');
     if (!analyzed) return setError(analyzing ? '문제지를 분석하는 중입니다. 잠시만 기다려 주세요.' : '문제지를 다시 올려 주세요.');
     if (!meta.subject || !meta.grade || !meta.semester) return setError('과목, 학년, 학기를 입력해 주세요.');
+    if (warnSame()) return;
     setStep(2);
     window.scrollTo({ top: 0 });
   }
@@ -121,6 +135,7 @@ export default function ExamCreate() {
     const errs = validateItems(items, pages.length);
     setSaveErrors(errs);
     if (errs.length) return setErrorPopup(errs);
+    if (warnSame()) return setStep(1);
     const { questions, keys } = fromItems(items);
     try {
       setBusy('저장 중…');

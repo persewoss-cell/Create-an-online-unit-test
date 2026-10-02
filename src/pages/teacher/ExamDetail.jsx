@@ -8,8 +8,9 @@ import { DrawLayer } from '../../components/Drawing.jsx';
 import MetaFields, { subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { classTarget } from '../../lib/school.js';
+import { findSameExam, sameExamMessage } from '../../lib/examDup.js';
 import {
-  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
+  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams,
 } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
@@ -514,7 +515,10 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
 }
 
 function SettingsTab({ exam, onSaved, onPages, onDeleted }) {
-  const target = classTarget(useTeacher().owner);
+  const { owner } = useTeacher();
+  const target = classTarget(owner);
+  const [myExams, setMyExams] = useState([]);
+  useEffect(() => (owner?.uid ? watchMyExams(owner.uid, setMyExams, () => {}) : undefined), [owner?.uid]);
   const [meta, setMeta] = useState(() => ({
     subject: SUBJECTS.includes(exam.subject) ? exam.subject : '기타',
     subjectCustom: SUBJECTS.includes(exam.subject) ? '' : exam.subject,
@@ -561,6 +565,11 @@ function SettingsTab({ exam, onSaved, onPages, onDeleted }) {
       classes: target ? target.classes : exam.classes || [],
       leniency: meta.leniency,
     };
+    const same = findSameExam(myExams, patch, exam.id);
+    if (same) {
+      setMsg('');
+      return alert(sameExamMessage(same));
+    }
     await updateExam(exam.id, patch);
     onSaved(patch);
     setMsg('저장했습니다.');

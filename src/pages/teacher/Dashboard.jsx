@@ -247,7 +247,6 @@ export default function Dashboard({ adminRoute = false }) {
                       <td>
                         {/* 단원을 누르면 평가 화면으로 (단원이 비어 있으면 평가 제목) */}
                         <Link to={`/teacher/exam/${e.id}`} state={backState(location)} title={e.title}><b>{e.unit || e.title}</b></Link>
-                        {e.importedFrom && <div className="muted small">공유 시험지({e.importedFrom.by})</div>}
                       </td>
                       <td className="c">
                         <button
