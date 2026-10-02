@@ -173,7 +173,8 @@ export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled
     const sel = Array.isArray(value) ? value : [];
     const keySet = new Set(answerKey?.choices || []);
     // 문항 이미지가 있으면 보기 글은 이미지로 보고, 버튼은 기호만 (PDF에서 뽑은 글은 띄어쓰기가 틀릴 수 있음)
-    const hasText = (q.showChoiceText || !q.regions?.length) && q.choices?.length === n && q.choices.some((c) => c);
+    // 직접 입력 보기는 적은 글(기호 칸) 하나만 버튼에 보인다
+    const hasText = !q.customLabels && (q.showChoiceText || !q.regions?.length) && q.choices?.length === n && q.choices.some((c) => c);
     const toggle = (k) => {
       if (q.multi) onChange(sel.includes(k) ? sel.filter((x) => x !== k) : [...sel, k].sort((a, b) => a - b));
       else onChange(sel[0] === k ? [] : [k]);
@@ -197,7 +198,7 @@ export function AnswerInput({ q, value, onChange = () => {}, answerKey, disabled
             ) : (
               !String(q.choices?.[k - 1] || '').trim() && <span className="num">{k}</span>
             )}
-            {(hasText || !choiceLabel(q, k)) && q.choices?.[k - 1] && <span>{q.choices[k - 1]}</span>}
+            {(hasText || (!choiceLabel(q, k) && !q.customLabels)) && q.choices?.[k - 1] && <span>{q.choices[k - 1]}</span>}
             {show && keySet.has(k) && <span className="key-check">✓ 정답</span>}
           </button>
         ))}

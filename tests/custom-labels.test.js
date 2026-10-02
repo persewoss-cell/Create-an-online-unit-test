@@ -4,7 +4,7 @@ import { answerToText, keyToText } from '../src/lib/format.js';
 import { choiceLabel } from '../src/lib/parseQuestions.js';
 import { gradeAnswer } from '../src/lib/grading.js';
 
-describe('객관식 보기 직접 입력: 기호는 선택 사항', () => {
+describe('객관식 보기 직접 입력: 한 칸, 필수', () => {
   const it0 = {
     ...toItems([{ no: 1, type: 'mc', points: 10, page: 1, choiceCount: 3 }], { 1: { choices: [2] } })[0],
     customLabels: true,
@@ -12,8 +12,9 @@ describe('객관식 보기 직접 입력: 기호는 선택 사항', () => {
     choices: ['사과', '배', ''],
     keyChoices: [2],
   };
-  it('기호를 비워도 저장할 수 있음', () => {
-    expect(validateItems([it0], 1)).toEqual([]);
+  it('직접 입력 칸을 비우면 저장 안 됨', () => {
+    expect(validateItems([it0], 1)).toEqual(['1번: 직접 입력 보기 칸을 모두 채워 주세요.']);
+    expect(validateItems([{ ...it0, choiceLabels: ['사과', '배', '감'] }], 1)).toEqual([]);
   });
   it('기호 없이 저장되고, 글로는 보기 내용 → 번호로', () => {
     const { questions, keys } = fromItems([it0]);

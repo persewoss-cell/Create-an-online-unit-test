@@ -184,12 +184,7 @@ function ChoiceEditor({ it, onChange, idPrefix }) {
         <b>{n}</b>
         <button type="button" className="btn xs" onClick={() => setCount(n + 1)} aria-label={`${idPrefix} 보기 늘리기`}>+</button>
       </div>
-      {custom && (
-        <div className="small muted">
-          보기 기호(예: 가, 나, 다 / 참, 거짓 / ㄱ, ㄴ)와 내용을 직접 적어 주세요. 학생 화면 버튼에 적은 그대로 보입니다.
-          기호는 비워 둬도 돼요 — 기호가 없으면 보기 내용만, 내용도 없으면 1, 2, 3 번호로 보여요.
-        </div>
-      )}
+      {custom && <div className="small muted">보기를 한 칸에 직접 적어 주세요(예: 가 / 참 / 사과). 학생 화면 버튼에 적은 그대로 보입니다. 모든 칸을 채워야 저장돼요.</div>}
       {labels.map((lab, i) => (
         <div key={i} className="choice-row">
           <button
@@ -202,27 +197,32 @@ function ChoiceEditor({ it, onChange, idPrefix }) {
             {keys.includes(i + 1) ? '✓ 정답' : '정답'}
           </button>
           <input
-            className="lab"
+            className={`lab ${custom ? 'custom-one' : ''} ${custom && !String(lab).trim() ? 'need' : ''}`}
             value={lab}
-            placeholder={custom ? '기호(없어도 됨)' : ''}
+            placeholder={custom ? `보기 ${i + 1} (필수)` : ''}
             onChange={(e) => onChange({ choiceLabels: labels.map((l, j) => (j === i ? e.target.value : l)) })}
-            aria-label={`${idPrefix} 보기 ${i + 1} 기호`}
+            aria-label={`${idPrefix} 보기 ${i + 1} ${custom ? '' : '기호'}`.trim()}
           />
-          <input
-            value={texts[i]}
-            placeholder="보기 내용 (선택)"
-            onChange={(e) => onChange({ choices: texts.map((t, j) => (j === i ? e.target.value : t)), showChoiceText: true })}
-            aria-label={`${idPrefix} 보기 ${i + 1} 내용`}
-          />
+          {/* 직접 입력은 한 칸만 (적은 글이 그대로 버튼이 됨) */}
+          {!custom && (
+            <input
+              value={texts[i]}
+              placeholder="보기 내용 (선택)"
+              onChange={(e) => onChange({ choices: texts.map((t, j) => (j === i ? e.target.value : t)), showChoiceText: true })}
+              aria-label={`${idPrefix} 보기 ${i + 1} 내용`}
+            />
+          )}
           <button type="button" className="btn xs danger" onClick={() => removeAt(i)} disabled={n <= 2} aria-label={`${idPrefix} 보기 ${i + 1} 삭제`}>✕</button>
         </div>
       ))}
       <div className="row small">
         <button type="button" className="btn xs" onClick={() => setCount(n + 1)}>+ 보기 추가</button>
-        <label className="row" style={{ gap: 4 }}>
-          <input type="checkbox" checked={!!it.showChoiceText} onChange={(e) => onChange({ showChoiceText: e.target.checked })} />
-          학생 화면 버튼에 보기 내용도 표시
-        </label>
+        {!custom && (
+          <label className="row" style={{ gap: 4 }}>
+            <input type="checkbox" checked={!!it.showChoiceText} onChange={(e) => onChange({ showChoiceText: e.target.checked })} />
+            학생 화면 버튼에 보기 내용도 표시
+          </label>
+        )}
         <label className="row" style={{ gap: 4 }}>
           <input type="checkbox" checked={!!it.multi || keys.length > 1} onChange={(e) => onChange({ multi: e.target.checked })} />
           여러 개 고르는 문제

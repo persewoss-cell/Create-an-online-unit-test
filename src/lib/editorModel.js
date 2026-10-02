@@ -155,6 +155,9 @@ export function validateItems(items, pageCount) {
   for (const it of items) {
     if (!(Number(it.no) > 0)) errs.push('문항 번호가 비어 있습니다.');
     if (!(Number(it.points) > 0)) errs.push(`${it.no}번: 배점을 입력해 주세요.`);
+    // 객관식 보기 "직접 입력"은 보기마다 한 칸을 반드시 채운다
+    const customEmpty = (p) => p.type === 'mc' && p.customLabels && Array.from({ length: Number(p.choiceCount) || 2 }, (_, i) => p.choiceLabels?.[i]).some((l) => !String(l || '').trim());
+    if (customEmpty(it) || it.parts?.some(customEmpty)) errs.push(`${it.no}번: 직접 입력 보기 칸을 모두 채워 주세요.`);
     if (pageCount && (Number(it.page) < 1 || Number(it.page) > pageCount)) errs.push(`${it.no}번: 쪽 번호가 범위를 벗어났습니다.`);
     if (it.manual) continue; // 선생님이 직접 채점하는 문항은 정답을 비워 둬도 된다
     if (it.parts?.length) {
