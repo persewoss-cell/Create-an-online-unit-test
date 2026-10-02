@@ -56,9 +56,10 @@ export default function Dashboard({ adminRoute = false }) {
     const on = sort?.key === k ? sort.dir : '';
     return (
       <th className={`${center ? 'c ' : ''}sortable`} aria-sort={on === 'asc' ? 'ascending' : on === 'desc' ? 'descending' : 'none'}>
-        <button type="button" className="sort-btn" onClick={() => setSort(nextSort(sort, k))} title="누르면 오름차순 → 내림차순 → 원래대로(새로 만든 순)">
+        <button type="button" className="sort-btn" onClick={() => setSort(nextSort(sort, k))} title="누를 때마다 오름차순 → 내림차순 → 기본(새로 만든 순)">
           {children}
-          <span className={`sort-arrows ${on}`} aria-hidden="true"><i>▲</i><i>▼</i></span>
+          {/* 회색 ▲ = 기본(새로 만든 순), 파란 ▲ = 오름차순, 파란 ▼ = 내림차순 */}
+          <span className={`sort-arrow ${on}`} aria-hidden="true">▲</span>
         </button>
       </th>
     );
@@ -209,11 +210,6 @@ export default function Dashboard({ adminRoute = false }) {
         )}
         {exams && exams.length > 0 && (
           <div className="card table-wrap" style={{ padding: 0 }}>
-            {sort && (
-              <div className="row small" style={{ padding: '8px 12px', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn xs" onClick={() => setSort(null)}>정렬 해제 (새로 만든 순)</button>
-              </div>
-            )}
             <table className="data">
               <thead>
                 <tr>
@@ -221,7 +217,6 @@ export default function Dashboard({ adminRoute = false }) {
                   <SortTh k="semester" center>학기</SortTh>
                   <SortTh k="subject">과목</SortTh>
                   <SortTh k="unit">단원</SortTh>
-                  <SortTh k="title">평가 제목</SortTh>
                   <SortTh k="classes" center>반</SortTh>
                   <SortTh k="status" center>상태</SortTh>
                   <SortTh k="count" center>응시</SortTh>
@@ -238,9 +233,9 @@ export default function Dashboard({ adminRoute = false }) {
                       <td className="c nowrap">{e.grade}학년</td>
                       <td className="c nowrap">{e.semester}학기</td>
                       <td className="nowrap">{e.subject}</td>
-                      <td>{e.unit || <span className="muted">-</span>}</td>
                       <td>
-                        <Link to={`/teacher/exam/${e.id}`} state={backState(location)}><b>{e.title}</b></Link>
+                        {/* 단원을 누르면 평가 화면으로 (단원이 비어 있으면 평가 제목) */}
+                        <Link to={`/teacher/exam/${e.id}`} state={backState(location)} title={e.title}><b>{e.unit || e.title}</b></Link>
                         {e.importedFrom && <div className="muted small">공유 시험지({e.importedFrom.by})</div>}
                       </td>
                       <td className="c nowrap">{e.classes?.length ? `${e.classes.join(', ')}반` : <span className="muted">전체</span>}</td>

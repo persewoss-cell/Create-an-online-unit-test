@@ -17,9 +17,14 @@ describe('평가 목록 정렬', () => {
     expect(ids(sortExams(exams, {}, { key: 'grade', dir: 'asc' }))).toBe('bca');
     expect(ids(sortExams(exams, {}, { key: 'grade', dir: 'desc' }))).toBe('cab');
   });
-  it('단원은 앞 번호를 숫자로 비교하고 빈 값은 맨 아래', () => {
+  it('단원은 앞 번호를 숫자로 비교, 단원이 없으면 화면에 보이는 평가 제목으로', () => {
     expect(ids(sortExams(exams, {}, { key: 'unit', dir: 'asc' }))).toBe('bac');
-    expect(ids(sortExams(exams, {}, { key: 'unit', dir: 'desc' }))).toBe('abc');
+    expect(ids(sortExams(exams, {}, { key: 'unit', dir: 'desc' }))).toBe('cab');
+  });
+  it('빈 값은 오름·내림 상관없이 맨 아래', () => {
+    const st = { a: { avg: 90 }, b: {}, c: { avg: 70 } };
+    expect(ids(sortExams(exams, st, { key: 'avg', dir: 'asc' }))).toBe('cab');
+    expect(ids(sortExams(exams, st, { key: 'avg', dir: 'desc' }))).toBe('acb');
   });
   it('과목은 가나다순, 상태는 개시 전 → 응시 중 → 마감', () => {
     expect(ids(sortExams(exams, {}, { key: 'subject', dir: 'asc' }))).toBe('bca');

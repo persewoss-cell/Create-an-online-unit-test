@@ -259,17 +259,23 @@ function TeacherManual() {
         <ul className="m-list">
           <li>위쪽 버튼: <B>👥 학생 명단 추가·수정</B> <B kind="primary">+ 새 평가 만들기</B> <B>📥 공유 시험지 가져오기</B></li>
           <li>
-            표의 열: <b>학년 · 학기 · 과목 · 단원 · 평가 제목</b>(누르면 평가 화면) · <b>반</b>(전체 또는 1, 3반) ·
+            표의 열: <b>학년 · 학기 · 과목 · 단원</b> · <b>반</b>(전체 또는 1, 3반) ·
             <b> 상태</b>(<Badge>개시 전</Badge> <Badge kind="open">응시 중</Badge> <Badge kind="closed">마감</Badge>) ·
             <b> 응시</b>(낸 학생 수) · <b>평균</b> · <b>검토 요청</b>(<Badge kind="review">3건</Badge>을 누르면 검토 화면) · <b>공유</b> · <b>삭제</b>
           </li>
           <li>
-            <b>정렬</b>: 처음에는 새로 만든 평가가 맨 위예요. 열 제목 옆 <b>▲▼</b>를 누르면 엑셀처럼 <b>▲ 오름차순 → ▼ 내림차순 → 원래대로</b> 바뀌어요.
-            빈 칸은 항상 맨 아래로 가고, 고른 정렬은 이 컴퓨터에 기억돼요. <B>정렬 해제 (새로 만든 순)</B>으로 바로 되돌릴 수 있어요.
+            <b>단원</b>(파란 글씨)을 누르면 그 평가 화면으로 들어가요. 단원을 비워 둔 평가는 평가 제목이 보여요.
+          </li>
+          <li>
+            <b>정렬</b>: 처음에는 새로 만든 평가가 맨 위예요. 열 제목 옆 세모를 누를 때마다
+            <span className="m-sort"> 회색 <span className="sort-arrow">▲</span> 기본(새로 만든 순)</span> →
+            <span className="m-sort"> 파란 <span className="sort-arrow asc">▲</span> 오름차순</span> →
+            <span className="m-sort"> 파란 <span className="sort-arrow desc">▲</span> 내림차순(세모가 뒤집힘)</span> →
+            다시 회색 기본으로 바뀌어요. 빈 칸은 항상 맨 아래로 가고, 고른 정렬은 이 컴퓨터에 기억돼요.
           </li>
           <li>
             <b>상태 버튼</b>: 목록의 <Badge>개시 전 ↻</Badge>을 누를 때마다 <Badge>개시 전</Badge> → <Badge kind="open">응시 중</Badge> → <Badge kind="closed">마감</Badge> → <Badge>개시 전</Badge> 순서로 바뀌어요.
-            평가 화면에 들어가지 않고도 바로 시험을 열고 닫을 수 있어요(마감할 때만 확인 창).
+            평가 화면에 들어가지 않고도 바로 시험을 열고 닫을 수 있어요(마감할 때만 확인 창). 마우스를 올리면 다음 상태를 알려 줘요.
           </li>
           <li>학생이 제출하면 응시 수·평균·검토 요청이 새로고침 없이 바로 바뀌어요.</li>
         </ul>

@@ -480,10 +480,12 @@ th.sortable { padding: 0; }
 }
 th.c .sort-btn { justify-content: center; }
 .sort-btn:hover { background: #eef2f8; }
-.sort-arrows { display: inline-flex; flex-direction: column; line-height: 0.75; font-size: 9px; color: #b7c0cd; }
-.sort-arrows i { font-style: normal; }
-.sort-arrows.asc i:first-child, .sort-arrows.desc i:last-child { color: var(--primary); }
-.status-btn { border: 1px solid transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; }
+.sort-arrow { display: inline-block; font-size: 13px; line-height: 1; color: #b3bccb; transition: transform 0.15s; }
+.sort-arrow.asc { color: var(--primary); }
+.sort-arrow.desc { color: var(--primary); transform: rotate(180deg); }
+.status-btn { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; border: 1px solid transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; }
 .status-btn:hover { border-color: currentColor; }
 .status-btn:disabled { opacity: 0.5; cursor: wait; }
 .status-btn span { opacity: 0.6; margin-left: 2px; }
+.m-sort { white-space: nowrap; }
+.m-sort .sort-arrow { vertical-align: -1px; }
