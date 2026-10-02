@@ -1,4 +1,5 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { backState } from '../lib/nav.js';
 import TopBar from '../components/TopBar.jsx';
 import Loading from '../components/Loading.jsx';
 import { useTeacher } from '../components/TeacherAuth.jsx';
@@ -16,6 +17,7 @@ export default function Home() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') === 'teacher' ? 'teacher' : 'student';
   const { teacher, loading } = useTeacher();
+  const location = useLocation();
 
   if (tab === 'teacher' && loading) return <Loading />;
 
@@ -27,6 +29,14 @@ export default function Home() {
           <div className="emoji">{tab === 'teacher' ? '🧑‍🏫' : '✏️'}</div>
           <h1>온라인 단원평가</h1>
         </div>
+        {/* 사용설명서: 지금 고른 탭(학생/교사)의 설명서가 먼저 열린다 */}
+        <Link
+          to={tab === 'teacher' ? '/guide?who=teacher' : '/guide'}
+          state={backState(location)}
+          className="btn block guide-btn"
+        >
+          📖 사용설명서
+        </Link>
         <div className="login-tabs" role="tablist">
           {TABS.map(([k, label]) => (
             <button
