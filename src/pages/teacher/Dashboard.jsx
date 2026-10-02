@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { backState } from '../../lib/nav.js';
 import TeacherBar from '../../components/TeacherBar.jsx';
@@ -13,6 +13,7 @@ import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
 import { MIN_TEACHER_PASSWORD, teacherLabel } from '../../lib/school.js';
 import AdminPanel from './AdminPanel.jsx';
+import { sortExams, nextSort } from '../../lib/examSort.js';
 
 export const STATUS = { draft: '개시 전', open: '응시 중', closed: '마감' };
 
@@ -33,6 +34,35 @@ export default function Dashboard({ adminRoute = false }) {
   const [reloadNo, setReloadNo] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
   const [busyId, setBusyId] = useState('');
+  // 목록 정렬 (이 기기에 기억) — 고르지 않으면 새로 만든 평가가 위로
+  const [sort, setSortState] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('exam-list-sort') || 'null');
+    } catch {
+      return null;
+    }
+  });
+  const setSort = (s) => {
+    setSortState(s);
+    try {
+      localStorage.setItem('exam-list-sort', JSON.stringify(s));
+    } catch {
+      /* 저장 불가 환경은 무시 */
+    }
+  };
+  const sorted = useMemo(() => (exams ? sortExams(exams, stats, sort) : null), [exams, stats, sort]);
+  /** 정렬할 수 있는 열 제목: 누를 때마다 ▲ 오름차순 → ▼ 내림차순 → 정렬 해제 */
+  const SortTh = ({ k, children, center }) => {
+    const on = sort?.key === k ? sort.dir : '';
+    return (
+      <th className={`${center ? 'c ' : ''}sortable`} aria-sort={on === 'asc' ? 'ascending' : on === 'desc' ? 'descending' : 'none'}>
+        <button type="button" className="sort-btn" onClick={() => setSort(nextSort(sort, k))} title="누르면 오름차순 → 내림차순 → 원래대로(새로 만든 순)">
+          {children}
+          <span className={`sort-arrows ${on}`} aria-hidden="true"><i>▲</i><i>▼</i></span>
+        </button>
+      </th>
+    );
+  };
 
   async function toggleShare(e) {
     const on = !e.shared;
@@ -159,25 +189,41 @@ export default function Dashboard({ adminRoute = false }) {
         )}
         {exams && exams.length > 0 && (
           <div className="card table-wrap" style={{ padding: 0 }}>
+            {sort && (
+              <div className="row small" style={{ padding: '8px 12px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn xs" onClick={() => setSort(null)}>정렬 해제 (새로 만든 순)</button>
+              </div>
+            )}
             <table className="data">
               <thead>
                 <tr>
-                  <th>평가</th><th>과목</th><th>대상</th><th className="c">상태</th>
-                  <th className="c">응시</th><th className="c">평균</th><th className="c">검토 요청</th>
+                  <SortTh k="grade" center>학년</SortTh>
+                  <SortTh k="semester" center>학기</SortTh>
+                  <SortTh k="subject">과목</SortTh>
+                  <SortTh k="unit">단원</SortTh>
+                  <SortTh k="title">평가 제목</SortTh>
+                  <SortTh k="classes" center>반</SortTh>
+                  <SortTh k="status" center>상태</SortTh>
+                  <SortTh k="count" center>응시</SortTh>
+                  <SortTh k="avg" center>평균</SortTh>
+                  <SortTh k="review" center>검토 요청</SortTh>
                   <th className="c">공유</th><th className="c">삭제</th>
                 </tr>
               </thead>
               <tbody>
-                {exams.map((e) => {
+                {sorted.map((e) => {
                   const st = stats[e.id];
                   return (
                     <tr key={e.id}>
+                      <td className="c nowrap">{e.grade}학년</td>
+                      <td className="c nowrap">{e.semester}학기</td>
+                      <td className="nowrap">{e.subject}</td>
+                      <td>{e.unit || <span className="muted">-</span>}</td>
                       <td>
                         <Link to={`/teacher/exam/${e.id}`} state={backState(location)}><b>{e.title}</b></Link>
-                        <div className="muted small">{e.unit}{e.importedFrom ? ` · 공유 시험지(${e.importedFrom.by})` : ''}</div>
+                        {e.importedFrom && <div className="muted small">공유 시험지({e.importedFrom.by})</div>}
                       </td>
-                      <td>{e.subject}</td>
-                      <td>{e.grade}학년 {e.semester}학기{e.classes?.length ? ` · ${e.classes.join(',')}반` : ''}</td>
+                      <td className="c nowrap">{e.classes?.length ? `${e.classes.join(', ')}반` : <span className="muted">전체</span>}</td>
                       <td className="c"><span className={`badge ${e.status}`}>{STATUS[e.status]}</span></td>
                       <td className="c">{st ? `${st.count}명` : '…'}</td>
                       <td className="c">{st?.avg ?? '-'}</td>

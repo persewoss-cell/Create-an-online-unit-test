@@ -259,9 +259,13 @@ function TeacherManual() {
         <ul className="m-list">
           <li>위쪽 버튼: <B>👥 학생 명단 추가·수정</B> <B kind="primary">+ 새 평가 만들기</B> <B>📥 공유 시험지 가져오기</B></li>
           <li>
-            표의 열:
-            <b> 평가</b>(제목을 누르면 평가 화면) · <b>과목</b> · <b>대상</b>(학년·학기·반) · <b>상태</b>(<Badge>개시 전</Badge> <Badge kind="open">응시 중</Badge> <Badge kind="closed">마감</Badge>) ·
+            표의 열: <b>학년 · 학기 · 과목 · 단원 · 평가 제목</b>(누르면 평가 화면) · <b>반</b>(전체 또는 1, 3반) ·
+            <b> 상태</b>(<Badge>개시 전</Badge> <Badge kind="open">응시 중</Badge> <Badge kind="closed">마감</Badge>) ·
             <b> 응시</b>(낸 학생 수) · <b>평균</b> · <b>검토 요청</b>(<Badge kind="review">3건</Badge>을 누르면 검토 화면) · <b>공유</b> · <b>삭제</b>
+          </li>
+          <li>
+            <b>정렬</b>: 처음에는 새로 만든 평가가 맨 위예요. 열 제목 옆 <b>▲▼</b>를 누르면 엑셀처럼 <b>▲ 오름차순 → ▼ 내림차순 → 원래대로</b> 바뀌어요.
+            빈 칸은 항상 맨 아래로 가고, 고른 정렬은 이 컴퓨터에 기억돼요. <B>정렬 해제 (새로 만든 순)</B>으로 바로 되돌릴 수 있어요.
           </li>
           <li>학생이 제출하면 응시 수·평균·검토 요청이 새로고침 없이 바로 바뀌어요.</li>
         </ul>

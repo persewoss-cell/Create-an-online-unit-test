@@ -471,3 +471,15 @@ button.mark { cursor: pointer; }
 .manual-body { overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
 .manual-body .m-section { scroll-margin-top: 12px; }
 @media (max-width: 640px) { .manual-back { padding: 0; } .manual-modal { max-height: 100vh; border-radius: 0; } }
+
+/* 목록 정렬 (엑셀처럼 ▲▼) */
+th.sortable { padding: 0; }
+.sort-btn {
+  display: inline-flex; align-items: center; gap: 4px; width: 100%; padding: 10px 8px; border: 0; background: none;
+  font: inherit; font-weight: 700; color: inherit; cursor: pointer; white-space: nowrap; justify-content: flex-start;
+}
+th.c .sort-btn { justify-content: center; }
+.sort-btn:hover { background: #eef2f8; }
+.sort-arrows { display: inline-flex; flex-direction: column; line-height: 0.75; font-size: 9px; color: #b7c0cd; }
+.sort-arrows i { font-style: normal; }
+.sort-arrows.asc i:first-child, .sort-arrows.desc i:last-child { color: var(--primary); }
