@@ -17,7 +17,8 @@ export default function MetaFields({ meta, setMeta, lockedGrade }) {
   const set = (k) => (e) => setMeta({ ...meta, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   return (
     <>
-      <div className="grid2">
+      {/* 4칸 격자: 과목·학년·학기·단원 / 평가 제목(3칸)·채점 기준(단원과 같은 폭) */}
+      <div className="meta-grid">
         <label className="field">
           <span>과목 *</span>
           <select value={meta.subject} onChange={set('subject')} aria-label="과목">
@@ -46,14 +47,11 @@ export default function MetaFields({ meta, setMeta, lockedGrade }) {
           <span>단원</span>
           <input type="text" value={meta.unit} onChange={set('unit')} placeholder="예) 2. 생물과 환경" aria-label="단원" />
         </label>
-      </div>
-      {/* 평가 제목은 넓게, 채점 기준은 오른쪽 끝에 작게 한 줄로 */}
-      <div className="meta-row">
-        <label className="field grow">
+        <label className="field meta-title">
           <span>평가 제목</span>
           <input type="text" value={meta.title} onChange={set('title')} placeholder={defaultTitle(meta) || '비워 두면 자동으로 만들어집니다'} aria-label="평가 제목" />
         </label>
-        <label className="field shrink" title="서술형·단답형 답을 얼마나 너그럽게 맞다고 볼지">
+        <label className="field meta-len" title="서술형·단답형 답을 얼마나 너그럽게 맞다고 볼지">
           <span>채점 기준</span>
           <select value={meta.leniency} onChange={set('leniency')} aria-label="채점 기준">
             {Object.entries(LENIENCY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
