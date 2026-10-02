@@ -3,7 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
-import { watchMyExams, watchSubmissionsLive, watchKeysLive, logout, changeAdminPassword, changeTeacherPassword } from '../../lib/db.js';
+import {
+  watchMyExams, watchSubmissionsLive, watchKeysLive, logout, changeAdminPassword, changeTeacherPassword, setExamShared, deleteExam,
+} from '../../lib/db.js';
+import SharedImport from './SharedImport.jsx';
 import { AUTH_ERR } from './TeacherLogin.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
@@ -20,6 +23,37 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [pwOpen, setPwOpen] = useState(false);
   const [reloadNo, setReloadNo] = useState(0);
+  const [importOpen, setImportOpen] = useState(false);
+  const [busyId, setBusyId] = useState('');
+
+  async function toggleShare(e) {
+    const on = !e.shared;
+    if (on && !confirm(`"${e.title}" 시험지를 공유할까요?\n모든 학교 선생님이 이 시험지(문항·정답·문제지)를 보고 가져갈 수 있어요. 학생 답안은 공유되지 않아요.`)) return;
+    setBusyId(e.id);
+    try {
+      await setExamShared(e.id, on, owner);
+    } catch (err) {
+      alert(err.code === 'permission-denied'
+        ? '공유하지 못했어요. Firebase 보안 규칙을 새 규칙으로 게시했는지 확인해 주세요.'
+        : `공유하지 못했어요: ${err.message}`);
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  async function remove(e) {
+    const n = stats[e.id]?.count || 0;
+    if (!confirm(`"${e.title}" 평가를 삭제할까요?${n ? `\n응시한 학생 ${n}명의 답안과 결과도 모두 지워져요.` : ''}`)) return;
+    if (!confirm(`정말 삭제할까요? 삭제하면 되돌릴 수 없어요.\n\n"${e.title}"`)) return;
+    setBusyId(e.id);
+    try {
+      await deleteExam(e.id);
+    } catch (err) {
+      alert(`삭제하지 못했어요: ${err.message}`);
+    } finally {
+      setBusyId('');
+    }
+  }
 
   // 평가 목록과 평가별 응시 인원·평균·검토 요청 수를 실시간으로 (학생이 제출하면 바로 바뀜)
   useEffect(() => {
@@ -102,16 +136,21 @@ export default function Dashboard() {
               <div className="row">
                 <Link to="/teacher/students" className="btn">👥 학생 명단</Link>
                 <Link to="/teacher/new" className="btn primary">+ 새 평가 만들기</Link>
+                <button type="button" className="btn" onClick={() => setImportOpen(true)}>📥 공유 시험지 가져오기</button>
               </div>
             )}
           </div>
         )}
+        {importOpen && <SharedImport owner={owner} onClose={() => setImportOpen(false)} />}
         {error && <div className="alert error">{error}</div>}
         {!exams && !error && <Loading />}
         {exams && !exams.length && !adminHome && (
           <div className="card center">
             <p>아직 만든 평가가 없습니다.</p>
-            <Link to="/teacher/new" className="btn primary">문제·정답 PDF로 첫 평가 만들기</Link>
+            <div className="row" style={{ justifyContent: 'center' }}>
+              <Link to="/teacher/new" className="btn primary">문제·정답 PDF로 첫 평가 만들기</Link>
+              <button type="button" className="btn" onClick={() => setImportOpen(true)}>📥 공유 시험지 가져오기</button>
+            </div>
           </div>
         )}
         {exams && exams.length > 0 && (
@@ -121,6 +160,7 @@ export default function Dashboard() {
                 <tr>
                   <th>평가</th><th>과목</th><th>대상</th><th className="c">상태</th>
                   <th className="c">응시</th><th className="c">평균</th><th className="c">검토 요청</th>
+                  <th className="c">공유</th><th className="c">삭제</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,7 +168,10 @@ export default function Dashboard() {
                   const st = stats[e.id];
                   return (
                     <tr key={e.id}>
-                      <td><Link to={`/teacher/exam/${e.id}`}><b>{e.title}</b></Link><div className="muted small">{e.unit}</div></td>
+                      <td>
+                        <Link to={`/teacher/exam/${e.id}`}><b>{e.title}</b></Link>
+                        <div className="muted small">{e.unit}{e.importedFrom ? ` · 공유 시험지(${e.importedFrom.by})` : ''}</div>
+                      </td>
                       <td>{e.subject}</td>
                       <td>{e.grade}학년 {e.semester}학기{e.classes?.length ? ` · ${e.classes.join(',')}반` : ''}</td>
                       <td className="c"><span className={`badge ${e.status}`}>{STATUS[e.status]}</span></td>
@@ -138,6 +181,20 @@ export default function Dashboard() {
                         {st?.review ? (
                           <Link to={`/teacher/exam/${e.id}?tab=review`} className="badge review">{st.review}건</Link>
                         ) : st ? '-' : '…'}
+                      </td>
+                      <td className="c nowrap">
+                        <button
+                          type="button"
+                          className={`btn xs ${e.shared ? 'shared-on' : ''}`}
+                          disabled={busyId === e.id}
+                          onClick={() => toggleShare(e)}
+                          title={e.shared ? '공유 중 — 누르면 공유를 그만둡니다' : '모든 학교 선생님과 이 시험지를 공유합니다'}
+                        >
+                          {e.shared ? '✓ 공유 중' : '공유'}
+                        </button>
+                      </td>
+                      <td className="c">
+                        <button type="button" className="btn xs danger" disabled={busyId === e.id} onClick={() => remove(e)}>삭제</button>
                       </td>
                     </tr>
                   );

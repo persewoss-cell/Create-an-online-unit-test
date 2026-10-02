@@ -486,6 +486,54 @@ export async function saveQuestionsAndKeys(examId, questions, keys, changedNos =
   await updateExam(examId, { questions, revision: increment(1), lastEdit: { nos: changedNos, at: Date.now() } });
 }
 
+// ─────────────── 시험지 공유 ───────────────
+
+/** 시험지 공유 켜기/끄기 — 공유하면 모든 학교 선생님이 보고 자기 반으로 가져갈 수 있다 (학생 답안은 공유되지 않음) */
+export function setExamShared(examId, on, owner) {
+  return updateExam(examId, on
+    ? { shared: true, sharedAt: serverTimestamp(), sharedBy: teacherName(owner) }
+    : { shared: false });
+}
+
+/** 공유된 시험지 목록 (실시간) */
+export function watchSharedExams(cb, onError) {
+  return live(
+    query(collection(db, 'exams'), where('shared', '==', true)),
+    (snap) => listData(snap).sort((a, b) => (b.sharedAt?.seconds || 0) - (a.sharedAt?.seconds || 0)),
+    cb,
+    onError,
+  );
+}
+
+// 가져올 때 복사하지 않는 칸 (주인·상태·공유·수정 기록·대상 반)
+const NOT_COPIED = ['id', 'ownerUid', 'ownerName', 'school', 'status', 'shared', 'sharedAt', 'sharedBy',
+  'createdAt', 'updatedAt', 'revision', 'lastEdit', 'classes', 'importedFrom'];
+
+/**
+ * 공유 시험지를 내 방으로 가져오기: 문항·정답·문제지 이미지를 그대로 복사하고
+ * 학교·학년·반은 가져오는 선생님 것으로, 상태는 "개시 전"으로
+ */
+export async function importSharedExam(src, owner) {
+  const [pageSnap, key] = await Promise.all([getDocs(collection(db, 'exams', src.id, 'pages')), getKeys(src.id)]);
+  const copy = Object.fromEntries(Object.entries(src).filter(([k]) => !NOT_COPIED.includes(k)));
+  const ref = doc(collection(db, 'exams'));
+  await setDoc(ref, {
+    ...copy,
+    ...(owner.grade ? { grade: Number(owner.grade) } : {}),
+    classes: owner.classNo ? [Number(owner.classNo)] : [],
+    ownerUid: owner.uid,
+    ownerName: teacherName(owner),
+    ...(owner.school ? { school: owner.school } : {}),
+    status: 'draft',
+    importedFrom: { examId: src.id, by: src.sharedBy || src.ownerName || '' },
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  await setDoc(doc(db, 'exams', ref.id, 'private', 'key'), { keys: key });
+  for (const d of pageSnap.docs) await setDoc(doc(db, 'exams', ref.id, 'pages', d.id), d.data());
+  return ref.id;
+}
+
 export async function deleteExam(examId) {
   for (const sub of ['pages', 'submissions', 'submitters', 'private', 'drafts']) {
     const snap = await getDocs(collection(db, 'exams', examId, sub));

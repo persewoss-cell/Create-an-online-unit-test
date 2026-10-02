@@ -75,6 +75,10 @@ service cloud.firestore {
         && (before.get('retakes', []).size() == 0
           || after.retakes[0:before.get('retakes', []).size()] == before.get('retakes', []));
     }
+    // 다른 선생님이 "공유"한 평가 (모든 학교 선생님이 보고 가져갈 수 있음)
+    function isSharedExam(examId) {
+      return isTeacher() && examDoc(examId).data.get('shared', false) == true;
+    }
     function sidOf(d) {
       return string(d.grade) + '-' + string(d.classNo) + '-' + string(d.number);
     }
@@ -136,7 +140,8 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isTeacher() && resource.data.ownerUid == request.auth.uid)
         || (signedIn() && resource.data.status == 'open')
-        || submittedBySession(examId);
+        || submittedBySession(examId)
+        || (isTeacher() && resource.data.get('shared', false) == true);
       allow create: if request.resource.data.status in ['draft', 'open', 'closed']
         && (isAdmin()
           || (isTeacher()
@@ -151,14 +156,16 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isTeacher() && resource.data.ownerUid == request.auth.uid);
 
       match /pages/{pageId} {
-        allow read: if isOwner(examId) || (signedIn() && examDoc(examId).data.status == 'open') || submittedBySession(examId);
+        allow read: if isOwner(examId) || (signedIn() && examDoc(examId).data.status == 'open') || submittedBySession(examId)
+          || isSharedExam(examId);
         allow write: if isOwner(examId);
       }
 
       match /private/{docId} {
         allow read: if isOwner(examId)
           || (signedIn() && exists(/databases/$(database)/documents/exams/$(examId)/submitters/$(request.auth.uid)))
-          || submittedBySession(examId);
+          || submittedBySession(examId)
+          || isSharedExam(examId);
         allow write: if isOwner(examId);
       }
 

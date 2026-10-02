@@ -123,6 +123,34 @@ await expectOk('관리자가 선생님 평가 보기·고치기', async () => {
 await expectOk('관리자가 선생님 평가 목록 보기', () =>
   getDocs(query(collection(A.db, 'exams'), where('ownerUid', '==', tUser.uid))));
 
+console.log('시험지 공유');
+const shareId = `share${stamp}`;
+await expectOk('공유할 평가 만들기 (개시 전)', async () => {
+  await setDoc(doc(T.db, 'exams', shareId), { ownerUid: tUser.uid, school: SCHOOL, status: 'draft', grade: 5, questions: [], title: '공유' });
+  await setDoc(doc(T.db, 'exams', shareId, 'private', 'key'), { keys: { 1: { choices: [2] } } });
+  await setDoc(doc(T.db, 'exams', shareId, 'pages', '001'), { index: 1, data: 'x' });
+});
+await expectDenied('공유 전 다른 학교 선생님이 읽기', () => getDoc(doc(T2.db, 'exams', shareId)));
+await expectDenied('공유 전 다른 학교 선생님이 정답 읽기', () => getDoc(doc(T2.db, 'exams', shareId, 'private', 'key')));
+await expectOk('공유하기', () => updateDoc(doc(T.db, 'exams', shareId), { shared: true, sharedBy: 'T' }));
+await expectOk('다른 학교 선생님이 공유 목록 보기', () => getDocs(query(collection(T2.db, 'exams'), where('shared', '==', true))));
+await expectOk('다른 학교 선생님이 공유 시험지·문제지·정답 읽기', async () => {
+  await getDoc(doc(T2.db, 'exams', shareId));
+  await getDoc(doc(T2.db, 'exams', shareId, 'pages', '001'));
+  await getDoc(doc(T2.db, 'exams', shareId, 'private', 'key'));
+});
+await expectDenied('다른 선생님이 공유 시험지 고치기', () => updateDoc(doc(T2.db, 'exams', shareId), { title: 'hack' }));
+await expectDenied('다른 선생님이 공유 시험지 정답 고치기', () => setDoc(doc(T2.db, 'exams', shareId, 'private', 'key'), { keys: {} }));
+await expectOk('가져와서 내 평가로 만들기', () =>
+  setDoc(doc(T2.db, 'exams', `${shareId}copy`), { ownerUid: t2.uid, school: OTHER, status: 'draft', grade: 5, questions: [], title: '가져옴' }));
+const anonS = client();
+await signInAnonymously(anonS.auth);
+await expectDenied('학생(익명)은 공유 시험지 정답 못 읽음', () => getDoc(doc(anonS.db, 'exams', shareId, 'private', 'key')));
+await expectDenied('학생(익명)은 공유 목록 못 봄', () => getDocs(query(collection(anonS.db, 'exams'), where('shared', '==', true))));
+await expectOk('공유 그만두기', () => updateDoc(doc(T.db, 'exams', shareId), { shared: false }));
+await expectDenied('공유 그만둔 뒤 다른 선생님이 읽기', () => getDoc(doc(T2.db, 'exams', shareId)));
+await expectOk('평가 삭제', () => deleteDoc(doc(T.db, 'exams', shareId)));
+
 console.log('학생 명단');
 const rosterDoc = (c, school, sid, name, ownerUid) => {
   const [grade, classNo, number] = sid.split('-').map(Number);
@@ -279,7 +307,7 @@ await expectOk('마감 후에도 오답 재응시 제출', () => retake(S4, 6));
 await expectOk('선생님이 오답 재응시 끄기', () => updateDoc(subRef(T), { retake: { on: false } }));
 await expectDenied('꺼진 뒤 오답 재응시 제출', () => retake(S4, 7));
 
-for (const c of [A, T, T2, S, S2, S3, S4, S5, anon]) {
+for (const c of [A, T, T2, S, S2, S3, S4, S5, anon, anonS]) {
   await signOut(c.auth);
   await terminate(c.db);
 }
