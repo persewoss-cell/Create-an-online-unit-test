@@ -13,7 +13,7 @@
 
 import {
   collection, collectionGroup, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp, updateDoc, deleteField,
-  setDoc, deleteDoc, onSnapshot, getDocFromServer, increment, arrayUnion,
+  setDoc, deleteDoc, onSnapshot, getDocFromServer, getDocsFromServer, increment, arrayUnion,
 } from 'firebase/firestore';
 import {
   signInWithEmailAndPassword, signOut, signInAnonymously, onAuthStateChanged, reauthenticateWithCredential,
@@ -324,12 +324,6 @@ function stringKeys(keys) {
   return Object.fromEntries(Object.entries(keys).map(([k, v]) => [String(k), v]));
 }
 
-export async function listMyExams(uid) {
-  const snap = await getDocs(query(collection(db, 'exams'), where('ownerUid', '==', uid)));
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-}
 
 export async function getExam(id) {
   const snap = await getDoc(doc(db, 'exams', id));
@@ -340,32 +334,50 @@ export function updateExam(id, patch) {
   return updateDoc(doc(db, 'exams', id), { ...patch, updatedAt: serverTimestamp() });
 }
 
-/** 평가(문항)를 실시간으로 — 시험 중에 선생님이 문제를 고치면 학생 화면에 바로 반영 */
-export function watchExam(id, cb, onError) {
-  return onSnapshot(doc(db, 'exams', id), (snap) => cb(snap.exists() ? { id, ...snap.data() } : null), onError);
-}
+
+// ─────────────── 실시간 반영 ───────────────
 
 /**
- * 시험 보는 학생 화면용: 실시간 연결이 끊기거나(학교 와이파이, 화면 꺼짐) 늦어도 선생님이 고친 내용이 반드시 들어오도록
- *  1) 실시간 구독 — 오류가 나면 3초 뒤 다시 연결
+ * 문서·목록을 실시간으로 받는다. 학교 와이파이가 끊기거나 태블릿 화면이 꺼져도 반드시 최신이 들어오도록
+ *  1) 실시간 구독 — 오류가 나면 잠시 뒤 다시 연결 (3초부터 최대 30초 간격)
  *  2) 20초마다, 그리고 화면을 다시 켜거나 인터넷이 다시 연결될 때 서버에서 직접 확인
+ * @param {object} target  doc(...) 또는 query(...)
+ * @param {(snap)=>any} map 받은 스냅샷을 화면에 넘길 값으로
+ * @param {(value)=>void} cb
+ * @param {(err)=>void} [onError] 처음 연결에 실패했을 때 (예: 권한 없음)
  */
-export function watchExamLive(id, cb) {
+function live(target, map, cb, onError) {
+  const isDoc = target.type === 'document';
   let stopped = false;
   let unsub = () => {};
   let retry = null;
-  const ref = doc(db, 'exams', id);
-  const emit = (snap) => !stopped && cb(snap.exists() ? { id, ...snap.data() } : null);
+  let wait = 3000;
+  let errored = false;
+  let last = null;
+  const emit = (snap) => {
+    if (stopped) return;
+    wait = 3000;
+    const v = map(snap);
+    const key = JSON.stringify(v);
+    if (key === last) return; // 같은 내용이 여러 번 와도 한 번만
+    last = key;
+    cb(v);
+  };
+  const fail = (err) => {
+    if (stopped) return;
+    if (!errored && onError) onError(err);
+    errored = true;
+    clearTimeout(retry);
+    retry = setTimeout(() => !stopped && subscribe(), wait);
+    wait = Math.min(wait * 2, 30000);
+  };
   const subscribe = () => {
     unsub();
-    unsub = onSnapshot(ref, emit, () => {
-      clearTimeout(retry);
-      retry = setTimeout(() => !stopped && subscribe(), 3000);
-    });
+    unsub = onSnapshot(target, emit, fail);
   };
   const check = () => {
     if (stopped || document.visibilityState === 'hidden') return;
-    getDocFromServer(ref).then(emit).catch(() => {});
+    (isDoc ? getDocFromServer(target) : getDocsFromServer(target)).then(emit).catch(() => {});
   };
   const onVisible = () => {
     if (document.visibilityState !== 'visible') return;
@@ -388,10 +400,77 @@ export function watchExamLive(id, cb) {
   };
 }
 
-/** 정답을 실시간으로 (제출한 학생의 결과 화면: 정답을 고치면 점수도 바로 다시 계산) */
-export function watchKeys(examId, cb, onError) {
-  return onSnapshot(doc(db, 'exams', examId, 'private', 'key'), (snap) => cb(snap.exists() ? snap.data().keys || {} : {}), onError);
+const docData = (snap) => (snap.exists() ? { id: snap.id, ...snap.data() } : null);
+const listData = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+const newestFirst = (list) => list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+/** 시험 보는 학생 화면 · 결과 화면 · 선생님 화면: 평가(문항·상태)를 실시간으로 */
+export function watchExamLive(id, cb, onError) {
+  return live(doc(db, 'exams', id), docData, cb, onError);
 }
+
+/** 정답을 실시간으로 */
+export function watchKeysLive(examId, cb, onError) {
+  return live(doc(db, 'exams', examId, 'private', 'key'), (snap) => (snap.exists() ? snap.data().keys || {} : {}), cb, onError);
+}
+
+/** 선생님: 이 평가의 답안들을 실시간으로 (제출·오답 재응시가 바로 보임) */
+export function watchSubmissionsLive(examId, cb, onError) {
+  return live(collection(db, 'exams', examId, 'submissions'), listData, cb, onError);
+}
+
+/** 학생: 내 답안을 실시간으로 (선생님 판정·오답 재응시 열기·재응시 허용이 바로 반영) */
+export function watchMySubmissionLive(examId, studentId, cb, onError) {
+  return live(doc(db, 'exams', examId, 'submissions', studentId), docData, cb, onError);
+}
+
+/** 선생님: 내 평가 목록을 실시간으로 */
+export function watchMyExams(uid, cb, onError) {
+  return live(query(collection(db, 'exams'), where('ownerUid', '==', uid)), (snap) => newestFirst(listData(snap)), cb, onError);
+}
+
+/** 학생: 지금 볼 수 있는(개시된) 우리 학교·학년·반 평가를 실시간으로 */
+export function watchOpenExams(school, grade, classNo, cb, onError) {
+  const q = query(
+    collection(db, 'exams'),
+    where('status', '==', 'open'),
+    where('school', '==', normalizeSchool(school)),
+    where('grade', '==', Number(grade)),
+  );
+  return live(
+    q,
+    (snap) => newestFirst(listData(snap).filter((e) => !e.classes?.length || e.classes.includes(Number(classNo)))),
+    cb,
+    onError,
+  );
+}
+
+/** 학생: 내가 제출한 평가 결과 목록을 실시간으로 (마감된 평가 포함) */
+export function watchMyResults(p, cb, onError) {
+  const examCache = new Map();
+  let run = 0;
+  return live(
+    query(collectionGroup(db, 'submissions'), where('gsid', '==', gsidOf(p))),
+    (snap) => snap.docs.map((d) => ({ examId: d.ref.parent.parent.id, submission: { id: d.id, ...d.data() } })),
+    async (rows) => {
+      const my = ++run;
+      const out = [];
+      for (const r of rows) {
+        try {
+          // 평가 상태(마감 등)가 바뀌었을 수 있어 매번 다시 읽는다
+          const e = await getDoc(doc(db, 'exams', r.examId));
+          if (e.exists()) examCache.set(r.examId, { id: r.examId, ...e.data() });
+        } catch {
+          /* 지워진 평가 등은 건너뜀 */
+        }
+        if (examCache.has(r.examId)) out.push({ exam: examCache.get(r.examId), submission: r.submission });
+      }
+      if (my === run) cb(out);
+    },
+    onError,
+  );
+}
+
 
 export async function getKeys(examId) {
   const snap = await getDoc(doc(db, 'exams', examId, 'private', 'key'));
@@ -415,18 +494,7 @@ export async function deleteExam(examId) {
   await deleteDoc(doc(db, 'exams', examId));
 }
 
-export function watchSubmissions(examId, cb, onError) {
-  return onSnapshot(
-    collection(db, 'exams', examId, 'submissions'),
-    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-    onError,
-  );
-}
 
-export async function listSubmissions(examId) {
-  const snap = await getDocs(collection(db, 'exams', examId, 'submissions'));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-}
 
 /** 교사 판정 저장. value가 null이면 판정 취소(자동 채점으로 되돌림) */
 export function setOverride(examId, studentId, no, value) {
@@ -516,21 +584,6 @@ export async function ensureStudentSession(p) {
   return startStudentSession(p);
 }
 
-/** 이 학생이 제출한 모든 평가 (마감된 평가 포함) */
-export async function listMyResults(p) {
-  const snap = await getDocs(query(collectionGroup(db, 'submissions'), where('gsid', '==', gsidOf(p))));
-  const out = [];
-  for (const d of snap.docs) {
-    const examId = d.ref.parent.parent.id;
-    try {
-      const e = await getDoc(doc(db, 'exams', examId));
-      if (e.exists()) out.push({ exam: { id: examId, ...e.data() }, submission: { id: d.id, ...d.data() } });
-    } catch {
-      /* 지워진 평가 등은 건너뜀 */
-    }
-  }
-  return out;
-}
 
 // ─────────────── 학생 명단 (교사) ───────────────
 // owner = 명단 주인 선생님 {uid, school} (관리자가 선생님 방을 볼 때는 그 선생님)
@@ -580,20 +633,6 @@ export async function saveRosterBulk(owner, entries, replace) {
   await commitOps(ops);
 }
 
-export async function listOpenExams(school, grade, classNo) {
-  const snap = await getDocs(
-    query(
-      collection(db, 'exams'),
-      where('status', '==', 'open'),
-      where('school', '==', normalizeSchool(school)),
-      where('grade', '==', Number(grade)),
-    ),
-  );
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((e) => !e.classes?.length || e.classes.includes(Number(classNo)))
-    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-}
 
 export async function getPages(examId) {
   const snap = await getDocs(collection(db, 'exams', examId, 'pages'));
@@ -678,14 +717,6 @@ export async function submitAnswers(examId, profile, answers) {
   return studentId;
 }
 
-/** 내 답안을 실시간으로 받아 온다 (선생님이 검토하면 바로 반영) */
-export function watchMySubmission(examId, studentId, cb, onError) {
-  return onSnapshot(
-    doc(db, 'exams', examId, 'submissions', studentId),
-    (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null),
-    onError,
-  );
-}
 
 export async function getMySubmission(examId, studentId) {
   const snap = await getDoc(doc(db, 'exams', examId, 'submissions', studentId));

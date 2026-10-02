@@ -392,3 +392,15 @@ button.mark { cursor: pointer; }
 .retake-rows td:first-child { width: 110px; }
 .retake-rows td:last-child { width: auto; }
 .drawn-answer { max-width: 420px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; margin: 4px 0; }
+
+/* 실시간 알림 */
+.toasts { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; width: min(560px, calc(100vw - 32px)); }
+.toast {
+  display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: 12px; font-weight: 600;
+  background: var(--primary); color: #fff; box-shadow: 0 6px 20px rgba(20, 40, 80, 0.25); animation: toast-in 0.25s ease-out;
+}
+.toast > span { flex: 1; }
+.toast.success { background: var(--ok); }
+.toast.warn { background: #c27c0e; }
+.toast .btn { background: rgba(255, 255, 255, 0.92); color: #1f2a3d; border-color: transparent; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }

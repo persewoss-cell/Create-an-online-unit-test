@@ -7,11 +7,12 @@ import { GradedPaper, Regions, regionsOf, stackRatio } from '../../components/Ex
 import { DrawLayer } from '../../components/Drawing.jsx';
 import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
 import {
-  getExam, getKeys, watchSubmissions, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
+  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
 } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
 import { DrawnAnswer } from '../../components/RetakeHistory.jsx';
+import { useToast } from '../../components/Toast.jsx';
 import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
 import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '../../lib/format.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
@@ -41,21 +42,31 @@ export default function ExamDetail() {
   const [detailPaper, setDetailPaper] = useState(false);
   const [pages, setPages] = useState(null);
 
+  const [toast, notify] = useToast();
+
+  // 평가·정답·답안 모두 실시간: 학생이 제출하거나 오답 재응시를 내면 바로 결과표에 들어오고 알림이 뜬다
   useEffect(() => {
-    let unsub = () => {};
-    (async () => {
-      try {
-        const e = await getExam(id);
-        if (!e) throw new Error('평가를 찾을 수 없습니다.');
-        setExam(e);
-        setKeys(await getKeys(id));
-        unsub = watchSubmissions(id, setSubs, (err) => setError(err.message));
-        getPages(id).then(setPages).catch(() => setPages([]));
-      } catch (err) {
-        setError(err.message);
-      }
-    })();
-    return () => unsub();
+    const fail = (err) => setError(err.code === 'permission-denied' ? '이 평가를 볼 권한이 없습니다.' : err.message);
+    let prevSubs = null;
+    const unsubs = [
+      watchExamLive(id, (e) => (e ? setExam(e) : setError('평가를 찾을 수 없습니다.')), fail),
+      watchKeysLive(id, setKeys, fail),
+      watchSubmissionsLive(id, (list) => {
+        if (prevSubs) {
+          for (const sub of list) {
+            const old = prevSubs.find((x) => x.id === sub.id);
+            const who = `${sub.classNo}반 ${sub.number}번 ${sub.name}`;
+            if (!old) notify(`${who} 학생이 제출했어요.`, { kind: 'success' });
+            else if ((sub.retakes?.length || 0) > (old.retakes?.length || 0)) notify(`${who} 학생이 오답 재응시 답을 냈어요.`);
+          }
+        }
+        prevSubs = list;
+        setSubs(list);
+      }, fail),
+    ];
+    getPages(id).then(setPages).catch(() => setPages([]));
+    return () => unsubs.forEach((u) => u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const graded = useMemo(() => {
@@ -85,6 +96,7 @@ export default function ExamDetail() {
       <TeacherBar>
         <Link to="/teacher/dashboard" className="btn sm">목록</Link>
       </TeacherBar>
+      {toast}
       <div className="container">
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>

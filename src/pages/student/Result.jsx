@@ -5,7 +5,10 @@ import Loading from '../../components/Loading.jsx';
 import { GradedPaper } from '../../components/ExamViews.jsx';
 import RetakeHistory from '../../components/RetakeHistory.jsx';
 import { loadStudent } from '../../lib/student.js';
-import { getExam, getKeys, getMySubmission, getPages, studentIdOf, watchMySubmission, ensureStudentSession, watchExam, watchKeys } from '../../lib/db.js';
+import {
+  getExam, getKeys, getMySubmission, getPages, studentIdOf, ensureStudentSession, watchMySubmissionLive, watchExamLive, watchKeysLive,
+} from '../../lib/db.js';
+import { useToast } from '../../components/Toast.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
 import { stableKey } from '../../lib/format.js';
@@ -17,8 +20,8 @@ export default function Result() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
-  const [updated, setUpdated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [toast, notify] = useToast(10000);
   useEffect(() => {
     if (!p) return undefined;
     let unsub = () => {};
@@ -34,35 +37,56 @@ export default function Result() {
         const [exam, keys, pages] = await Promise.all([getExam(id), getKeys(id), getPages(id)]);
         if (!exam) throw new Error('평가가 마감되어 결과를 볼 수 없습니다. 선생님께 문의하세요.');
         if (!alive) return;
-        // 선생님이 검토하면 새로고침하지 않아도 바로 점수와 표시가 바뀐다
-        // 선생님이 검토하거나, 문제·정답을 고치면 새로고침하지 않아도 점수와 표시가 바로 바뀐다
+        // 선생님이 채점·검토하거나, 문제·정답을 고치거나, 오답 재응시를 열면 새로고침하지 않아도 바로 바뀌고 알림이 뜬다
         const cur = { exam, keys, sub: first };
         let ready = false;
-        const redraw = (changed) => {
-          setData({ ...cur, pages, result: gradeSubmission(cur.exam, cur.keys, cur.sub) });
-          if (ready && changed) {
-            setUpdated(true);
-            setTimeout(() => setUpdated(false), 6000);
-          }
-        };
+        const redraw = () => setData({ ...cur, pages, result: gradeSubmission(cur.exam, cur.keys, cur.sub) });
         const unsubs = [
-          watchMySubmission(id, sid, (sub) => {
-            if (!sub) return;
-            const changed = JSON.stringify(sub.overrides || {}) !== JSON.stringify(cur.sub.overrides || {});
+          watchMySubmissionLive(id, sid, (sub) => {
+            if (!sub) {
+              // 선생님이 "전체 재응시"로 응시 기록을 지움
+              if (ready) {
+                notify('선생님이 처음부터 다시 볼 수 있게 했어요.', {
+                  kind: 'success',
+                  sticky: true,
+                  action: { label: '다시 보기', onClick: () => nav(`/exam/${id}`, { replace: true }) },
+                });
+              }
+              return;
+            }
+            const old = cur.sub;
             cur.sub = sub;
-            redraw(changed);
+            redraw();
+            if (!ready) return;
+            if (stableKey(sub.overrides || {}) !== stableKey(old.overrides || {})) notify('선생님이 답을 확인했어요. 점수가 새로 반영되었어요.', { kind: 'success' });
+            if (!old.retake?.on && sub.retake?.on) notify('선생님이 오답 재응시를 열었어요. 틀린 문제를 다시 풀어 보세요!', { kind: 'success' });
+            if (old.retake?.on && !sub.retake?.on) notify('선생님이 오답 재응시를 닫았어요.');
+            const oj = old.retake?.judge || {};
+            const nj = sub.retake?.judge || {};
+            for (const k of Object.keys(nj)) {
+              if (oj[k] === nj[k]) continue;
+              const no = k.split('_q')[1];
+              notify(
+                nj[k] === 'correct'
+                  ? `선생님이 다시 푼 ${no}번을 맞았다고 했어요! 🎉`
+                  : `선생님이 다시 푼 ${no}번을 확인했어요. 한 번 더 풀어 보세요.`,
+                { kind: nj[k] === 'correct' ? 'success' : 'warn' },
+              );
+            }
           }, fail),
-          watchExam(id, (e) => {
+          watchExamLive(id, (e) => {
             if (!e) return;
             const changed = stableKey(e.questions) !== stableKey(cur.exam.questions);
             cur.exam = e;
-            redraw(changed);
-          }, () => {}),
-          watchKeys(id, (k) => {
+            redraw();
+            if (ready && changed) notify('선생님이 문제를 고쳤어요. 점수가 새로 반영되었어요.');
+          }),
+          watchKeysLive(id, (k) => {
             const changed = stableKey(k) !== stableKey(cur.keys);
             cur.keys = k;
-            redraw(changed);
-          }, () => {}),
+            redraw();
+            if (ready && changed) notify('선생님이 정답을 고쳤어요. 점수가 새로 반영되었어요.');
+          }),
         ];
         ready = true;
         unsub = () => unsubs.forEach((u) => u());
@@ -99,6 +123,7 @@ export default function Result() {
       <TopBar who={who}>
         <button className="btn sm" onClick={() => nav('/exams')}>평가 목록</button>
       </TopBar>
+      {toast}
       <div className="container" style={{ maxWidth: 940 }}>
         <div className="card" style={{ textAlign: 'center', marginBottom: 16 }}>
           <div className="muted">{exam.title}</div>
@@ -106,9 +131,6 @@ export default function Result() {
           <div className="score-sub">
             {exam.questions.length}문항 중 {result.correctCount}문항 정답
           </div>
-          {updated && (
-            <div className="alert success" style={{ marginTop: 14 }}>선생님이 답을 확인하거나 정답을 고쳤어요. 점수가 새로 반영되었습니다.</div>
-          )}
           {result.reviewCount > 0 && (
             <div className="alert warn" style={{ marginTop: 14, textAlign: 'left' }}>
               선생님이 확인해야 하는 답이 {result.reviewCount}개 있어요(노란색 표시). 확인 후 점수가 올라갈 수 있어요.

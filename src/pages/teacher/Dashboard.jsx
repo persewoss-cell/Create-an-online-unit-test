@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
-import { listMyExams, listSubmissions, getKeys, logout, changeAdminPassword, changeTeacherPassword } from '../../lib/db.js';
+import { watchMyExams, watchSubmissionsLive, watchKeysLive, logout, changeAdminPassword, changeTeacherPassword } from '../../lib/db.js';
 import { AUTH_ERR } from './TeacherLogin.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
@@ -21,31 +21,58 @@ export default function Dashboard() {
   const [pwOpen, setPwOpen] = useState(false);
   const [reloadNo, setReloadNo] = useState(0);
 
+  // 평가 목록과 평가별 응시 인원·평균·검토 요청 수를 실시간으로 (학생이 제출하면 바로 바뀜)
   useEffect(() => {
     setExams(null);
+    setStats({});
     setError('');
-    (async () => {
-      try {
-        const list = await listMyExams(owner.uid);
+    const perExam = new Map(); // 평가 id → {exam, subs, keys, stop}
+    const recount = (id) => {
+      const x = perExam.get(id);
+      if (!x?.subs || !x.keys) return;
+      const graded = x.subs.map((sub) => gradeSubmission(x.exam, x.keys, sub));
+      setStats((st) => ({
+        ...st,
+        [id]: {
+          count: x.subs.length,
+          review: graded.reduce((a, r, i) => a + r.reviewCount + retakeState(x.exam, x.keys, x.subs[i], r).pending.length, 0),
+          avg: graded.length ? Math.round((graded.reduce((a, r) => a + r.score100, 0) / graded.length) * 10) / 10 : null,
+        },
+      }));
+    };
+    const stopList = watchMyExams(
+      owner.uid,
+      (list) => {
         setExams(list);
-        // 평가별 응시 인원·검토 대기 수
         for (const e of list) {
-          Promise.all([listSubmissions(e.id), getKeys(e.id)]).then(([subs, keys]) => {
-            const graded = subs.map((s) => gradeSubmission(e, keys, s));
-            setStats((st) => ({
-              ...st,
-              [e.id]: {
-                count: subs.length,
-                review: graded.reduce((a, r, i) => a + r.reviewCount + retakeState(e, keys, subs[i], r).pending.length, 0),
-                avg: graded.length ? Math.round((graded.reduce((a, r) => a + r.score100, 0) / graded.length) * 10) / 10 : null,
-              },
-            }));
-          }).catch(() => {}); // 로그아웃·방 바꾸기 도중이면 무시
+          const known = perExam.get(e.id);
+          if (known) {
+            known.exam = e;
+            recount(e.id);
+            continue;
+          }
+          const x = { exam: e, subs: null, keys: null };
+          const quiet = () => {}; // 로그아웃·방 바꾸기 도중이면 무시
+          const stops = [
+            watchSubmissionsLive(e.id, (subs) => { x.subs = subs; recount(e.id); }, quiet),
+            watchKeysLive(e.id, (keys) => { x.keys = keys; recount(e.id); }, quiet),
+          ];
+          x.stop = () => stops.forEach((f) => f());
+          perExam.set(e.id, x);
         }
-      } catch (err) {
-        setError(err.message);
-      }
-    })();
+        for (const [id, x] of perExam) {
+          if (!list.some((e) => e.id === id)) {
+            x.stop();
+            perExam.delete(id);
+          }
+        }
+      },
+      (err) => setError(err.message),
+    );
+    return () => {
+      stopList();
+      perExam.forEach((x) => x.stop());
+    };
   }, [owner.uid, reloadNo]);
 
   async function doLogout() {
