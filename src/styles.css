@@ -404,3 +404,4 @@ button.mark { cursor: pointer; }
 .toast.warn { background: #c27c0e; }
 .toast .btn { background: rgba(255, 255, 255, 0.92); color: #1f2a3d; border-color: transparent; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.btn.alerts-on { background: var(--ok-weak); border-color: var(--ok); color: var(--ok); }

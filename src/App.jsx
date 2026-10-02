@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { firebaseReady } from './firebase.js';
 import { TeacherProvider, RequireTeacher } from './components/TeacherAuth.jsx';
+import TeacherAlerts from './components/TeacherAlerts.jsx';
 import SetupGuide from './components/SetupGuide.jsx';
 import Home from './pages/Home.jsx';
 import ExamList from './pages/student/ExamList.jsx';
@@ -16,6 +17,7 @@ export default function App() {
   if (!firebaseReady) return <SetupGuide />;
   return (
     <TeacherProvider>
+      <TeacherAlerts />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/exams" element={<ExamList />} />
