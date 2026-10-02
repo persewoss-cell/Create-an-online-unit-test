@@ -5,7 +5,7 @@ import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
-  watchMyExams, watchSubmissionsLive, watchKeysLive, changeAdminPassword, changeTeacherPassword, setExamShared, deleteExam,
+  watchMyExams, watchSubmissionsLive, watchKeysLive, changeAdminPassword, changeTeacherPassword, setExamShared, deleteExam, updateExam,
 } from '../../lib/db.js';
 import SharedImport from './SharedImport.jsx';
 import { AUTH_ERR } from './TeacherLogin.jsx';
@@ -75,6 +75,26 @@ export default function Dashboard({ adminRoute = false }) {
       alert(err.code === 'permission-denied'
         ? '공유하지 못했어요. Firebase 보안 규칙을 새 규칙으로 게시했는지 확인해 주세요.'
         : `공유하지 못했어요: ${err.message}`);
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  // 상태 버튼: 누를 때마다 개시 전 → 응시 중 → 마감 → 개시 전 (마감할 때만 확인)
+  const NEXT_STATUS = { draft: 'open', open: 'closed', closed: 'draft' };
+  const STATUS_HINT = {
+    draft: '누르면 시험 개시 (학생 목록에 보임)',
+    open: '누르면 응시 마감',
+    closed: '누르면 개시 전으로 (학생에게 안 보임)',
+  };
+  async function cycleStatus(e) {
+    const next = NEXT_STATUS[e.status] || 'open';
+    if (next === 'closed' && !confirm(`"${e.title}" 응시를 마감할까요?\n마감하면 학생 목록에서 시험이 빠지고, 제출한 학생은 결과만 볼 수 있어요.`)) return;
+    setBusyId(e.id);
+    try {
+      await updateExam(e.id, { status: next });
+    } catch (err) {
+      alert(`상태를 바꾸지 못했어요: ${err.message}`);
     } finally {
       setBusyId('');
     }
@@ -224,7 +244,18 @@ export default function Dashboard({ adminRoute = false }) {
                         {e.importedFrom && <div className="muted small">공유 시험지({e.importedFrom.by})</div>}
                       </td>
                       <td className="c nowrap">{e.classes?.length ? `${e.classes.join(', ')}반` : <span className="muted">전체</span>}</td>
-                      <td className="c"><span className={`badge ${e.status}`}>{STATUS[e.status]}</span></td>
+                      <td className="c">
+                        <button
+                          type="button"
+                          className={`badge ${e.status} status-btn`}
+                          disabled={busyId === e.id}
+                          onClick={() => cycleStatus(e)}
+                          title={STATUS_HINT[e.status]}
+                          aria-label={`상태 ${STATUS[e.status]} — ${STATUS_HINT[e.status]}`}
+                        >
+                          {STATUS[e.status]} <span aria-hidden="true">↻</span>
+                        </button>
+                      </td>
                       <td className="c">{st ? `${st.count}명` : '…'}</td>
                       <td className="c">{st?.avg ?? '-'}</td>
                       <td className="c">

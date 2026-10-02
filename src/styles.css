@@ -483,3 +483,7 @@ th.c .sort-btn { justify-content: center; }
 .sort-arrows { display: inline-flex; flex-direction: column; line-height: 0.75; font-size: 9px; color: #b7c0cd; }
 .sort-arrows i { font-style: normal; }
 .sort-arrows.asc i:first-child, .sort-arrows.desc i:last-child { color: var(--primary); }
+.status-btn { border: 1px solid transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; }
+.status-btn:hover { border-color: currentColor; }
+.status-btn:disabled { opacity: 0.5; cursor: wait; }
+.status-btn span { opacity: 0.6; margin-left: 2px; }
