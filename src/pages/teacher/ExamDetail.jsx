@@ -12,6 +12,7 @@ import {
 import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
 import { DrawnAnswer } from '../../components/RetakeHistory.jsx';
+import SaveErrorDialog, { ErrorLine } from '../../components/SaveErrorDialog.jsx';
 import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
 import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '../../lib/format.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
@@ -458,6 +459,7 @@ function AnalysisTab({ exam, keys, graded }) {
 function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
   const [items, setItems] = useState(() => toItems(exam.questions, keys));
   const [errs, setErrs] = useState([]);
+  const [popup, setPopup] = useState(null); // 지금 화면 가운데에 띄울 저장 오류
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -465,7 +467,7 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
     const e = validateItems(items, exam.pageCount);
     setErrs(e);
     setMsg('');
-    if (e.length) return;
+    if (e.length) return setPopup(e);
     const { questions, keys: k } = fromItems(items);
     setBusy(true);
     try {
@@ -482,6 +484,7 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
       setMsg('저장했습니다. 모든 학생의 점수가 새 정답으로 다시 채점됩니다.');
     } catch (err) {
       setErrs([err.message]);
+      setPopup([`저장 중 오류가 났어요: ${err.message}`, '인터넷 연결을 확인한 뒤 다시 저장해 주세요.']);
     } finally {
       setBusy(false);
     }
@@ -491,12 +494,18 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
   return (
     <div className="stack">
       {hasSubs && <div className="alert info">이미 응시한 학생이 있습니다. 정답을 고치면 저장 즉시 모든 학생이 새 정답으로 다시 채점됩니다.</div>}
-      {errs.length > 0 && <div className="alert error"><ul>{errs.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
+      {errs.length > 0 && <div className="alert error"><ul>{errs.map((x, i) => <li key={i}><ErrorLine text={x} /></li>)}</ul></div>}
       {msg && <div className="alert success">{msg}</div>}
       <ExamPreviewEditor view={exam} pages={pages} items={items} onChange={setItems} title={exam.title} />
-      <div className="row" style={{ justifyContent: 'flex-end', position: 'sticky', bottom: 0, background: 'var(--bg)', padding: '10px 0' }}>
+      <div className="save-bar">
+        {/* 저장 버튼 바로 옆에도 결과를 보여 준다 (맨 위까지 올라가지 않아도 되게) */}
+        {errs.length > 0 && (
+          <button type="button" className="btn sm danger" onClick={() => setPopup(errs)}>⚠️ 고칠 곳 {errs.length}개 보기</button>
+        )}
+        {msg && !errs.length && <span className="save-ok">✓ 저장했어요</span>}
         <button className="btn primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : '문항·정답 저장'}</button>
       </div>
+      <SaveErrorDialog errors={popup} onClose={() => setPopup(null)} />
     </div>
   );
 }

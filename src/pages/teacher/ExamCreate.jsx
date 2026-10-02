@@ -9,6 +9,7 @@ import { parseQuestions, fillDefaultPoints } from '../../lib/parseQuestions.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { trimRegions, markAnswerSpots } from '../../lib/trimRegions.js';
 import { createExam } from '../../lib/db.js';
+import SaveErrorDialog, { ErrorLine } from '../../components/SaveErrorDialog.jsx';
 import { LENIENCY } from '../../lib/grading.js';
 import { detectMeta } from '../../lib/detectMeta.js';
 import MetaFields, { defaultTitle, parseClasses, subjectName } from '../../components/MetaFields.jsx';
@@ -30,6 +31,7 @@ export default function ExamCreate() {
   const [pages, setPages] = useState([]);
   const [items, setItems] = useState([]);
   const [saveErrors, setSaveErrors] = useState([]);
+  const [errorPopup, setErrorPopup] = useState(null); // 지금 화면에 띄울 저장 오류
   const [analyzed, setAnalyzed] = useState(null); // PDF 분석 결과 (문항 수, 채운 항목)
   const [analyzing, setAnalyzing] = useState('');
   const run = useRef(0);
@@ -95,7 +97,7 @@ export default function ExamCreate() {
   async function save() {
     const errs = validateItems(items, pages.length);
     setSaveErrors(errs);
-    if (errs.length) return window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (errs.length) return setErrorPopup(errs);
     const { questions, keys } = fromItems(items);
     try {
       setBusy('저장 중…');
@@ -123,6 +125,7 @@ export default function ExamCreate() {
       nav(`/teacher/exam/${id}`);
     } catch (err) {
       setError(`저장하지 못했습니다: ${err.message}`);
+      setErrorPopup([`저장 중 오류가 났어요: ${err.message}`, '인터넷 연결을 확인한 뒤 다시 저장해 주세요.']);
       setBusy('');
     }
   }
@@ -173,7 +176,7 @@ export default function ExamCreate() {
             {saveErrors.length > 0 && (
               <div className="alert error">
                 저장하기 전에 확인해 주세요.
-                <ul>{saveErrors.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                <ul>{saveErrors.map((w, i) => <li key={i}><ErrorLine text={w} /></li>)}</ul>
               </div>
             )}
             {warnings.length > 0 && (
@@ -189,6 +192,12 @@ export default function ExamCreate() {
               onChange={setItems}
               title={meta.title.trim() || defaultTitle(meta) || '단원평가'}
             />
+            {saveErrors.length > 0 && (
+              <div className="alert error">
+                저장하기 전에 확인해 주세요. (번호를 누르면 그 문항으로 이동)
+                <ul>{saveErrors.map((w, i) => <li key={i}><ErrorLine text={w} /></li>)}</ul>
+              </div>
+            )}
             <div className="card row" style={{ justifyContent: 'space-between' }}>
               <button className="btn" onClick={() => setStep(1)} disabled={!!busy}>← 다시 올리기</button>
               <div className="row">
@@ -199,6 +208,7 @@ export default function ExamCreate() {
           </div>
         )}
       </div>
+      <SaveErrorDialog errors={errorPopup} onClose={() => setErrorPopup(null)} />
     </>
   );
 }
