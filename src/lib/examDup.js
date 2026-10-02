@@ -17,3 +17,14 @@ export function findSameExam(exams, { grade, semester, subject, unit }, exceptId
 export function sameExamMessage(e) {
   return `같은 학년·학기·과목·단원의 평가가 이미 있어요.\n(${e.grade}학년 ${e.semester}학기 ${e.subject} ${e.unit || '(단원 없음)'})\n\n같은 단원을 또 보는 경우라면 단원명 뒤에 "추가평가", "2차" 같은 구분 이름을 붙여 주세요.`;
 }
+
+/**
+ * 겹치지 않는 단원명: 같은 학년·학기·과목·단원이 이미 있으면 "2. 원(2)", "2. 원(3)"…
+ * (공유 시험지를 가져올 때 쓴다)
+ */
+export function uniqueUnit(exams, { grade, semester, subject, unit }) {
+  const base = String(unit ?? '').trim();
+  let name = base;
+  for (let n = 2; findSameExam(exams, { grade, semester, subject, unit: name }); n++) name = `${base}(${n})`;
+  return name;
+}

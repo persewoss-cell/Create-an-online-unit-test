@@ -2,6 +2,8 @@
 //  - 정렬을 고르지 않으면 새로 만든 평가가 위로
 //  - 빈 값은 오름·내림 상관없이 맨 아래, 같은 값끼리는 새로 만든 것이 위로
 
+import { sharerLabel } from './school.js';
+
 const STATUS_ORDER = { draft: 0, open: 1, closed: 2 };
 const collator = new Intl.Collator('ko', { numeric: true, sensitivity: 'base' });
 
@@ -16,17 +18,22 @@ export const SORT_COLUMNS = {
   count: (e, st) => st?.count ?? null,
   avg: (e, st) => st?.avg ?? null,
   review: (e, st) => st?.review ?? null,
+  questions: (e) => e.questions?.length ?? null, // 공유 시험지: 문항 수
+  sharer: (e) => sharerLabel(e) || null, // 공유 시험지: 공유한 학교·반
 };
 
 const created = (e) => e.createdAt?.seconds ?? Number.MAX_SAFE_INTEGER; // 방금 만들어 시간이 아직 없으면 맨 위
+/** 공유 시험지 목록의 기본 순서: 최근에 공유한 것이 위로 */
+export const sharedTime = (e) => e.sharedAt?.seconds ?? Number.MAX_SAFE_INTEGER;
 
 /**
  * @param {object[]} exams
  * @param {Record<string, object>} stats 평가 id → {count, avg, review}
  * @param {{key:string, dir:'asc'|'desc'}|null} sort
+ * @param {(e:object)=>number} timeOf 기본 순서(최근 것이 위)에 쓸 시간
  */
-export function sortExams(exams, stats = {}, sort = null) {
-  const newest = (a, b) => created(b) - created(a);
+export function sortExams(exams, stats = {}, sort = null, timeOf = created) {
+  const newest = (a, b) => timeOf(b) - timeOf(a);
   const get = sort && SORT_COLUMNS[sort.key];
   if (!get) return [...exams].sort(newest);
   const sign = sort.dir === 'desc' ? -1 : 1;

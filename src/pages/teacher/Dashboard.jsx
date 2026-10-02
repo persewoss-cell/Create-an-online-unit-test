@@ -13,7 +13,8 @@ import { gradeSubmission } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
 import { MIN_TEACHER_PASSWORD, classTarget, teacherLabel } from '../../lib/school.js';
 import AdminPanel from './AdminPanel.jsx';
-import { sortExams, nextSort } from '../../lib/examSort.js';
+import { sortExams } from '../../lib/examSort.js';
+import SortThBase, { loadSort, saveSort } from '../../components/SortTh.jsx';
 
 export const STATUS = { draft: '개시 전', open: '응시 중', closed: '마감' };
 
@@ -35,20 +36,10 @@ export default function Dashboard({ adminRoute = false }) {
   const [importOpen, setImportOpen] = useState(false);
   const [busyId, setBusyId] = useState('');
   // 목록 정렬 (이 기기에 기억) — 고르지 않으면 새로 만든 평가가 위로
-  const [sort, setSortState] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('exam-list-sort') || 'null');
-    } catch {
-      return null;
-    }
-  });
+  const [sort, setSortState] = useState(() => loadSort('exam-list-sort'));
   const setSort = (s) => {
     setSortState(s);
-    try {
-      localStorage.setItem('exam-list-sort', JSON.stringify(s));
-    } catch {
-      /* 저장 불가 환경은 무시 */
-    }
+    saveSort('exam-list-sort', s);
   };
   // 평가는 늘 만든 선생님 학년·반에만 나간다: 예전에 "학년 전체"나 다른 반으로 정해 둔 평가는 이 반으로 맞춘다
   const fixed = useRef(new Set());
@@ -63,19 +54,8 @@ export default function Dashboard({ adminRoute = false }) {
     }
   }, [exams, owner]);
   const sorted = useMemo(() => (exams ? sortExams(exams, stats, sort) : null), [exams, stats, sort]);
-  /** 정렬할 수 있는 열 제목: 누를 때마다 ▲ 오름차순 → ▼ 내림차순 → 정렬 해제 */
-  const SortTh = ({ k, children, center, cls = '' }) => {
-    const on = sort?.key === k ? sort.dir : '';
-    return (
-      <th className={`${center ? 'c ' : ''}${cls ? `${cls} ` : ''}sortable`} aria-sort={on === 'asc' ? 'ascending' : on === 'desc' ? 'descending' : 'none'}>
-        <button type="button" className="sort-btn" onClick={() => setSort(nextSort(sort, k))} title="누를 때마다 오름차순 → 내림차순 → 기본(새로 만든 순)">
-          {children}
-          {/* 회색 ▲ = 기본(새로 만든 순), 파란 ▲ = 오름차순, 파란 ▼ = 내림차순 */}
-          <span className={`sort-arrow ${on}`} aria-hidden="true">▲</span>
-        </button>
-      </th>
-    );
-  };
+  const SortTh = (p) => <SortThBase {...p} sort={sort} setSort={setSort} />;
+
 
   async function toggleShare(e) {
     const on = !e.shared;
@@ -208,7 +188,7 @@ export default function Dashboard({ adminRoute = false }) {
             )}
           </div>
         )}
-        {importOpen && <SharedImport owner={owner} onClose={() => setImportOpen(false)} />}
+        {importOpen && <SharedImport owner={owner} myExams={exams || []} onClose={() => setImportOpen(false)} />}
         {error && <div className="alert error">{error}</div>}
         {!exams && !error && <Loading />}
         {exams && !exams.length && !adminHome && (

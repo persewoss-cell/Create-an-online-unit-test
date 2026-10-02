@@ -54,3 +54,15 @@ export function classTarget(owner) {
   if (!owner?.grade || !owner?.classNo) return null;
   return { grade: Number(owner.grade), classes: [Number(owner.classNo)] };
 }
+
+/** 학교 이름 줄이기: "광양중동초등학교" → "광양중동초" */
+export function shortSchool(name) {
+  return String(name ?? '').replace(/등학교$/, '');
+}
+
+/** 공유한 선생님 표시: "광양중동초 3-1" (예전 자료처럼 학교·반을 모르면 저장된 이름) */
+export function sharerLabel(e) {
+  const classNo = e.classes?.length === 1 ? e.classes[0] : null;
+  if (e.school && e.grade && classNo) return `${shortSchool(e.school)} ${e.grade}-${classNo}`;
+  return e.sharedBy || e.ownerName || '';
+}

@@ -24,6 +24,7 @@ import { auth, db, withHelperAuth } from '../firebase.js';
 import { retakeJudgeKey } from './retake.js';
 import {
   normalizeSchool, teacherLoginId, teacherAuthPassword, studentIdOf, gsidOf, DEFAULT_TEACHER_PASSWORD, LEGACY_SCHOOL,
+  sharerLabel,
 } from './school.js';
 
 export { studentIdOf, gsidOf };
@@ -517,7 +518,7 @@ const NOT_COPIED = ['id', 'ownerUid', 'ownerName', 'school', 'status', 'shared',
  * 공유 시험지를 내 방으로 가져오기: 문항·정답·문제지 이미지를 그대로 복사하고
  * 학교·학년·반은 가져오는 선생님 것으로, 상태는 "개시 전"으로
  */
-export async function importSharedExam(src, owner) {
+export async function importSharedExam(src, owner, { unit } = {}) {
   const [pageSnap, key] = await Promise.all([getDocs(collection(db, 'exams', src.id, 'pages')), getKeys(src.id)]);
   const copy = Object.fromEntries(Object.entries(src).filter(([k]) => !NOT_COPIED.includes(k)));
   const ref = doc(collection(db, 'exams'));
@@ -528,8 +529,9 @@ export async function importSharedExam(src, owner) {
     ownerUid: owner.uid,
     ownerName: teacherName(owner),
     ...(owner.school ? { school: owner.school } : {}),
+    ...(unit != null ? { unit } : {}),
     status: 'draft',
-    importedFrom: { examId: src.id, by: src.sharedBy || src.ownerName || '' },
+    importedFrom: { examId: src.id, by: sharerLabel(src) },
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
