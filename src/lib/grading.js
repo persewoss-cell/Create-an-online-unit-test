@@ -6,7 +6,7 @@
 
 import {
   normalizeText, sameWord, containsWord, jamoSimilarity, diceSimilarity, parseNumeric, hasNegation,
-  samePredicate, predicateStem, extractKeywords, plainSymbols,
+  samePredicate, predicateStem, extractKeywords, plainSymbols, mathSymbols, hasMathSymbol,
 } from './korean.js';
 import { boxAlternatives } from './format.js';
 
@@ -61,6 +61,13 @@ function compareShort(expected, answer, rule) {
     if (hits.length === parts.length) return { status: 'correct' };
     if (hits.length > 0) return { status: 'review', reason: `필수 요소 ${parts.length}개 중 ${hits.length}개 일치` };
     return { status: 'wrong' };
+  }
+  // <, >, = 같은 수학 기호 답: 문장부호로 지우지 말고, 비슷한 모양 기호(＜ 〈 ‹ …)도 같게 본다
+  if (hasMathSymbol(expected)) {
+    if (mathSymbols(expected) === mathSymbols(answer)) return { status: 'correct' };
+    // 기호가 다르면 틀림 (예: 정답 3<5, 학생 3>5). 기호가 같으면 아래에서 글자를 비교
+    const onlySymbols = (x) => mathSymbols(x).replace(/[^<>≤≥=≠+×÷]/g, '');
+    if (onlySymbols(expected) !== onlySymbols(answer) || !normalizeText(expected)) return { status: 'wrong' };
   }
   const ne = normalizeText(expected);
   const na = normalizeText(answer);

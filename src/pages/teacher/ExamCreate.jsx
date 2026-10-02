@@ -8,7 +8,7 @@ import { openPdf, extractPages, renderPages, readFileAsArrayBuffer } from '../..
 import { parseQuestions, fillDefaultPoints } from '../../lib/parseQuestions.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { trimRegions, markAnswerSpots } from '../../lib/trimRegions.js';
-import { createExam, updateExam } from '../../lib/db.js';
+import { createExam } from '../../lib/db.js';
 import { LENIENCY } from '../../lib/grading.js';
 import { detectMeta } from '../../lib/detectMeta.js';
 import MetaFields, { defaultTitle, parseClasses, subjectName } from '../../components/MetaFields.jsx';
@@ -92,7 +92,7 @@ export default function ExamCreate() {
 
   const FOUND_LABEL = { subject: '과목', grade: '학년', semester: '학기', unit: '단원' };
 
-  async function save(open) {
+  async function save() {
     const errs = validateItems(items, pages.length);
     setSaveErrors(errs);
     if (errs.length) return window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -120,7 +120,6 @@ export default function ExamCreate() {
         },
         (i, n) => setBusy(`문제지 이미지 저장 중… (${i}/${n})`),
       );
-      if (open) await updateExam(id, { status: 'open' });
       nav(`/teacher/exam/${id}`);
     } catch (err) {
       setError(`저장하지 못했습니다: ${err.message}`);
@@ -193,9 +192,8 @@ export default function ExamCreate() {
             <div className="card row" style={{ justifyContent: 'space-between' }}>
               <button className="btn" onClick={() => setStep(1)} disabled={!!busy}>← 다시 올리기</button>
               <div className="row">
-                <span className="muted small">채점 기준: {LENIENCY[meta.leniency].label}</span>
-                <button className="btn" onClick={() => save(false)} disabled={!!busy}>저장 (준비 중)</button>
-                <button className="btn primary" onClick={() => save(true)} disabled={!!busy}>저장하고 응시 열기</button>
+                <span className="muted small">채점 기준: {LENIENCY[meta.leniency].label} · 저장한 뒤 <b>시험 개시</b>를 눌러야 학생에게 보여요</span>
+                <button className="btn primary" onClick={() => save()} disabled={!!busy}>저장</button>
               </div>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { GradedPaper } from '../../components/ExamViews.jsx';
 import { loadStudent } from '../../lib/student.js';
 import { getExam, getKeys, getMySubmission, getPages, studentIdOf, watchMySubmission, ensureStudentSession, watchExam, watchKeys } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
+import { retakeState } from '../../lib/retake.js';
 import { stableKey } from '../../lib/format.js';
 
 export default function Result() {
@@ -90,6 +91,7 @@ export default function Result() {
   if (!data) return (<><TopBar who={who} /><Loading text="채점 중…" /></>);
 
   const { exam, keys, sub, pages, result } = data;
+  const rt = retakeState(exam, keys, sub, result);
   return (
     <>
       <TopBar who={who}>
@@ -111,7 +113,27 @@ export default function Result() {
             </div>
           )}
         </div>
-        <GradedPaper exam={exam} pages={pages} keys={keys} answers={sub.answers} result={result} />
+        {rt.enabled && (
+          <div className="card retake-card" style={{ marginBottom: 16 }}>
+            <div>
+              <b>오답 재응시</b>
+              <div className="small muted" style={{ marginTop: 4 }}>
+                {rt.done
+                  ? `틀린 문제를 모두 다시 풀어 맞혔어요!${rt.attempts ? ` (${rt.attempts}번 도전)` : ''}`
+                  : `틀린 문제 ${rt.remaining.join(', ')}번을 다시 풀어요. 점수는 처음 제출한 점수 그대로예요.`}
+                {!rt.done && rt.fixed.length > 0 && ` 다시 풀어 맞힌 문제: ${rt.fixed.join(', ')}번`}
+              </div>
+            </div>
+            {rt.done ? (
+              <button className="btn retake-done" disabled aria-label="오답 재응시 완료">✔ 오답 재응시 완료</button>
+            ) : (
+              <button className="btn primary" onClick={() => nav(`/exam/${id}/retake`)}>
+                오답 재응시 ({rt.remaining.length}문제)
+              </button>
+            )}
+          </div>
+        )}
+        <GradedPaper exam={exam} pages={pages} keys={keys} answers={sub.answers} result={result} hideKeys />
       </div>
     </>
   );

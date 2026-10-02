@@ -337,7 +337,7 @@ function inSpot(sp, text, W, H, maxFs = 24) {
 
 const grow = (b, up, down) => ({ x0: b.x0 - 6, y0: b.y0 - up, x1: b.x1 + 6, y1: b.y1 + down });
 
-function placeLabels(exam, pages, grids, byNo, keys, answers, result) {
+function placeLabels(exam, pages, grids, byNo, keys, answers, result, hideKeys) {
   const out = {}; // no -> {mine, key}, 'score' -> spot
   pages.forEach((_, pi) => {
     const page = pi + 1;
@@ -447,7 +447,7 @@ function placeLabels(exam, pages, grids, byNo, keys, answers, result) {
         res.review = { ...spot, text, fs };
       }
       const keyShort = shortKeyText(q, keys[q.no]);
-      if (it.status === 'wrong' && keyShort && !(q.manual && keyShort.startsWith('('))) {
+      if (!hideKeys && it.status === 'wrong' && keyShort && !(q.manual && keyShort.startsWith('('))) {
         const text = `정답: ${keyShort}`;
         const fs = 26;
         const w = textWidth(text, fs);
@@ -467,9 +467,10 @@ function placeLabels(exam, pages, grids, byNo, keys, answers, result) {
 }
 
 /**
- * @param {{exam, pages:string[], keys, answers, result}} props  result = gradeSubmission(...)
+ * @param {{exam, pages:string[], keys, answers, result, hideKeys?:boolean}} props  result = gradeSubmission(...)
+ *   hideKeys: 틀린 문제에 정답을 써 주지 않음 (학생 화면)
  */
-export function GradedPaper({ exam, pages, keys, answers, result }) {
+export function GradedPaper({ exam, pages, keys, answers, result, hideKeys = false }) {
   const byNo = Object.fromEntries(result.items.map((it) => [it.no, it]));
   const [grids, setGrids] = useState(null);
   useEffect(() => {
@@ -482,9 +483,9 @@ export function GradedPaper({ exam, pages, keys, answers, result }) {
     };
   }, [pages, exam]);
   const labels = useMemo(
-    () => (grids ? placeLabels(exam, pages, grids, byNo, keys, answers, result) : {}),
+    () => (grids ? placeLabels(exam, pages, grids, byNo, keys, answers, result, hideKeys) : {}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [grids, exam, pages, keys, answers, result],
+    [grids, exam, pages, keys, answers, result, hideKeys],
   );
   return (
     <div className="graded">

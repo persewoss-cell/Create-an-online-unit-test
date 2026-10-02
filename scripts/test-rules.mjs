@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc, getDocs, updateDoc, writeBatch, serverTimestamp,
-  terminate, query, where, collectionGroup, deleteDoc, collection,
+  terminate, query, where, collectionGroup, deleteDoc, collection, arrayUnion,
 } from 'firebase/firestore';
 
 const PROJECT = 'demo-unit-test';
@@ -232,6 +232,22 @@ await expectDenied('선생님이 학생 답안 변조', () =>
 await expectOk('관리자가 정답 판정', () =>
   updateDoc(doc(A.db, 'exams', examId, 'submissions', '5-1-3'), { 'overrides.1': 'wrong', reviewedAt: serverTimestamp() }));
 
+console.log('오답 재응시');
+const subRef = (c) => doc(c.db, 'exams', examId, 'submissions', '5-1-3');
+const retake = (c, n) => updateDoc(subRef(c), { retakes: arrayUnion({ answers: { 1: [n] }, at: n }) });
+await expectDenied('선생님이 켜기 전에 오답 재응시', () => retake(S4, 1));
+await expectDenied('학생이 스스로 오답 재응시 켜기', () => updateDoc(subRef(S4), { retake: { on: true } }));
+await expectOk('선생님이 오답 재응시 켜기', () => updateDoc(subRef(T), { retake: { on: true } }));
+await expectOk('오답 재응시 제출', () => retake(S4, 2));
+await expectOk('또 틀려서 다시 제출', () => retake(S4, 3));
+await expectDenied('오답 재응시하면서 처음 답안 고치기', () =>
+  updateDoc(subRef(S4), { retakes: arrayUnion({ answers: { 1: [3] }, at: 9 }), answers: { 1: [1] } }));
+await expectDenied('다시 푼 기록 지우기', () => updateDoc(subRef(S4), { retakes: [] }));
+await expectDenied('다시 푼 기록 바꿔치기', () =>
+  updateDoc(subRef(S4), { retakes: [{ answers: { 1: [3] }, at: 1 }, { answers: { 1: [3] }, at: 2 }, { answers: { 1: [3] }, at: 3 }] }));
+await expectDenied('다른 학생이 오답 재응시 제출', () => retake(S2, 4));
+await expectDenied('다른 학교 같은 번호 학생이 오답 재응시 제출', () => retake(S5, 5));
+
 console.log('예전 자료 옮기기');
 const oldExam = `old${stamp}`;
 await adminPut(`exams/${oldExam}`, { ownerUid: aUser.uid, status: 'closed', title: '예전' });
@@ -259,6 +275,9 @@ await expectDenied('마감된 평가 읽기 (응시 안 한 학생)', () => getD
 await expectOk('마감된 평가도 응시한 학생은 결과 보기', () => getDoc(doc(S4.db, 'exams', examId)));
 await expectDenied('마감된 평가에 제출', () => submit(S3, s3.uid, SCHOOL, '5-1-5'));
 await expectDenied('마감된 평가에 임시 저장', () => draft(S2, '5-1-5'));
+await expectOk('마감 후에도 오답 재응시 제출', () => retake(S4, 6));
+await expectOk('선생님이 오답 재응시 끄기', () => updateDoc(subRef(T), { retake: { on: false } }));
+await expectDenied('꺼진 뒤 오답 재응시 제출', () => retake(S4, 7));
 
 for (const c of [A, T, T2, S, S2, S3, S4, S5, anon]) {
   await signOut(c.auth);

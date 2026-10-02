@@ -28,6 +28,33 @@ export function plainSymbols(s) {
     .replace(/[ᅡ-ᅵ]/g, (c) => JUNGSEONG[c.charCodeAt(0) - 0x1161]);
 }
 
+// 태블릿 특수문자에서 모양이 비슷한 수학 기호를 하나로 (〈 ‹ ＜ → <, ≦ → ≤, ㅡ – − → - …)
+const MATH_LOOKALIKE = [
+  [/[<＜〈〈‹˂ᐸ⟨≺﹤]/g, '<'],
+  [/[>＞〉〉›˃ᐳ⟩≻﹥]/g, '>'],
+  [/[≤≦⩽]|<=/g, '≤'],
+  [/[≥≧⩾]|>=/g, '≥'],
+  [/[=＝⩵]/g, '='],
+  [/[≠]|=\/|\/=/g, '≠'],
+  [/[+＋﹢]/g, '+'],
+  [/[-−‐‑‒–—―ㅡ﹣－]/g, '-'],
+  [/[×✕✖⨯*]/g, '×'],
+  [/[÷]/g, '÷'],
+];
+const MATH_SYMBOL = /[<>≤≥=≠+×÷]/;
+
+/** 수학 기호만 비교하기 좋게: 비슷한 모양 기호를 하나로, 띄어쓰기 제거 */
+export function mathSymbols(s) {
+  let out = plainSymbols(s).toLowerCase().replace(/[\s 　]+/g, '');
+  for (const [re, to] of MATH_LOOKALIKE) out = out.replace(re, to);
+  return out;
+}
+
+/** 정답에 <, >, = 같은 수학 기호가 들어 있는지 */
+export function hasMathSymbol(s) {
+  return MATH_SYMBOL.test(mathSymbols(s));
+}
+
 /** 공백·문장부호 제거, 소문자화 */
 export function normalizeText(s) {
   return plainSymbols(s)

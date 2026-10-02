@@ -63,6 +63,18 @@ service cloud.firestore {
         && examSchool(examId) == mySchool()
         && exists(/databases/$(database)/documents/exams/$(examId)/submissions/$(mySid()));
     }
+    // 오답 재응시: 선생님이 켠 본인 답안에, 다시 푼 기록(retakes)을 한 줄씩만 덧붙일 수 있다
+    function isRetake(before, after) {
+      return hasSession()
+        && before.get('gsid', legacySchool() + '_' + before.studentId) == myGsid()
+        && before.get('retake', {}).get('on', false) == true
+        && after.diff(before).affectedKeys().hasOnly(['retakes'])
+        && after.retakes is list
+        && after.retakes.size() == before.get('retakes', []).size() + 1
+        && after.retakes.size() <= 100
+        && (before.get('retakes', []).size() == 0
+          || after.retakes[0:before.get('retakes', []).size()] == before.get('retakes', []));
+    }
     function sidOf(d) {
       return string(d.grade) + '-' + string(d.classNo) + '-' + string(d.number);
     }
@@ -170,10 +182,12 @@ service cloud.firestore {
           && request.resource.data.answers is map
           && request.resource.data.submittedAt == request.time
           && existsAfter(/databases/$(database)/documents/exams/$(examId)/submitters/$(request.auth.uid));
-        // 학생은 제출 후 수정 불가. 교사는 판정(overrides)만 수정. 관리자는 예전 답안에 학교를 붙일 수 있다
-        allow update: if isOwner(examId)
-          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['overrides', 'reviewedAt'])
-            || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['school', 'gsid'])));
+        // 학생은 처음 답안을 고칠 수 없다. 교사는 판정(overrides)과 오답 재응시 켜기(retake)만 수정.
+        // 관리자는 예전 답안에 학교를 붙일 수 있다
+        allow update: if (isOwner(examId)
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['overrides', 'reviewedAt', 'retake'])
+            || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['school', 'gsid']))))
+          || isRetake(resource.data, request.resource.data);
         allow delete: if isOwner(examId);
       }
 

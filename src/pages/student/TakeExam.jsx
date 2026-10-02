@@ -7,8 +7,9 @@ import { DrawLayer, DrawToolbar } from '../../components/Drawing.jsx';
 import { loadStudent, loadDraft, saveDraft, clearDraft } from '../../lib/student.js';
 import {
   ensureStudentSession, getExam, getPages, submitAnswers, submissionState, studentIdOf, watchExamLive,
-  loadServerDraft, saveServerDraft, deleteServerDraft,
+  loadServerDraft, saveServerDraft, deleteServerDraft, getMySubmission, getKeys, submitRetake,
 } from '../../lib/db.js';
+import { retakeState } from '../../lib/retake.js';
 import { isBlank } from '../../lib/grading.js';
 import { TYPE_LABEL, stableKey } from '../../lib/format.js';
 
@@ -48,7 +49,8 @@ function restoreDraft(draft, questions) {
   return out;
 }
 
-export default function TakeExam() {
+/** retake=true: 오답 재응시 — 아직 못 맞힌 문제만 다시 풀고, 처음 점수는 그대로 */
+export default function TakeExam({ retake = false }) {
   const { id } = useParams();
   const nav = useNavigate();
   const p = loadStudent();
@@ -118,6 +120,20 @@ export default function TakeExam() {
     (async () => {
       try {
         await ensureStudentSession(p);
+        if (retake) {
+          // 오답 재응시: 임시 저장·실시간 반영 없이, 남은 오답만
+          const sub = await getMySubmission(id, studentIdOf(p));
+          if (!sub) return nav(`/exam/${id}`, { replace: true });
+          const [e, keys] = await Promise.all([getExam(id), getKeys(id)]);
+          if (!e) throw new Error('평가를 찾을 수 없습니다.');
+          const st = retakeState(e, keys, sub);
+          if (!st.enabled || st.done) return nav(`/exam/${id}/result`, { replace: true });
+          const only = { ...e, questions: e.questions.filter((q) => st.remaining.includes(q.no)) };
+          examRef.current = only;
+          setExam(only);
+          setPages(await getPages(id));
+          return;
+        }
         const state = await submissionState(id, studentIdOf(p));
         if (state === 'mine') return nav(`/exam/${id}/result`, { replace: true });
         if (state === 'taken') return nav(`/exam/${id}/result`, { replace: true });
@@ -234,6 +250,11 @@ export default function TakeExam() {
     try {
       const clean = {};
       for (const x of qs) clean[x.no] = cleanAnswer(x, answers[x.no]);
+      if (retake) {
+        await submitRetake(id, p, clean);
+        nav(`/exam/${id}/result`, { replace: true });
+        return;
+      }
       await submitAnswers(id, p, clean);
       clearTimeout(serverTimer.current);
       pendingDraft.current = null;
@@ -335,7 +356,7 @@ export default function TakeExam() {
   return (
     <div className="exam-shell">
       <header className="exam-top">
-        <b className="exam-title">{exam.title}</b>
+        <b className="exam-title">{retake && <span className="badge review" style={{ marginRight: 6 }}>오답 재응시</span>}{exam.title}</b>
         <span className="muted small">{who}</span>
         <div className="exam-progress">
           <span className={`save-state small ${saveState}`} data-testid="save-state">
@@ -424,8 +445,10 @@ export default function TakeExam() {
       {confirming && (
         <div className="modal-back" role="dialog" aria-modal="true">
           <div className="modal stack">
-            <h2>답안을 제출할까요?</h2>
-            <p className="muted">제출하면 답을 고칠 수 없고, 다시 볼 수 없어요.</p>
+            <h2>{retake ? '다시 푼 답을 제출할까요?' : '답안을 제출할까요?'}</h2>
+            <p className="muted">
+              {retake ? '또 틀린 문제는 다시 풀 수 있어요. 점수는 처음 제출한 점수 그대로예요.' : '제출하면 답을 고칠 수 없고, 다시 볼 수 없어요.'}
+            </p>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setConfirming(false)} disabled={submitting}>다시 확인하기</button>
               <button className="btn primary" onClick={doSubmit} disabled={submitting}>

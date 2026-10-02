@@ -7,9 +7,10 @@ import { GradedPaper, Regions, regionsOf, stackRatio } from '../../components/Ex
 import { DrawLayer } from '../../components/Drawing.jsx';
 import MetaFields, { parseClasses, subjectName, SUBJECTS } from '../../components/MetaFields.jsx';
 import {
-  getExam, getKeys, watchSubmissions, setOverride, deleteSubmission, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
+  getExam, getKeys, watchSubmissions, setOverride, deleteSubmission, setRetake, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages,
 } from '../../lib/db.js';
 import { gradeSubmission } from '../../lib/grading.js';
+import { retakeState } from '../../lib/retake.js';
 import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
 import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '../../lib/format.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
@@ -122,6 +123,7 @@ export default function ExamDetail() {
             }}
             onJudge={judge}
             examId={id}
+            keys={keys}
           />
         )}
         {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} pages={pages} />}
@@ -156,11 +158,31 @@ export default function ExamDetail() {
 }
 
 function StatusButtons({ exam, onChange }) {
-  if (exam.status === 'open') return <button className="btn danger" onClick={() => onChange('closed')}>응시 마감</button>;
+  if (exam.status === 'open') {
+    return (
+      <button
+        className="btn danger"
+        onClick={() => confirm('응시를 마감할까요?\n마감하면 학생 목록에서 시험이 빠지고, 제출한 학생은 결과만 볼 수 있어요.') && onChange('closed')}
+      >
+        응시 마감
+      </button>
+    );
+  }
   return (
     <button className="btn ok" onClick={() => onChange('open')}>
-      {exam.status === 'closed' ? '응시 다시 열기' : '응시 열기'}
+      {exam.status === 'closed' ? '시험 다시 개시' : '시험 개시'}
     </button>
+  );
+}
+
+/** 결과표의 오답 재응시 진행 상황 */
+function RetakeCell({ st }) {
+  if (!st.enabled) return <span className="muted">-</span>;
+  if (st.done) return <span className="badge open">완료{st.attempts ? ` · ${st.attempts}회` : ''}</span>;
+  return (
+    <span className="badge review" title={`남은 문제: ${st.remaining.join(', ')}번`}>
+      남은 {st.remaining.length}문제{st.attempts ? ` · ${st.attempts}회` : ''}
+    </span>
   );
 }
 
@@ -171,18 +193,42 @@ function nextOverride(item) {
   return null;
 }
 
-function ResultsTab({ exam, graded, onOpen, onJudge, examId }) {
+function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys }) {
   if (!graded.length) return <div className="card center muted">아직 제출한 학생이 없습니다.</div>;
+  const states = Object.fromEntries(graded.map(({ s, r }) => [s.id, retakeState(exam, keys, s, r)]));
   async function allowRetake(s) {
-    if (!confirm(`${s.classNo}반 ${s.number}번 ${s.name} 학생의 응시 기록을 삭제할까요?\n삭제하면 이 학생이 다시 응시할 수 있습니다.`)) return;
+    if (!confirm(`${s.classNo}반 ${s.number}번 ${s.name} 학생의 응시 기록을 모두 삭제할까요?\n삭제하면 이 학생이 처음부터 다시 응시할 수 있습니다.`)) return;
     await deleteSubmission(examId, s);
+  }
+  async function toggleWrongRetake(s) {
+    const on = !states[s.id].enabled;
+    try {
+      await setRetake(examId, [s.id], on);
+    } catch (err) {
+      alert(`저장 실패: ${err.message}`);
+    }
+  }
+  // 틀린 문제가 있는데 아직 오답 재응시가 꺼진 학생
+  const waiting = graded.filter(({ s }) => !states[s.id].enabled && states[s.id].firstWrong.length > 0);
+  async function allWrongRetake() {
+    if (!confirm(`틀린 문제가 있는 학생 ${waiting.length}명 모두에게 오답 재응시를 켤까요?\n처음 점수는 바뀌지 않습니다.`)) return;
+    try {
+      await setRetake(examId, waiting.map(({ s }) => s.id), true);
+    } catch (err) {
+      alert(`저장 실패: ${err.message}`);
+    }
   }
   return (
     <div className="card table-wrap" style={{ padding: 0 }}>
+      <div className="row" style={{ padding: '10px 12px', justifyContent: 'flex-end' }}>
+        <button className="btn sm" onClick={allWrongRetake} disabled={!waiting.length}>
+          전체 학생 오답만 재응시{waiting.length ? ` (${waiting.length}명)` : ''}
+        </button>
+      </div>
       <table className="data results-table">
         <thead>
           <tr>
-            <th>반</th><th>번</th><th>이름</th><th className="c">점수</th><th className="c">결과지</th>
+            <th>반</th><th>번</th><th>이름</th><th className="c">점수</th><th className="c">오답 재응시</th><th className="c">결과지</th>
             {exam.questions.map((q) => <th key={q.no} className="c qcol">{q.no}</th>)}
             <th />
           </tr>
@@ -194,6 +240,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId }) {
               <td>{s.number}</td>
               <td className="nowrap">{s.name}</td>
               <td className="c"><b>{r.score100}</b></td>
+              <td className="c nowrap small"><RetakeCell st={states[s.id]} /></td>
               <td className="c">
                 <button className="btn xs" onClick={() => onOpen(s.id, true)} aria-label={`${s.name} 결과지`}>📄 보기</button>
               </td>
@@ -208,13 +255,23 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId }) {
                   </button>
                 </td>
               ))}
-              <td className="nowrap"><button className="btn xs danger" onClick={() => allowRetake(s)}>재응시</button></td>
+              <td className="nowrap">
+                <button
+                  className={`btn xs ${states[s.id].enabled ? '' : 'primary'}`}
+                  onClick={() => toggleWrongRetake(s)}
+                  disabled={!states[s.id].enabled && !states[s.id].firstWrong.length}
+                  title={states[s.id].firstWrong.length ? '틀린 문제만 다시 풀게 합니다 (처음 점수는 그대로)' : '틀린 문제가 없습니다'}
+                >
+                  {states[s.id].enabled ? '오답 재응시 끄기' : '오답만 재응시'}
+                </button>{' '}
+                <button className="btn xs danger" onClick={() => allowRetake(s)}>전체 재응시</button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="muted small" style={{ padding: '0 12px' }}>
-        O/X/? 를 누르면 판정을 바꿀 수 있습니다 (자동 → 정답 → 오답 → 자동). 테두리가 있는 표시는 교사가 직접 판정한 것입니다. “재응시”는 응시 기록을 지워 다시 볼 수 있게 합니다.
+        O/X/? 를 누르면 판정을 바꿀 수 있습니다 (자동 → 정답 → 오답 → 자동). 테두리가 있는 표시는 교사가 직접 판정한 것입니다. “오답만 재응시”는 틀린 문제만 맞힐 때까지 다시 풀게 합니다(점수는 처음 제출한 점수 그대로). “전체 재응시”는 응시 기록을 지워 처음부터 다시 보게 합니다.
       </p>
     </div>
   );

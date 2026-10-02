@@ -39,3 +39,25 @@ describe('원·네모 기호는 키보드 글자로 써도 정답', () => {
     expect(g(essay, key, 'ㄱ은 물이 증발하기 때문입니다.')).toBe('correct');
   });
 });
+
+describe('수학 기호 (태블릿 특수문자)', () => {
+  const q = { type: 'short' };
+  const m = (k, a) => gradeAnswer(q, { accepted: [k] }, a, 'normal', '수학').status;
+  it('< > 는 비슷한 모양 특수문자도 정답', () => {
+    for (const a of ['<', '＜', '〈', '‹', ' < ']) expect(m('<', a), a).toBe('correct');
+    for (const a of ['>', '＞', '〉', '›']) expect(m('>', a), a).toBe('correct');
+    expect(m('<', '>')).toBe('wrong');
+    expect(m('>', '<')).toBe('wrong');
+  });
+  it('식 안의 기호', () => {
+    expect(m('3<5', '3 ＜ 5')).toBe('correct');
+    expect(m('3<5', '3>5')).toBe('wrong');
+    expect(m('≤', '≦')).toBe('correct');
+    expect(m('=', '＝')).toBe('correct');
+    expect(m('3×4', '3*4')).toBe('correct');
+  });
+  it('칸이 여러 개인 문항에도', () => {
+    const qb = { type: 'short', blankCount: 2 };
+    expect(gradeAnswer(qb, { boxes: ['<', '>'] }, ['〈', '＞'], 'normal', '수학').status).toBe('correct');
+  });
+});

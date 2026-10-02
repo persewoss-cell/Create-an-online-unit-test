@@ -13,7 +13,7 @@
 
 import {
   collection, collectionGroup, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp, updateDoc, deleteField,
-  setDoc, deleteDoc, onSnapshot, getDocFromServer, increment,
+  setDoc, deleteDoc, onSnapshot, getDocFromServer, increment, arrayUnion,
 } from 'firebase/firestore';
 import {
   signInWithEmailAndPassword, signOut, signInAnonymously, onAuthStateChanged, reauthenticateWithCredential,
@@ -433,6 +433,25 @@ export function setOverride(examId, studentId, no, value) {
     [`overrides.${no}`]: value ?? deleteField(),
     reviewedAt: serverTimestamp(),
   });
+}
+
+/** 오답만 재응시 켜기/끄기 (여러 학생 한꺼번에). 처음 점수는 바뀌지 않는다 */
+export async function setRetake(examId, studentIds, on) {
+  await commitOps(
+    studentIds.map((sid) => (b) => b.update(doc(db, 'exams', examId, 'submissions', sid), { retake: { on: !!on } })),
+  );
+}
+
+/** 학생: 오답 재응시 답안 제출 (다시 푼 기록에 한 줄 추가, 처음 답안·점수는 그대로) */
+export async function submitRetake(examId, profile, answers) {
+  try {
+    await updateDoc(doc(db, 'exams', examId, 'submissions', studentIdOf(profile)), {
+      retakes: arrayUnion({ answers: stringKeys(answers), at: Date.now() }),
+    });
+  } catch (e) {
+    if (e.code === 'permission-denied') throw new Error('지금은 오답 재응시를 제출할 수 없어요. 선생님께 문의하세요.');
+    throw e;
+  }
 }
 
 /** 응시 기록 삭제 → 그 학생은 다시 응시할 수 있다 */
