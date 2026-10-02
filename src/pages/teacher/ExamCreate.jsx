@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import TeacherBar from '../../components/TeacherBar.jsx';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import TeacherBar, { ListButton } from '../../components/TeacherBar.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
@@ -24,7 +24,27 @@ export default function ExamCreate() {
   const [groups, setGroups] = useState([]);
   const [aspects, setAspects] = useState([]);
   const [widthsCm, setWidthsCm] = useState([]);
-  const [step, setStep] = useState(1);
+  const location = useLocation();
+  const [params, setParams] = useSearchParams();
+  // 단계는 주소(?step=2)에 둔다 → 2단계에서 뒤로가기를 누르면 1단계로 (올린 문제지·인식 결과는 그대로)
+  const [ready2, setReady2] = useState(false);
+  const pushedStep = useRef(false); // 2단계를 기록에 하나 쌓았는지
+  const step = params.get('step') === '2' && ready2 ? 2 : 1;
+  const setStep = (n) => {
+    if (n === 2) {
+      setReady2(true);
+      if (params.get('step') !== '2') {
+        pushedStep.current = true;
+        setParams({ step: '2' }, { state: location.state });
+      }
+    } else if (params.get('step') === '2') {
+      if (pushedStep.current && (window.history.state?.idx ?? 0) > 0) {
+        pushedStep.current = false;
+        nav(-1);
+      }
+      else setParams({}, { replace: true, state: location.state });
+    }
+  };
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [warnings, setWarnings] = useState([]);
@@ -122,7 +142,13 @@ export default function ExamCreate() {
         },
         (i, n) => setBusy(`문제지 이미지 저장 중… (${i}/${n})`),
       );
-      nav(`/teacher/exam/${id}`);
+      // 저장하면 만들기 화면(1·2단계)은 기록에서 빼고 평가 화면으로 → 거기서 뒤로가기하면 목록
+      const finish = () => nav(`/teacher/exam/${id}`, { replace: true, state: location.state });
+      if (pushedStep.current) {
+        pushedStep.current = false;
+        window.addEventListener('popstate', () => setTimeout(finish, 0), { once: true });
+        nav(-1);
+      } else finish();
     } catch (err) {
       setError(`저장하지 못했습니다: ${err.message}`);
       setErrorPopup([`저장 중 오류가 났어요: ${err.message}`, '인터넷 연결을 확인한 뒤 다시 저장해 주세요.']);
@@ -133,7 +159,7 @@ export default function ExamCreate() {
   return (
     <>
       <TeacherBar>
-        <Link to="/teacher/dashboard" className="btn sm">목록</Link>
+        <ListButton />
       </TeacherBar>
       <div className="container">
         <h1>새 단원평가 만들기</h1>

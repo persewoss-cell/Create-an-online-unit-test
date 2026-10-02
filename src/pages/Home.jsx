@@ -1,9 +1,10 @@
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import TopBar from '../components/TopBar.jsx';
 import Loading from '../components/Loading.jsx';
 import { useTeacher } from '../components/TeacherAuth.jsx';
 import StudentLogin from './student/StudentLogin.jsx';
 import TeacherLoginForm from './teacher/TeacherLoginForm.jsx';
+import AlreadyLoggedIn from '../components/AlreadyLoggedIn.jsx';
 
 const TABS = [
   ['student', '학생 로그인'],
@@ -17,7 +18,6 @@ export default function Home() {
   const { teacher, loading } = useTeacher();
 
   if (tab === 'teacher' && loading) return <Loading />;
-  if (tab === 'teacher' && teacher) return <Navigate to="/teacher/dashboard" replace />;
 
   return (
     <>
@@ -41,7 +41,7 @@ export default function Home() {
             </button>
           ))}
         </div>
-        {tab === 'teacher' ? <TeacherLoginForm /> : <StudentLogin />}
+        {tab === 'teacher' ? (teacher ? <AlreadyLoggedIn /> : <TeacherLoginForm />) : <StudentLogin />}
         {tab === 'teacher' && (
           <div className="teacher-link"><Link to="/admin">관리자 로그인 →</Link></div>
         )}

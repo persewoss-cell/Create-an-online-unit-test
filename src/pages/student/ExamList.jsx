@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { backState } from '../../lib/nav.js';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { loadStudent, clearStudent } from '../../lib/student.js';
@@ -8,6 +9,7 @@ import { useToast } from '../../components/Toast.jsx';
 
 export default function ExamList() {
   const nav = useNavigate();
+  const location = useLocation();
   const p = loadStudent();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -85,7 +87,7 @@ export default function ExamList() {
 
   function logout() {
     clearStudent();
-    nav('/');
+    nav('/', { replace: true });
   }
 
   const doneIds = new Set((data?.mine || []).map((m) => m.exam.id));
@@ -106,10 +108,10 @@ export default function ExamList() {
         {done ? (
           <button className="btn done-btn" disabled aria-label="응시 완료">✔ 응시 완료</button>
         ) : (
-          <button className="btn primary" onClick={() => nav(`/exam/${e.id}`)}>평가 시작</button>
+          <button className="btn primary" onClick={() => nav(`/exam/${e.id}`, { state: backState(location) })}>평가 시작</button>
         )}
         {done && (
-          <button className="btn result-btn" onClick={() => nav(`/exam/${e.id}/result`)}>평가 결과</button>
+          <button className="btn result-btn" onClick={() => nav(`/exam/${e.id}/result`, { state: backState(location) })}>평가 결과</button>
         )}
       </div>
     </div>

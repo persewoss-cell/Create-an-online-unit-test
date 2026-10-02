@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { backState, goBackTo } from '../../lib/nav.js';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { GradedPaper } from '../../components/ExamViews.jsx';
@@ -16,6 +17,7 @@ import { stableKey } from '../../lib/format.js';
 export default function Result() {
   const { id } = useParams();
   const nav = useNavigate();
+  const location = useLocation();
   const p = loadStudent();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -49,7 +51,7 @@ export default function Result() {
                 notify('선생님이 처음부터 다시 볼 수 있게 했어요.', {
                   kind: 'success',
                   sticky: true,
-                  action: { label: '다시 보기', onClick: () => nav(`/exam/${id}`, { replace: true }) },
+                  action: { label: '다시 보기', onClick: () => nav(`/exam/${id}`, { replace: true, state: location.state }) },
                 });
               }
               return;
@@ -109,7 +111,7 @@ export default function Result() {
         <TopBar who={who} />
         <div className="container narrow">
           <div className="alert warn">{error}</div>
-          <p><button className="btn" onClick={() => nav('/exams')}>평가 목록으로</button></p>
+          <p><button className="btn" onClick={() => goBackTo(nav, location, '/exams')}>평가 목록으로</button></p>
         </div>
       </>
     );
@@ -121,7 +123,7 @@ export default function Result() {
   return (
     <>
       <TopBar who={who}>
-        <button className="btn sm" onClick={() => nav('/exams')}>평가 목록</button>
+        <button className="btn sm" onClick={() => goBackTo(nav, location, '/exams')}>평가 목록</button>
       </TopBar>
       {toast}
       <div className="container" style={{ maxWidth: 940 }}>
@@ -162,7 +164,7 @@ export default function Result() {
               ) : !rt.remaining.length ? (
                 <button className="btn retake-done" disabled aria-label="선생님 확인 중">선생님 확인 중</button>
               ) : (
-                <button className="btn primary" onClick={() => nav(`/exam/${id}/retake`)}>
+                <button className="btn primary" onClick={() => nav(`/exam/${id}/retake`, { state: backState(location) })}>
                   오답 재응시 ({rt.remaining.length}문제)
                 </button>
               )}

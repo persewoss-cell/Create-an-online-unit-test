@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { backState } from '../../lib/nav.js';
 import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
@@ -15,8 +16,16 @@ import AdminPanel from './AdminPanel.jsx';
 
 export const STATUS = { draft: '개시 전', open: '응시 중', closed: '마감' };
 
-export default function Dashboard() {
-  const { teacher, owner, isAdmin, viewing, setTeacher } = useTeacher();
+export default function Dashboard({ adminRoute = false }) {
+  const { teacher, owner: roomOwner, isAdmin, viewing, setTeacher, viewAs } = useTeacher();
+  const location = useLocation();
+  // 관리자 화면(/teacher/admin)과 선생님 방(/teacher/dashboard)은 주소가 달라서 뒤로가기로 오갈 수 있다
+  const owner = adminRoute ? teacher : roomOwner;
+  // 관리자 화면에 "도착"했을 때만(뒤로가기 등) 선생님 방에서 나온다 — 방 들어가기를 누른 순간에는 건드리지 않음
+  useEffect(() => {
+    if (adminRoute) viewAs(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminRoute, location.key]);
   const nav = useNavigate();
   const [exams, setExams] = useState(null);
   const [stats, setStats] = useState({});
@@ -112,11 +121,13 @@ export default function Dashboard() {
   async function doLogout() {
     await logout();
     setTeacher(null);
-    nav('/');
+    nav('/?tab=teacher', { replace: true });
   }
 
   // 관리자가 선생님 방에 들어가지 않았을 때: 선생님 관리 + (옮기기 전) 관리자 계정의 예전 평가
-  const adminHome = isAdmin && !viewing;
+  const adminHome = isAdmin && adminRoute;
+  if (adminRoute && !isAdmin) return <Navigate to="/teacher/dashboard" replace />;
+  if (!adminRoute && isAdmin && !viewing) return <Navigate to="/teacher/admin" replace />;
 
   return (
     <>
@@ -134,8 +145,8 @@ export default function Dashboard() {
             </h1>
             {!adminHome && (
               <div className="row">
-                <Link to="/teacher/students" className="btn">👥 학생 명단</Link>
-                <Link to="/teacher/new" className="btn primary">+ 새 평가 만들기</Link>
+                <Link to="/teacher/students" state={backState(location)} className="btn">👥 학생 명단</Link>
+                <Link to="/teacher/new" state={backState(location)} className="btn primary">+ 새 평가 만들기</Link>
                 <button type="button" className="btn" onClick={() => setImportOpen(true)}>📥 공유 시험지 가져오기</button>
               </div>
             )}
@@ -148,7 +159,7 @@ export default function Dashboard() {
           <div className="card center">
             <p>아직 만든 평가가 없습니다.</p>
             <div className="row" style={{ justifyContent: 'center' }}>
-              <Link to="/teacher/new" className="btn primary">문제·정답 PDF로 첫 평가 만들기</Link>
+              <Link to="/teacher/new" state={backState(location)} className="btn primary">문제·정답 PDF로 첫 평가 만들기</Link>
               <button type="button" className="btn" onClick={() => setImportOpen(true)}>📥 공유 시험지 가져오기</button>
             </div>
           </div>
@@ -169,7 +180,7 @@ export default function Dashboard() {
                   return (
                     <tr key={e.id}>
                       <td>
-                        <Link to={`/teacher/exam/${e.id}`}><b>{e.title}</b></Link>
+                        <Link to={`/teacher/exam/${e.id}`} state={backState(location)}><b>{e.title}</b></Link>
                         <div className="muted small">{e.unit}{e.importedFrom ? ` · 공유 시험지(${e.importedFrom.by})` : ''}</div>
                       </td>
                       <td>{e.subject}</td>
@@ -179,7 +190,7 @@ export default function Dashboard() {
                       <td className="c">{st?.avg ?? '-'}</td>
                       <td className="c">
                         {st?.review ? (
-                          <Link to={`/teacher/exam/${e.id}?tab=review`} className="badge review">{st.review}건</Link>
+                          <Link to={`/teacher/exam/${e.id}?tab=review`} state={backState(location)} className="badge review">{st.review}건</Link>
                         ) : st ? '-' : '…'}
                       </td>
                       <td className="c nowrap">

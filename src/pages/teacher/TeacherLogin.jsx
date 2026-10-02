@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import AlreadyLoggedIn from '../../components/AlreadyLoggedIn.jsx';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
@@ -31,7 +32,6 @@ export default function TeacherLogin() {
   const [busy, setBusy] = useState(false);
 
   if (loading) return <Loading />;
-  if (teacher) return <Navigate to="/teacher/dashboard" replace />;
 
   async function submit(e) {
     e.preventDefault();
@@ -45,7 +45,7 @@ export default function TeacherLogin() {
       } catch {
         /* 무시 */
       }
-      nav('/teacher/dashboard');
+      nav('/teacher/admin');
     } catch (err) {
       setError(AUTH_ERR[err.code] || err.message);
       setBusy(false);
@@ -60,6 +60,7 @@ export default function TeacherLogin() {
           <div className="emoji">🧑‍🏫</div>
           <h1>관리자 로그인</h1>
         </div>
+        {teacher ? <AlreadyLoggedIn /> : (
         <form className="card stack" onSubmit={submit}>
           <label className="field">
             <span>비밀번호</span>
@@ -81,6 +82,7 @@ export default function TeacherLogin() {
           {error && <div className="alert error">{error}</div>}
           <button className="btn primary block lg" disabled={busy}>{busy ? '확인 중…' : '로그인'}</button>
         </form>
+        )}
         <div className="teacher-link"><Link to="/?tab=teacher">← 교사 로그인으로</Link></div>
       </div>
     </>

@@ -420,3 +420,4 @@ button.mark { cursor: pointer; }
 /* 시험지 공유 */
 .btn.shared-on { background: var(--ok-weak); border-color: var(--ok); color: var(--ok); }
 .shared-modal { max-width: 860px; max-height: 86vh; overflow: auto; }
+.center-text { text-align: center; }

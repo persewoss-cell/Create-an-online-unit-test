@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import TeacherBar from '../../components/TeacherBar.jsx';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import TeacherBar, { ListButton } from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
 import { GradedPaper, Regions, regionsOf, stackRatio } from '../../components/ExamViews.jsx';
@@ -32,6 +32,7 @@ const TABS = [
 export default function ExamDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') || 'results';
   const [exam, setExam] = useState(null);
@@ -81,7 +82,7 @@ export default function ExamDetail() {
   return (
     <>
       <TeacherBar>
-        <Link to="/teacher/dashboard" className="btn sm">목록</Link>
+        <ListButton />
       </TeacherBar>
       <div className="container">
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -107,7 +108,7 @@ export default function ExamDetail() {
 
         <div className="tabs">
           {TABS.map(([k, label]) => (
-            <button key={k} className={tab === k ? 'active' : ''} onClick={() => setParams({ tab: k }, { replace: true })}>
+            <button key={k} className={tab === k ? 'active' : ''} onClick={() => setParams({ tab: k }, { replace: true, state: location.state })}>
               {label}{k === 'review' && reviewCount ? ` (${reviewCount})` : ''}
             </button>
           ))}
@@ -145,7 +146,7 @@ export default function ExamDetail() {
             exam={exam}
             onSaved={(patch) => setExam({ ...exam, ...patch })}
             onPages={setPages}
-            onDeleted={() => nav('/teacher/dashboard')}
+            onDeleted={() => nav('/teacher/dashboard', { replace: true })}
           />
         )}
       </div>

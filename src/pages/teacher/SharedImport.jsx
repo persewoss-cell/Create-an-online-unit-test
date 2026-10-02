@@ -23,7 +23,7 @@ export default function SharedImport({ owner, onClose }) {
     try {
       const id = await importSharedExam(e, owner);
       onClose();
-      nav(`/teacher/exam/${id}`);
+      nav(`/teacher/exam/${id}`, { state: { back: '/teacher/dashboard' } });
     } catch (err) {
       setError(`가져오지 못했어요: ${err.message}`);
       setBusy('');

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { goBackTo } from '../lib/nav.js';
 import TopBar from './TopBar.jsx';
 import { useTeacher } from './TeacherAuth.jsx';
 import { teacherLabel } from '../lib/school.js';
@@ -35,10 +36,11 @@ function AlertToggle() {
 export default function TeacherBar({ children }) {
   const { teacher, isAdmin, viewing, viewAs } = useTeacher();
   const nav = useNavigate();
+  const location = useLocation();
   const who = isAdmin ? '관리자' : teacherLabel(teacher);
   return (
     <>
-      <TopBar home="/teacher/dashboard" who={who}>
+      <TopBar home={isAdmin && !viewing ? '/teacher/admin' : '/teacher/dashboard'} who={who}>
         <AlertToggle />
         {children}
       </TopBar>
@@ -49,7 +51,7 @@ export default function TeacherBar({ children }) {
             className="btn sm"
             onClick={() => {
               viewAs(null);
-              nav('/teacher/dashboard');
+              goBackTo(nav, location, '/teacher/admin');
             }}
           >
             관리자 화면으로
@@ -57,5 +59,14 @@ export default function TeacherBar({ children }) {
         </div>
       )}
     </>
+  );
+}
+
+/** 상단 [목록]: 목록에서 왔으면 뒤로 가기(기록이 쌓이지 않게), 아니면 목록으로 */
+export function ListButton() {
+  const nav = useNavigate();
+  const location = useLocation();
+  return (
+    <button type="button" className="btn sm" onClick={() => goBackTo(nav, location, '/teacher/dashboard')}>목록</button>
   );
 }

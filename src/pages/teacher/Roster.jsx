@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import TeacherBar from '../../components/TeacherBar.jsx';
+import TeacherBar, { ListButton } from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
@@ -104,7 +103,7 @@ export default function Roster() {
   return (
     <>
       <TeacherBar>
-        <Link to="/teacher/dashboard" className="btn sm">목록</Link>
+        <ListButton />
       </TeacherBar>
       <div className="container" style={{ maxWidth: 900 }}>
         <h1>학생 명단 <span className="muted small">{owner?.school}</span></h1>

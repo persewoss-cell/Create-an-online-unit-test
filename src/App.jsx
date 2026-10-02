@@ -27,6 +27,7 @@ export default function App() {
         <Route path="/admin" element={<TeacherLogin />} />
         <Route path="/teacher" element={<Navigate to="/?tab=teacher" replace />} />
         <Route path="/teacher/dashboard" element={<RequireTeacher><Dashboard /></RequireTeacher>} />
+        <Route path="/teacher/admin" element={<RequireTeacher><Dashboard adminRoute /></RequireTeacher>} />
         <Route path="/teacher/new" element={<RequireTeacher><ExamCreate /></RequireTeacher>} />
         <Route path="/teacher/exam/:id" element={<RequireTeacher><ExamDetail /></RequireTeacher>} />
         <Route path="/teacher/students" element={<RequireTeacher><Roster /></RequireTeacher>} />

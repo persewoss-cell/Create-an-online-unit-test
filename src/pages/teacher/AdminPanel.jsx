@@ -64,7 +64,7 @@ export default function AdminPanel({ onMoved }) {
 
   function enter(t) {
     viewAs(t);
-    nav('/teacher/dashboard');
+    nav('/teacher/dashboard', { state: { back: '/teacher/admin' } });
   }
 
   function savePassword(t) {

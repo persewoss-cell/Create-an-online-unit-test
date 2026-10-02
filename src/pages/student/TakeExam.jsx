@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { goBackTo } from '../../lib/nav.js';
 import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { AnswerInput, FitRegions, regionsOf, stackRatio, useSize, unitsPerCm } from '../../components/ExamViews.jsx';
@@ -53,6 +54,7 @@ function restoreDraft(draft, questions) {
 export default function TakeExam({ retake = false }) {
   const { id } = useParams();
   const nav = useNavigate();
+  const location = useLocation();
   const p = loadStudent();
   const [exam, setExam] = useState(null);
   const [pages, setPages] = useState(null);
@@ -123,11 +125,11 @@ export default function TakeExam({ retake = false }) {
         if (retake) {
           // 오답 재응시: 임시 저장·실시간 반영 없이, 남은 오답만
           const sub = await getMySubmission(id, studentIdOf(p));
-          if (!sub) return nav(`/exam/${id}`, { replace: true });
+          if (!sub) return nav(`/exam/${id}`, { replace: true, state: location.state });
           const [e, keys] = await Promise.all([getExam(id), getKeys(id)]);
           if (!e) throw new Error('평가를 찾을 수 없습니다.');
           const st = retakeState(e, keys, sub);
-          if (!st.enabled || st.done) return nav(`/exam/${id}/result`, { replace: true });
+          if (!st.enabled || st.done) return nav(`/exam/${id}/result`, { replace: true, state: location.state });
           const only = { ...e, questions: e.questions.filter((q) => st.remaining.includes(q.no)) };
           examRef.current = only;
           setExam(only);
@@ -135,8 +137,8 @@ export default function TakeExam({ retake = false }) {
           return;
         }
         const state = await submissionState(id, studentIdOf(p));
-        if (state === 'mine') return nav(`/exam/${id}/result`, { replace: true });
-        if (state === 'taken') return nav(`/exam/${id}/result`, { replace: true });
+        if (state === 'mine') return nav(`/exam/${id}/result`, { replace: true, state: location.state });
+        if (state === 'taken') return nav(`/exam/${id}/result`, { replace: true, state: location.state });
         const e = await getExam(id);
         if (!e || e.status !== 'open') throw new Error('지금은 볼 수 없는 평가입니다.');
         // 풀던 답 불러오기: 이 기기(localStorage)와 서버 중 더 최근 것
@@ -219,7 +221,7 @@ export default function TakeExam({ retake = false }) {
         <TopBar who={who} />
         <div className="container narrow">
           <div className="alert error">{error}</div>
-          <p><button className="btn" onClick={() => nav('/exams')}>평가 목록으로</button></p>
+          <p><button className="btn" onClick={() => goBackTo(nav, location, '/exams')}>평가 목록으로</button></p>
         </div>
       </>
     );
@@ -252,7 +254,8 @@ export default function TakeExam({ retake = false }) {
       for (const x of qs) clean[x.no] = cleanAnswer(x, answers[x.no]);
       if (retake) {
         await submitRetake(id, p, clean);
-        nav(`/exam/${id}/result`, { replace: true });
+        // 결과 화면에서 왔으면 그 기록으로 돌아감 (결과 화면이 기록에 두 번 쌓이지 않게)
+        goBackTo(nav, location, `/exam/${id}/result`);
         return;
       }
       await submitAnswers(id, p, clean);
@@ -260,7 +263,7 @@ export default function TakeExam({ retake = false }) {
       pendingDraft.current = null;
       clearDraft(id, p);
       deleteServerDraft(id, p);
-      nav(`/exam/${id}/result`, { replace: true });
+      nav(`/exam/${id}/result`, { replace: true, state: location.state });
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
