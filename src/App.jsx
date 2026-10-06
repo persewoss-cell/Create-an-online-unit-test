@@ -4,6 +4,7 @@ import { TeacherProvider, RequireTeacher } from './components/TeacherAuth.jsx';
 import TeacherAlerts from './components/TeacherAlerts.jsx';
 import SetupGuide from './components/SetupGuide.jsx';
 import Home from './pages/Home.jsx';
+import Guide from './pages/Guide.jsx';
 import ExamList from './pages/student/ExamList.jsx';
 import TakeExam from './pages/student/TakeExam.jsx';
 import Result from './pages/student/Result.jsx';
@@ -20,6 +21,7 @@ export default function App() {
       <TeacherAlerts />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/guide" element={<Guide />} />
         <Route path="/exams" element={<ExamList />} />
         <Route path="/exam/:id" element={<TakeExam key="take" />} />
         <Route path="/exam/:id/result" element={<Result />} />
