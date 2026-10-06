@@ -21,6 +21,7 @@ import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '..
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { STATUS } from './Dashboard.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
+import PrintSheets from '../../components/PrintSheets.jsx';
 import { openPdf, renderPages, readFileAsArrayBuffer } from '../../lib/pdfText.js';
 
 const MARK = { correct: 'O', wrong: 'X', review: '?' };
@@ -60,6 +61,7 @@ export default function ExamDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const [printRows, setPrintRows] = useState(null); // 인쇄할 결과지 (학생들)
   const graded = useMemo(() => {
     if (!exam || !keys || !subs) return [];
     return sortSubmissions(subs).map((s) => ({ s, r: gradeSubmission(exam, keys, s) }));
@@ -128,6 +130,7 @@ export default function ExamDetail() {
             onJudge={judge}
             examId={id}
             keys={keys}
+            onPrint={pages?.length ? setPrintRows : null}
           />
         )}
         {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} pages={pages} examId={id} />}
@@ -155,8 +158,9 @@ export default function ExamDetail() {
       </div>
 
       {detailRow && (
-        <StudentDetail exam={exam} keys={keys} row={detailRow} onJudge={judge} onClose={() => setDetail(null)} pages={pages} initialPaper={detailPaper} />
+        <StudentDetail exam={exam} keys={keys} row={detailRow} onJudge={judge} onClose={() => setDetail(null)} pages={pages} initialPaper={detailPaper} onPrint={() => setPrintRows([detailRow])} />
       )}
+      {printRows && <PrintSheets exam={exam} keys={keys} pages={pages} rows={printRows} onDone={() => setPrintRows(null)} />}
     </>
   );
 }
@@ -207,7 +211,7 @@ function nextOverride(item) {
   return null;
 }
 
-function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys }) {
+function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint }) {
   if (!graded.length) return <div className="card center muted">아직 제출한 학생이 없습니다.</div>;
   const states = Object.fromEntries(graded.map(({ s, r }) => [s.id, retakeState(exam, keys, s, r)]));
   async function allowRetake(s) {
@@ -241,6 +245,14 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys }) {
   return (
     <div className="card table-wrap" style={{ padding: 0 }}>
       <div className="row" style={{ padding: '10px 12px', justifyContent: 'flex-end' }}>
+        <button
+          className="btn sm"
+          onClick={() => onPrint(graded)}
+          disabled={!onPrint}
+          title={onPrint ? '채점된 결과지를 학생마다 새 쪽으로 한꺼번에 인쇄합니다' : '문제지 이미지를 불러오는 중입니다'}
+        >
+          🖨 전체 결과지 인쇄 ({graded.length}명)
+        </button>
         <button className="btn sm" onClick={allWrongRetake} disabled={!waiting.length}>
           전체 학생 오답만 재응시{waiting.length ? ` (${waiting.length}명)` : ''}
         </button>
@@ -262,7 +274,10 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys }) {
               <td className="c"><b>{r.score100}</b></td>
               <td className="c nowrap small"><RetakeCell st={states[s.id]} /></td>
               <td className="c">
-                <button className="btn xs" onClick={() => onOpen(s.id, true)} aria-label={`${s.name} 결과지`}>📄 보기</button>
+                <span className="row" style={{ gap: 4, flexWrap: 'nowrap', justifyContent: 'center' }}>
+                  <button className="btn xs" onClick={() => onOpen(s.id, true)} aria-label={`${s.name} 결과지`}>📄 보기</button>
+                  <button className="btn xs" onClick={() => onPrint([{ s, r }])} disabled={!onPrint} aria-label={`${s.name} 결과지 인쇄`} title="이 학생 결과지 인쇄">🖨 인쇄</button>
+                </span>
               </td>
               {r.items.map((it, i) => (
                 <td key={it.no} className="c qcol">
@@ -609,7 +624,7 @@ function SettingsTab({ exam, onSaved, onPages, onDeleted }) {
   );
 }
 
-function StudentDetail({ exam, keys, row, onJudge, onClose, pages, initialPaper }) {
+function StudentDetail({ exam, keys, row, onJudge, onClose, pages, initialPaper, onPrint }) {
   const { s, r } = row;
   const [paper, setPaper] = useState(!!initialPaper);
   return (
@@ -621,6 +636,7 @@ function StudentDetail({ exam, keys, row, onJudge, onClose, pages, initialPaper 
             <button className="btn sm" onClick={() => setPaper(!paper)} disabled={!pages?.length}>
               {paper ? '표로 보기' : '채점된 시험지 보기'}
             </button>
+            <button className="btn sm" onClick={onPrint} disabled={!pages?.length}>🖨 결과지 인쇄</button>
             <button className="btn sm" onClick={onClose}>닫기</button>
           </div>
         </div>

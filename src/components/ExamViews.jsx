@@ -475,8 +475,11 @@ function placeLabels(exam, pages, grids, byNo, keys, answers, result, hideKeys) 
 /**
  * @param {{exam, pages:string[], keys, answers, result, hideKeys?:boolean}} props  result = gradeSubmission(...)
  *   hideKeys: 틀린 문제에 정답을 써 주지 않음 (학생 화면)
+ *   header: 첫 쪽 위에 붙일 내용 (인쇄용 학생 정보·부모님 확인란)
+ *   printFit: 인쇄할 때 한 쪽이 A4 한 장에 들어가도록 폭을 맞춤 (첫 쪽은 header 높이 headerMm 만큼 줄임)
+ *   onReady: 채점 표시 위치 계산이 끝나면 한 번 호출
  */
-export function GradedPaper({ exam, pages, keys, answers, result, hideKeys = false }) {
+export function GradedPaper({ exam, pages, keys, answers, result, hideKeys = false, header = null, printFit = false, headerMm = 0, onReady }) {
   const byNo = Object.fromEntries(result.items.map((it) => [it.no, it]));
   const [grids, setGrids] = useState(null);
   useEffect(() => {
@@ -488,21 +491,29 @@ export function GradedPaper({ exam, pages, keys, answers, result, hideKeys = fal
       alive = false;
     };
   }, [pages, exam]);
+  useEffect(() => {
+    if (grids) onReady?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grids]);
   const labels = useMemo(
     () => (grids ? placeLabels(exam, pages, grids, byNo, keys, answers, result, hideKeys) : {}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [grids, exam, pages, keys, answers, result, hideKeys],
   );
   return (
-    <div className="graded">
+    <div className={`graded ${printFit ? 'print-fit' : ''}`}>
       {pages.map((src, pi) => {
         const page = pi + 1;
         const aspect = aspectOf(exam, page);
         const W = 1000;
         const H = W / aspect;
         const qs = exam.questions.filter((q) => q.anchor && q.anchor.page === page);
+        // A4(인쇄 영역 190×277mm)에 한 쪽씩: 폭을 줄여 높이가 넘치지 않게
+        const fit = printFit ? { width: `min(190mm, calc((277mm - ${pi === 0 ? headerMm : 0}mm) * ${aspect}))` } : undefined;
         return (
-          <div className="graded-page" key={pi}>
+          <div className={`graded-sheet ${pi === 0 ? 'first' : ''}`} key={pi}>
+          {pi === 0 && header && <div className="graded-head" style={fit}>{header}</div>}
+          <div className="graded-page" style={fit}>
             <img src={src} alt={`${page}쪽`} />
             <svg viewBox={`0 0 ${W} ${H}`} className="marks" aria-hidden="true">
               <defs>
@@ -605,6 +616,7 @@ export function GradedPaper({ exam, pages, keys, answers, result, hideKeys = fal
                 );
               })}
             </svg>
+          </div>
           </div>
         );
       })}
