@@ -25,6 +25,7 @@ export default function ExamCreate() {
   });
   const [qFile, setQFile] = useState(null);
   const [groups, setGroups] = useState([]);
+  const [masks, setMasks] = useState([]); // 선생님이 문제지에서 가린 부분(흰 칸)
   const [aspects, setAspects] = useState([]);
   const [widthsCm, setWidthsCm] = useState([]);
   const location = useLocation();
@@ -107,6 +108,7 @@ export default function ExamCreate() {
       setAspects(imgs.map((x) => x.aspect));
       setWidthsCm(imgs.map((x) => Math.round(x.widthCm * 100) / 100));
       setGroups(grps);
+      setMasks([]);
       setItems(toItems(fillDefaultPoints(questions), {}));
       setWarnings(qWarn);
       setAnalyzed({ count: questions.length, pageCount: imgs.length, found });
@@ -150,6 +152,7 @@ export default function ExamCreate() {
             classes: target ? target.classes : [],
             leniency: meta.leniency,
             groups,
+            masks,
             pageAspects: aspects,
             pageWidthsCm: widthsCm,
           },
@@ -230,7 +233,11 @@ export default function ExamCreate() {
               </div>
             )}
             <ExamPreviewEditor
-              view={{ groups, pageAspects: aspects }}
+              view={{ groups, pageAspects: aspects, masks }}
+              onViewChange={(v) => {
+                if (v.groups) setGroups(v.groups);
+                if (v.masks) setMasks(v.masks);
+              }}
               pages={pages}
               items={items}
               onChange={setItems}

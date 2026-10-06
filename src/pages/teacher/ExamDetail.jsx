@@ -141,8 +141,8 @@ export default function ExamDetail() {
             keys={keys}
             pages={pages}
             hasSubs={subs.length > 0}
-            onSaved={(questions, newKeys) => {
-              setExam({ ...exam, questions });
+            onSaved={(questions, newKeys, extra) => {
+              setExam({ ...exam, questions, ...extra });
               setKeys(newKeys);
             }}
           />
@@ -520,6 +520,8 @@ function AnalysisTab({ exam, keys, graded }) {
 
 function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
   const [items, setItems] = useState(() => toItems(exam.questions, keys));
+  const [groups, setGroups] = useState(() => exam.groups || []);
+  const [masks, setMasks] = useState(() => exam.masks || []);
   const [errs, setErrs] = useState([]);
   const [popup, setPopup] = useState(null); // 지금 화면 가운데에 띄울 저장 오류
   const [msg, setMsg] = useState('');
@@ -541,8 +543,8 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
           return stableKey(view(old)) !== stableKey(view(q)) || stableKey(keys[q.no] ?? keys[String(q.no)]) !== stableKey(k[q.no]);
         })
         .map((q) => q.no);
-      await saveQuestionsAndKeys(exam.id, questions, k, changed);
-      onSaved(questions, k);
+      await saveQuestionsAndKeys(exam.id, questions, k, changed, { groups, masks });
+      onSaved(questions, k, { groups, masks });
       setMsg('저장했습니다. 모든 학생의 점수가 새 정답으로 다시 채점됩니다.');
     } catch (err) {
       setErrs([err.message]);
@@ -558,7 +560,18 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
       {hasSubs && <div className="alert info">이미 응시한 학생이 있습니다. 정답을 고치면 저장 즉시 모든 학생이 새 정답으로 다시 채점됩니다.</div>}
       {errs.length > 0 && <div className="alert error"><ul>{errs.map((x, i) => <li key={i}><ErrorLine text={x} /></li>)}</ul></div>}
       {msg && <div className="alert success">{msg}</div>}
-      <ExamPreviewEditor view={exam} pages={pages} items={items} onChange={setItems} title={exam.title} />
+      <ExamPreviewEditor
+        view={{ ...exam, groups, masks }}
+        pages={pages}
+        items={items}
+        onChange={setItems}
+        title={exam.title}
+        structureLocked={hasSubs}
+        onViewChange={(v) => {
+          if (v.groups) setGroups(v.groups);
+          if (v.masks) setMasks(v.masks);
+        }}
+      />
       <div className="save-bar">
         {/* 저장 버튼 바로 옆에도 결과를 보여 준다 (맨 위까지 올라가지 않아도 되게) */}
         {errs.length > 0 && (

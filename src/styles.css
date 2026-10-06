@@ -186,6 +186,7 @@ button.mark { cursor: pointer; }
 /* ── 문항 잘라 보기 ── */
 .crop { position: relative; overflow: hidden; width: 100%; background: #fff; }
 .crop img { position: absolute; display: block; max-width: none; height: auto; user-select: none; }
+.modal-back .crop img { max-width: none; max-height: none; } /* 팝업 안에서도 잘라 보기 이미지가 줄어들지 않게 */
 .qview { display: flex; flex-direction: column; gap: 10px; }
 .qview-passage, .qview-question { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
 .qview-passage { border-left: 4px solid #c9d6f5; }
@@ -582,3 +583,39 @@ table.exam-list td.unit-col { min-width: 160px; }
 .guide-faq dt::before { content: 'Q. '; color: var(--primary); }
 .guide-faq dd { margin: 4px 0 0 0; color: var(--text); line-height: 1.7; }
 .guide-faq dd::before { content: 'A. '; color: var(--ok); font-weight: 700; }
+.crop-mask { position: absolute; background: #fff; }
+
+/* ───── 캡쳐 조정 창 ───── */
+.region-modal { position: relative; max-width: 1200px; width: 100%; max-height: 96vh; overflow: auto; }
+.re-toolbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 10px; background: #f4f6fa; border-radius: 8px; }
+.re-toolbar.off { opacity: 0.6; }
+.re-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .re-body { grid-template-columns: 1fr; } }
+.re-stage-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.re-stage { position: relative; background: #fff; box-shadow: var(--shadow); touch-action: none; user-select: none; cursor: default; }
+.re-stage.drawing { cursor: crosshair; }
+.re-stage img { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.re-box { position: absolute; cursor: move; }
+.re-box.reg { border: 2px solid #2f6fed; background: rgba(47, 111, 237, 0.08); }
+.re-box.mask { background: rgba(255, 255, 255, 0.85); border: 2px dashed #8a94a6; }
+.re-box.on { box-shadow: 0 0 0 2px rgba(47, 111, 237, 0.35); }
+.re-box.mask.on { border-color: #c0392b; }
+.re-label { position: absolute; left: -2px; top: -20px; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #2f6fed; color: #fff; white-space: nowrap; pointer-events: none; }
+.re-box.mask .re-label { background: #6b7487; }
+.re-h { position: absolute; width: 12px; height: 12px; background: #fff; border: 2px solid #2f6fed; border-radius: 3px; }
+.re-h.n, .re-h.s { left: calc(50% - 6px); cursor: ns-resize; }
+.re-h.e, .re-h.w { top: calc(50% - 6px); cursor: ew-resize; }
+.re-h.n { top: -7px; } .re-h.s { bottom: -7px; } .re-h.e { right: -7px; } .re-h.w { left: -7px; }
+.re-h.ne { top: -7px; right: -7px; cursor: nesw-resize; } .re-h.sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+.re-h.nw { top: -7px; left: -7px; cursor: nwse-resize; } .re-h.se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+.re-ghost { position: absolute; border: 1px dashed #b7c0cf; pointer-events: none; }
+.re-ghost span { position: absolute; right: 2px; top: 2px; font-size: 11px; color: #8a94a6; background: rgba(255, 255, 255, 0.8); padding: 0 4px; border-radius: 3px; }
+.re-preview { position: sticky; top: 0; background: #f4f6fa; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.re-preview .qview-question { background: #fff; }
+
+/* 문항 카드 위 도구 막대 (순서·추가·복제·합치기·나누기·삭제) */
+.pcard-bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
+.pcard-bar .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.pcard-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.pcard-tools select { width: auto; padding: 4px 8px; font-size: 13px; }
+.add-between { display: flex; justify-content: center; margin: 6px 0; }

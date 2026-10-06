@@ -482,9 +482,10 @@ export async function getKeys(examId) {
  * 문항·정답 저장. 정답을 먼저 저장한 뒤 평가 문서에 "고친 번호"와 수정 차례(revision)를 남긴다
  * → 시험 보는 학생 화면은 revision이 바뀐 것을 보고 바로 알림을 띄운다.
  */
-export async function saveQuestionsAndKeys(examId, questions, keys, changedNos = []) {
+export async function saveQuestionsAndKeys(examId, questions, keys, changedNos = [], extra = {}) {
   await setDoc(doc(db, 'exams', examId, 'private', 'key'), { keys: stringKeys(keys) });
-  await updateExam(examId, { questions, revision: increment(1), lastEdit: { nos: changedNos, at: Date.now() } });
+  // extra: 지문 묶음(groups)·가린 부분(masks)처럼 문항과 함께 고친 문제지 정보
+  await updateExam(examId, { questions, ...extra, revision: increment(1), lastEdit: { nos: changedNos, at: Date.now() } });
 }
 
 // ─────────────── 시험지 공유 ───────────────

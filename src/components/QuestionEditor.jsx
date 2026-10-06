@@ -396,7 +396,7 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
           문제 요약 (학생 화면에 표시)
           <input type="text" value={it.text || ''} onChange={(e) => onChange({ text: e.target.value })} />
         </label>
-        <button type="button" className="btn sm danger" onClick={onRemove} title="문항 삭제">삭제</button>
+        {onRemove && <button type="button" className="btn sm danger" onClick={onRemove} title="문항 삭제">삭제</button>}
       </div>
 
       <div style={{ marginTop: 10 }}>

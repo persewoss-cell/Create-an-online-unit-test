@@ -76,8 +76,8 @@ export function FitRegions({ exam, pages, sections, className = '' }) {
   );
 }
 
-/** 페이지 이미지에서 한 영역만 잘라서 표시 */
-export function Crop({ src, region, aspect }) {
+/** 페이지 이미지에서 한 영역만 잘라서 표시 (masks: 그 쪽에서 흰 칸으로 가릴 부분) */
+export function Crop({ src, region, aspect, masks = [] }) {
   const w = region.x1 - region.x0;
   const h = region.y1 - region.y0;
   if (!(w > 0 && h > 0)) return null;
@@ -89,13 +89,30 @@ export function Crop({ src, region, aspect }) {
         draggable={false}
         style={{ width: `${100 / w}%`, left: `${(-region.x0 / w) * 100}%`, top: `${(-region.y0 / h) * 100}%` }}
       />
+      {masks
+        .filter((m) => m.x1 > region.x0 && m.x0 < region.x1 && m.y1 > region.y0 && m.y0 < region.y1)
+        .map((m, i) => (
+          <div
+            key={i}
+            className="crop-mask"
+            style={{
+              left: `${((m.x0 - region.x0) / w) * 100}%`,
+              top: `${((m.y0 - region.y0) / h) * 100}%`,
+              width: `${((m.x1 - m.x0) / w) * 100}%`,
+              height: `${((m.y1 - m.y0) / h) * 100}%`,
+            }}
+          />
+        ))}
     </div>
   );
 }
 
+/** 문제지에서 가릴 부분(선생님이 정한 흰 칸) 중 그 쪽 것 */
+export const masksOn = (exam, page) => (exam?.masks || []).filter((m) => m.page === page);
+
 export function Regions({ exam, pages, regions }) {
   return regions.map((r, i) =>
-    pages[r.page - 1] ? <Crop key={i} src={pages[r.page - 1]} region={r} aspect={aspectOf(exam, r.page)} /> : null,
+    pages[r.page - 1] ? <Crop key={i} src={pages[r.page - 1]} region={r} aspect={aspectOf(exam, r.page)} masks={masksOn(exam, r.page)} /> : null,
   );
 }
 
@@ -104,7 +121,9 @@ export function QuestionView({ exam, q, pages }) {
   const group = q.group ? (exam.groups || []).find((g) => g.id === q.group) : null;
   if (!q.regions?.length) {
     const src = pages[(q.page || 1) - 1];
-    return src ? <img className="page-img" src={src} alt={`${q.page}쪽`} /> : <div className="muted">문제지 이미지가 없습니다.</div>;
+    return src
+      ? <Crop src={src} region={FULL_PAGE(q.page || 1)} aspect={aspectOf(exam, q.page || 1)} masks={masksOn(exam, q.page || 1)} />
+      : <div className="muted">문제지 이미지가 없습니다.</div>;
   }
   return (
     <div className="qview">
@@ -522,6 +541,10 @@ export function GradedPaper({ exam, pages, keys, answers, result, hideKeys = fal
                   <feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" />
                 </filter>
               </defs>
+              {/* 선생님이 가린 부분 */}
+              {masksOn(exam, page).map((m, i) => (
+                <rect key={`m${i}`} x={m.x0 * W} y={m.y0 * H} width={(m.x1 - m.x0) * W} height={(m.y1 - m.y0) * H} fill="#fff" />
+              ))}
               {page === 1 && labels.score && (
                 <g className="score-mark" filter="url(#pencil)">
                   <text x={labels.score.x + 6} y={labels.score.y + 54} className="hand red" fontSize="64">
