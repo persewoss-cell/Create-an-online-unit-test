@@ -51,19 +51,24 @@ function restoreDraft(draft, questions) {
 }
 
 /** retake=true: 오답 재응시 — 아직 못 맞힌 문제만 다시 풀고, 처음 점수는 그대로 */
-export default function TakeExam({ retake = false }) {
+/**
+ * preview: 선생님 미리보기 {exam, pages, startNo, onClose} — 학생과 똑같은 화면, 답은 저장·제출되지 않음
+ */
+export default function TakeExam({ retake = false, preview = null }) {
   const { id } = useParams();
   const nav = useNavigate();
   const location = useLocation();
-  const p = loadStudent();
-  const [exam, setExam] = useState(null);
-  const [pages, setPages] = useState(null);
+  const p = preview ? null : loadStudent();
+  const [exam, setExam] = useState(() => preview?.exam || null);
+  const [pages, setPages] = useState(() => preview?.pages || null);
   const [answers, setAnswers] = useState({});
   const [ready, setReady] = useState(false); // 임시 저장한 답을 불러온 뒤에만 저장
   const [saveState, setSaveState] = useState(''); // '' | 'saving' | 'saved' | 'local'
   const serverTimer = useRef(null);
   const pendingDraft = useRef(null);
-  const [cur, setCur] = useState(0);
+  const [cur, setCur] = useState(() =>
+    preview ? Math.max(0, preview.exam.questions.findIndex((x) => x.no === preview.startNo)) : 0,
+  );
   const [tool, setTool] = useState('pen');
   const [ruler, setRuler] = useState({ show: false, x: 60, y: 120, a: 0 });
   const [history, setHistory] = useState({}); // 문항별 되돌리기 기록
@@ -212,9 +217,9 @@ export default function TakeExam({ retake = false }) {
     [answers, exam],
   );
 
-  if (!p) return <Navigate to="/" replace />;
+  if (!p && !preview) return <Navigate to="/" replace />;
 
-  const who = `${p.grade}학년 ${p.classNo}반 ${p.number}번 ${p.name}`;
+  const who = preview ? '👀 학생 화면 미리보기 (답은 저장되지 않아요)' : `${p.grade}학년 ${p.classNo}반 ${p.number}번 ${p.name}`;
   if (error) {
     return (
       <>
@@ -238,6 +243,7 @@ export default function TakeExam({ retake = false }) {
   }
 
   function trySubmit() {
+    if (preview) return showNotice('미리보기에서는 제출되지 않아요. 학생은 여기서 답을 다 했는지 확인하고 제출해요.', 5000);
     const miss = qs.filter((x) => isBlank(answers[x.no], x)).map((x) => x.no);
     setMissing(miss);
     if (miss.length) {
@@ -361,6 +367,7 @@ export default function TakeExam({ retake = false }) {
       <header className="exam-top">
         <b className="exam-title">{retake && <span className="badge review" style={{ marginRight: 6 }}>오답 재응시</span>}{exam.title}</b>
         <span className="muted small">{who}</span>
+        {preview && <button type="button" className="btn sm" onClick={preview.onClose}>✕ 미리보기 닫기</button>}
         <div className="exam-progress">
           <span className={`save-state small ${saveState}`} data-testid="save-state">
             {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '✓ 자동 저장됨' : saveState === 'local' ? '✓ 이 기기에 저장됨' : ''}

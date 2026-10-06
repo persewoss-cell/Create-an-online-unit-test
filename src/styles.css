@@ -622,3 +622,6 @@ table.exam-list td.unit-col { min-width: 160px; }
 /* 캡쳐 조정 창 머리: 제목 왼쪽, [취소][적용]은 오른쪽 위 ✕ 바로 왼쪽 */
 .re-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 50px; min-height: 40px; flex-wrap: wrap; }
 .region-modal > .manual-close { top: 22px; }
+
+/* 선생님용 학생 화면 미리보기 (전체 화면) */
+.student-preview { position: fixed; inset: 0; z-index: 1500; background: #e9edf3; }

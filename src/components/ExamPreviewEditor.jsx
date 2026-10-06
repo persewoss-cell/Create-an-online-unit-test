@@ -9,6 +9,7 @@ import { downloadAnswerTemplate, readAnswerSheet, answerHint, withSheetPoints } 
 import { TYPE_LABEL } from '../lib/format.js';
 import AiPromptDialog from './AiPromptDialog.jsx';
 import RegionEditor from './RegionEditor.jsx';
+import StudentPreview from './StudentPreview.jsx';
 import { renumber, blankItem, insertAfter, move, duplicate, mergeWithNext, split } from '../lib/questionOps.js';
 
 const partOk = (it) => Array.isArray(it.partPoints) && it.partPoints.length >= 2 && it.partPoints.length === answerCount(it);
@@ -25,7 +26,8 @@ function keyOf(it) {
  */
 export default function ExamPreviewEditor({ view, pages, items, onChange, title, onViewChange, structureLocked = false }) {
   const [open, setOpen] = useState({});
-  const [editing, setEditing] = useState(null); // {kind:'q', idx, drawFirst} | {kind:'g', id, idx, drawFirst}
+  const [editing, setEditing] = useState(null);
+  const [previewNo, setPreviewNo] = useState(null); // 학생 화면 미리보기를 시작할 문항 번호 // {kind:'q', idx, drawFirst} | {kind:'g', id, idx, drawFirst}
   const groups = view.groups || [];
   const canEditView = !!onViewChange;
 
@@ -172,7 +174,12 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
           <b>{items.length}문항</b> · 총점 <b style={{ color: totalPoints === 100 ? 'var(--ok)' : 'var(--warn)' }}>{totalPoints}점</b>
           {missing.length > 0 && <span style={{ color: 'var(--warn)', marginLeft: 10 }}>정답 없음: {missing.join(', ')}번</span>}
         </div>
-        <button type="button" className="btn sm" onClick={distribute}>배점 100점 균등 분배</button>
+        <span className="row" style={{ gap: 6 }}>
+          <button type="button" className="btn sm" onClick={distribute}>배점 100점 균등 분배</button>
+          <button type="button" className="btn sm" onClick={() => setPreviewNo(items[0]?.no)} disabled={!items.length || !pages.length} title="학생이 보는 시험 화면 그대로 처음부터 넘겨 보기 (답은 저장되지 않아요)">
+            👀 전체 미리보기
+          </button>
+        </span>
       </div>
 
       {items.map((it, idx) => {
@@ -198,6 +205,9 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
               <div className="pcard-tools">
                 <button type="button" className="btn xs primary" onClick={() => setEditing({ kind: 'q', idx, page: it.regions?.[0]?.page || it.page })} disabled={!pages.length}>
                   ✂️ 캡쳐 조정{it.regions?.length > 1 ? ` (${it.regions.length}개)` : ''}
+                </button>
+                <button type="button" className="btn xs" onClick={() => setPreviewNo(it.no)} disabled={!pages.length} title="이 문항을 학생 시험 화면 그대로 보기">
+                  👀 미리보기
                 </button>
                 {canEditView && (
                   <>
@@ -263,6 +273,14 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
         <div className="add-between">
           <button type="button" className="btn" onClick={() => addAfter(items.length - 1)}>＋ 맨 끝에 문항 추가</button>
         </div>
+      )}
+      {previewNo != null && (
+        <StudentPreview
+          exam={{ ...view, title, questions: fromItems(items).questions }}
+          pages={pages}
+          startNo={previewNo}
+          onClose={() => setPreviewNo(null)}
+        />
       )}
       {editing && (() => {
         const e = editing;

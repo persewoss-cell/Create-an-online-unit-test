@@ -233,7 +233,7 @@ export default function ExamCreate() {
               </div>
             )}
             <ExamPreviewEditor
-              view={{ groups, pageAspects: aspects, masks }}
+              view={{ groups, pageAspects: aspects, pageWidthsCm: widthsCm, masks }}
               onViewChange={(v) => {
                 if (v.groups) setGroups(v.groups);
                 if (v.masks) setMasks(v.masks);

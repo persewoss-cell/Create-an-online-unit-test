@@ -22,6 +22,7 @@ import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { STATUS } from './Dashboard.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
 import PrintSheets from '../../components/PrintSheets.jsx';
+import StudentPreview from '../../components/StudentPreview.jsx';
 import { openPdf, renderPages, readFileAsArrayBuffer } from '../../lib/pdfText.js';
 
 const MARK = { correct: 'O', wrong: 'X', review: '?' };
@@ -62,6 +63,7 @@ export default function ExamDetail() {
   }, [id]);
 
   const [printRows, setPrintRows] = useState(null); // 인쇄할 결과지 (학생들)
+  const [previewOpen, setPreviewOpen] = useState(false); // 학생 화면 미리보기
   const graded = useMemo(() => {
     if (!exam || !keys || !subs) return [];
     return sortSubmissions(subs).map((s) => ({ s, r: gradeSubmission(exam, keys, s) }));
@@ -98,6 +100,9 @@ export default function ExamDetail() {
           </div>
           <div className="row">
             <StatusButtons exam={exam} onChange={(status) => updateExam(id, { status }).then(() => setExam({ ...exam, status }))} />
+            <button className="btn" onClick={() => setPreviewOpen(true)} disabled={!pages?.length} title="학생이 보는 시험 화면 그대로 넘겨 보기 (답은 저장되지 않아요)">
+              👀 미리보기
+            </button>
             <button className="btn primary" onClick={() => exportResultsXlsx(exam, keys, subs)} disabled={!subs.length}>
               시험 결과 엑셀 다운로드
             </button>
@@ -160,6 +165,7 @@ export default function ExamDetail() {
       {detailRow && (
         <StudentDetail exam={exam} keys={keys} row={detailRow} onJudge={judge} onClose={() => setDetail(null)} pages={pages} initialPaper={detailPaper} onPrint={() => setPrintRows([detailRow])} />
       )}
+      {previewOpen && <StudentPreview exam={exam} pages={pages} startNo={exam.questions[0]?.no} onClose={() => setPreviewOpen(false)} />}
       {printRows && <PrintSheets exam={exam} keys={keys} pages={pages} rows={printRows} onDone={() => setPrintRows(null)} />}
     </>
   );
