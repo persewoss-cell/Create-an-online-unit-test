@@ -115,12 +115,57 @@ export function fromItems(items) {
       q.parts = built.map((b) => b.spec);
       k = { parts: built.map((b) => b.key) };
     }
+    // 부분 점수 (답마다 배점). 답 개수와 맞을 때만 저장
+    const pp = (it.partPoints || []).map(Number);
+    if (pp.length >= 2 && pp.length === answerCount(it) && pp.every((n) => n >= 0) && pp.some((n) => n > 0)) q.partPoints = pp;
     if (q.draw) k.draw = true;
     if (q.manual) k.manual = true;
     questions.push(q);
     keys[q.no] = k;
   }
   return { questions, keys };
+}
+
+/**
+ * 한 문항의 답 개수 (부분 점수를 나눌 수 있는 단위):
+ * 여러 부분(;) → 부분 수, 답 칸 여러 개 → 칸 수, 선 잇기 → 짝 수, 객관식 답 여러 개 → 정답 보기 수
+ */
+export function answerCount(it) {
+  if (it.parts?.length) return it.parts.length;
+  if (it.type === 'short' && Number(it.blankCount) > 1) return Number(it.blankCount);
+  if (it.type === 'match') return Math.max(1, Number(it.matchCount) || 2);
+  if (it.type === 'mc') return Math.max(1, new Set(it.keyChoices || []).size);
+  return 1;
+}
+
+/** 답마다 이름 (부분 점수 칸 이름) */
+export function answerLabels(it) {
+  const n = answerCount(it);
+  if (it.parts?.length) return it.parts.map((_, i) => `(${i + 1})`);
+  if (it.type === 'match') return Array.from({ length: n }, (_, i) => `(${i + 1}) 짝`);
+  if (it.type === 'mc') {
+    const CIRC = '①②③④⑤⑥⑦⑧⑨⑩';
+    return [...new Set(it.keyChoices || [])].sort((a, b) => a - b).map((c) => it.choiceLabels?.[c - 1] || CIRC[c - 1] || `${c}`);
+  }
+  return Array.from({ length: n }, (_, i) => `${i + 1}번째 칸`);
+}
+
+/** 배점을 답 개수로 똑같이 나누기 (마지막 답이 나머지를 받아 합을 맞춘다) */
+export function evenParts(points, n) {
+  const total = Number(points) || 0;
+  const each = Math.floor((total / n) * 10) / 10;
+  return Array.from({ length: n }, (_, i) => (i === n - 1 ? Math.round((total - each * (n - 1)) * 10) / 10 : each));
+}
+
+/** 배점을 바꾸면 부분 점수도 같은 비율로 맞춘다 */
+export function withPoints(it, points) {
+  const pp = Array.isArray(it.partPoints) ? it.partPoints.map(Number) : null;
+  const sum = pp ? pp.reduce((a, b) => a + (b || 0), 0) : 0;
+  const total = Number(points);
+  if (!pp || !(sum > 0) || !(total > 0)) return { ...it, points };
+  const scaled = pp.map((x) => Math.round(((x || 0) * total * 10) / sum) / 10);
+  scaled[scaled.length - 1] = Math.round((total - scaled.slice(0, -1).reduce((a, b) => a + b, 0)) * 10) / 10;
+  return { ...it, points, partPoints: scaled };
 }
 
 export function newItem(no, page = 1) {

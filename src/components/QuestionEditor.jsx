@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { numberToCircled, extractKeywords } from '../lib/korean.js';
 import { choiceLabel } from '../lib/parseQuestions.js';
 import { parseAnswerText, buildKey } from '../lib/parseAnswers.js';
-import { newItem, toItems, newPart, partMissing, boxAnswersOf } from '../lib/editorModel.js';
+import { newItem, toItems, newPart, partMissing, boxAnswersOf, answerCount, answerLabels, evenParts, withPoints } from '../lib/editorModel.js';
 
 const BOX_ORD = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째'];
 import { nextRecognition, applyRecognition } from '../lib/rerecognize.js';
@@ -28,7 +28,7 @@ export default function QuestionEditor({ items, onChange, pageCount }) {
     if (!items.length) return;
     const each = Math.floor((100 / items.length) * 10) / 10;
     const rest = Math.round((100 - each * items.length) * 10) / 10;
-    onChange(items.map((it, i) => ({ ...it, points: i === items.length - 1 ? Math.round((each + rest) * 10) / 10 : each })));
+    onChange(items.map((it, i) => withPoints(it, i === items.length - 1 ? Math.round((each + rest) * 10) / 10 : each)));
   }
 
   function makeN() {
@@ -390,7 +390,7 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
             </select>
           </label>
         )}
-        <label>배점<input type="number" min="0" step="0.5" value={it.points} onChange={(e) => onChange({ points: e.target.value })} aria-label={`${it.no}번 배점`} /></label>
+        <label>배점<input type="number" min="0" step="0.5" value={it.points} onChange={(e) => onChange(withPoints(it, e.target.value))} aria-label={`${it.no}번 배점`} /></label>
         <label>쪽<input type="number" min="1" max={pageCount || 99} value={it.page} onChange={(e) => onChange({ page: e.target.value })} /></label>
         <label>
           문제 요약 (학생 화면에 표시)
@@ -423,7 +423,7 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
 
         {hasParts ? (
           <div className="stack">
-            <div className="small muted">한 문제에 답이 여러 부분입니다. 모든 부분이 맞아야 정답입니다.</div>
+            <div className="small muted">한 문제에 답이 여러 부분입니다. {it.partPoints?.length ? '맞힌 부분만큼 부분 점수를 줍니다.' : '모든 부분이 맞아야 정답입니다.'}</div>
             {it.parts.map((p, i) => (
               <div key={i} className="part-edit">
                 <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -442,6 +442,7 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
         ) : (
           <AnswerFields it={it} onChange={onChange} idPrefix={`${it.no}번`} />
         )}
+        <PartPointsField it={it} onChange={onChange} />
         {it.type !== 'draw' && (
           <button type="button" className="btn sm" style={{ marginTop: 10 }} onClick={addPart}>
             + 답 유형 추가 (한 문제에 답이 여러 개일 때)
@@ -449,6 +450,60 @@ export function QuestionRow({ it, pageCount, onChange, onRemove }) {
         )}
         {noAnswer && <div className="small" style={{ color: 'var(--warn)', marginTop: 6 }}>⚠ 정답이 입력되지 않았습니다.</div>}
       </div>
+    </div>
+  );
+}
+
+/** 부분 점수: 답이 여러 개인 문항(칸 여러 개, 여러 부분, 선 잇기, 객관식 답 여러 개)에서 맞힌 답만큼 점수 */
+function PartPointsField({ it, onChange }) {
+  const n = answerCount(it);
+  if (n < 2) return null;
+  const pp = Array.isArray(it.partPoints) ? it.partPoints : null;
+  const on = !!pp?.length;
+  const fits = on && pp.length === n;
+  const labels = answerLabels(it);
+  const setOne = (i, v) => {
+    const next = pp.map((x, j) => (j === i ? v : x));
+    const sum = Math.round(next.reduce((a, x) => a + (Number(x) || 0), 0) * 10) / 10;
+    onChange({ partPoints: next, points: sum });
+  };
+  return (
+    <div className="part-points" style={{ marginTop: 10 }}>
+      <label className="small row" style={{ gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => onChange({ partPoints: e.target.checked ? evenParts(it.points, n) : null })}
+          aria-label={`${it.no}번 부분 점수 주기`}
+        />
+        부분 점수 주기 — 답 {n}개 중 맞힌 답만큼 점수 (끄면 모두 맞아야 점수)
+      </label>
+      {on && !fits && (
+        <div className="small row" style={{ color: 'var(--warn)', gap: 6 }}>
+          ⚠ 답 개수({n}개)와 부분 점수 개수({pp.length}개)가 달라요.
+          <button type="button" className="btn xs" onClick={() => onChange({ partPoints: evenParts(it.points, n) })}>배점을 {n}개로 똑같이 나누기</button>
+        </div>
+      )}
+      {fits && (
+        <div className="row" style={{ gap: 8, marginTop: 4 }}>
+          {pp.map((p, i) => (
+            <label key={i} className="small row" style={{ gap: 4 }}>
+              {labels[i]}
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={p}
+                onChange={(e) => setOne(i, e.target.value)}
+                style={{ width: 64, padding: '4px 6px' }}
+                aria-label={`${it.no}번 ${labels[i]} 부분 점수`}
+              />
+              점
+            </label>
+          ))}
+          <span className="small muted">합계 {Math.round(pp.reduce((a, x) => a + (Number(x) || 0), 0) * 10) / 10}점 = 배점</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -539,3 +539,46 @@ table.exam-list td.unit-col { min-width: 160px; }
 .ai-modal h2 { padding-right: 44px; }
 .ai-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .ai-prompt { width: 100%; height: 300px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.5; resize: vertical; background: #f7f9fc; }
+.ai-points { background: var(--primary-weak); border-radius: 8px; padding: 8px 10px; line-height: 1.6; }
+/* 첫 화면: 사용설명서 버튼 */
+.guide-btn { margin-bottom: 10px; }
+
+/* 사용설명서 */
+.guide { max-width: 860px; }
+.guide .home-hero p { margin: 6px 0 0; }
+.guide-tabs { max-width: 480px; margin: 0 auto 16px; }
+.guide-toc ol { margin: 8px 0 0; padding-left: 22px; columns: 2; column-gap: 28px; }
+.guide-toc li { margin: 3px 0; break-inside: avoid; }
+.guide-toc .link-like { color: var(--primary); text-decoration: none; }
+.guide-toc .link-like:hover { text-decoration: underline; }
+@media (max-width: 640px) { .guide-toc ol { columns: 1; } }
+.guide-step { scroll-margin-top: 70px; }
+.guide-step h2 { display: flex; align-items: center; gap: 10px; }
+.guide-step h3 { margin: 16px 0 6px; font-size: 15px; }
+.guide-step p, .guide-step ul, .guide-step ol { margin: 8px 0; }
+.guide-step li { margin: 5px 0; line-height: 1.7; }
+.guide-no { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 15px; }
+.guide-tip { margin: 10px 0; line-height: 1.7; }
+.guide .demo { pointer-events: none; vertical-align: middle; margin: 1px 0; }
+.guide .btn.demo { white-space: nowrap; }
+.guide .mark.demo { width: 24px; height: 24px; font-size: 13px; }
+.guide-icons td { vertical-align: middle; }
+.guide-icons td:first-child { width: 1%; min-width: 120px; }
+.guide-paper-mark { width: 34px; height: 34px; vertical-align: middle; }
+.guide-qnav { display: inline-flex; gap: 4px; vertical-align: middle; }
+.guide-qnav span { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-weight: 700; font-size: 13px; }
+.guide-qnav .done { background: var(--primary-weak); border-color: #bfd3fb; color: var(--primary); }
+.guide-qnav .current { outline: 2px solid var(--primary); }
+.guide-qnav .missing { background: var(--bad-weak); border-color: var(--bad); color: var(--bad); }
+.guide-choices { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.guide-choices .choice { padding: 2px 8px; font-size: 16px; cursor: default; }
+.guide-input { display: inline-block; min-width: 130px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #9aa5b5; font-size: 13px; white-space: nowrap; }
+.guide-input.tall { min-height: 48px; }
+.guide-mini { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0; padding: 4px 10px; font-size: 13px; vertical-align: middle; animation: none; box-shadow: none; border-radius: 8px; }
+.guide-mini .btn.demo { padding: 2px 8px; font-size: 12px; }
+.guide .key-toggle { display: inline-block; text-align: center; cursor: default; }
+.guide-flow li { font-size: 15px; }
+.guide-faq dt { font-weight: 700; margin-top: 12px; }
+.guide-faq dt::before { content: 'Q. '; color: var(--primary); }
+.guide-faq dd { margin: 4px 0 0 0; color: var(--text); line-height: 1.7; }
+.guide-faq dd::before { content: 'A. '; color: var(--ok); font-weight: 700; }

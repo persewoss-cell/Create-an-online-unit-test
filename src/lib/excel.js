@@ -44,7 +44,7 @@ export async function exportResultsXlsx(exam, keys, submissions) {
     const row = ws.addRow([
       s.grade, s.classNo, s.number, s.name, r.score100, r.earned, r.correctCount, ranks[ri],
       s.submittedAt?.toDate ? s.submittedAt.toDate() : '',
-      ...r.items.map((it) => MARK[it.status]),
+      ...r.items.map((it) => (it.partial ? `△${it.earned}` : MARK[it.status])),
     ]);
     row.getCell(8).alignment = { horizontal: 'center' };
     row.getCell(9).numFmt = 'yyyy-mm-dd hh:mm';

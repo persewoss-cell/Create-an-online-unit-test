@@ -1,6 +1,9 @@
 // 정답 엑셀 양식 만들기 / 읽기
-// 양식: 번호 | 정답 | 배점(선택, 비우면 자동)
+// 양식: 번호 | 정답 | 배점(선택, 비우면 자동 · 부분 점수는 3 ; 2)
 // 정답 칸에는 객관식이든 단답형이든 서술형이든 그대로 적으면 문항 유형·핵심어는 자동으로 정해진다.
+
+import { fillDefaultPoints } from './parseQuestions.js';
+import { withPoints } from './editorModel.js';
 
 function download(buf, filename) {
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -50,7 +53,7 @@ export async function buildAnswerTemplate(list) {
   ws.columns = [
     { header: '번호', key: 'no', width: 8 },
     { header: '정답', key: 'answer', width: 40 },
-    { header: '배점(비우면 자동)', key: 'points', width: 18 },
+    { header: '배점(비우면 자동)', key: 'points', width: 20 },
     { header: '답 쓰는 법 (자동 안내)', key: 'hint', width: 70 },
   ];
   const head = ws.getRow(1);
@@ -64,7 +67,11 @@ export async function buildAnswerTemplate(list) {
     row.getCell('hint').font = { color: { argb: 'FF5D6B7E' } };
   }
   ws.getColumn('answer').numFmt = '@'; // 정답은 글자로 (3/4 가 날짜로 바뀌지 않게)
-  for (let r = 2; r <= numbers.length + 1; r++) ws.getCell(`B${r}`).numFmt = '@';
+  ws.getColumn('points').numFmt = '@'; // 부분 점수 "3 ; 2"
+  for (let r = 2; r <= numbers.length + 1; r++) {
+    ws.getCell(`B${r}`).numFmt = '@';
+    ws.getCell(`C${r}`).numFmt = '@';
+  }
   ws.views = [{ state: 'frozen', ySplit: 1 }];
 
   const help = wb.addWorksheet('작성 방법');
@@ -80,15 +87,18 @@ export async function buildAnswerTemplate(list) {
     ['○표 할 괄호 고르기', '오른쪽  (또는 왼쪽, 가운데, 위, 아래)'],
     ['□ 칸이 여러 개', '3, 6  (순서대로 쉼표)'],
     ['그리기 (선생님 채점)', '그리기  /  그리기 + 3 cm'],
+    ['한 문항에 답 종류가 여러 개', '부분마다 ;  (예: 두 원의 지름의 합과 같습니다. ; 20 cm)'],
     ['선생님이 직접 채점', '검토'],
     ['단답형', '서까래'],
     ['단답형 (여러 답 인정)', '로제타 선생님 / 로제타'],
     ['단답형 (모두 써야 정답)', '산소, 이산화 탄소'],
     ['서술형', '모범 답안 문장을 그대로 적기'],
     ['서술형 (예시 답안)', '(예) 우울한 표정 / 걱정하는 목소리 등'],
-    ['한 문항에 답이 여러 부분', '③ ; 3 cm  /  문장 답 ; 20 cm  (부분마다 ; 로)'],
     ['', ''],
-    ['배점', '비워 두면 100점을 문항 수로 나눠 자동으로 정합니다.'],
+    ['배점', '비워 두면 100점을 문항 수로 나눠 자동으로 정합니다. 일부만 적으면 나머지 점수를 남은 문항에 고르게 나눕니다.'],
+    ['부분 점수 (답지에 있을 때만)', '답이 여러 개인 문항은 배점 칸에 답마다 ; 로  (예: 정답 3 cm, 6 cm → 배점 2 ; 2)'],
+    ['', '여러 부분(;) · 답 칸 여러 개(,) · 선 잇기 짝 · 객관식 답 여러 개 모두 같은 방법. 답 개수와 같은 수를 적어요.'],
+    ['', '숫자 하나만 적으면(예: 4) 모두 맞아야 4점이에요.'],
   ].forEach((r, i) => {
     const row = help.addRow(r);
     if (i === 0) row.font = { bold: true };
@@ -113,9 +123,23 @@ function cellText(v) {
 }
 
 /**
+ * 배점 칸 읽기: "5" → 5점, 부분 점수 "3 ; 2" 또는 "3+2" → 5점 (부분 3점, 2점)
+ * @returns {{points:number, parts:number[]|null}|null}
+ */
+export function parsePoints(text) {
+  const s = String(text ?? '').replace(/점/g, '').trim();
+  if (!s) return null;
+  const nums = s.split(/\s*[;；+＋]\s*/).filter(Boolean).map(Number);
+  if (!nums.length || nums.some((n) => !(n >= 0) || Number.isNaN(n))) return null;
+  const total = Math.round(nums.reduce((a, b) => a + b, 0) * 10) / 10;
+  if (!(total > 0)) return null;
+  return { points: total, parts: nums.length > 1 ? nums : null };
+}
+
+/**
  * 정답 엑셀 읽기
  * @param {ArrayBuffer} data
- * @returns {Promise<{answers: Map<number,string>, points: Map<number,number>}>}
+ * @returns {Promise<{answers: Map<number,string>, points: Map<number,number>, partPoints: Map<number,number[]>}>}
  */
 export async function readAnswerSheet(data) {
   const { default: ExcelJS } = await import('exceljs');
@@ -143,16 +167,43 @@ export async function readAnswerSheet(data) {
   }
   const answers = new Map();
   const points = new Map();
+  const partPoints = new Map();
   for (let r = startRow; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
     const no = Number(cellText(row.getCell(noCol).value).replace(/[^\d]/g, ''));
     const ans = cellText(row.getCell(ansCol).value).trim();
     if (!no || !ans) continue;
-    answers.set(no, ans);
-    if (ptCol) {
-      const p = Number(cellText(row.getCell(ptCol).value));
-      if (p > 0) points.set(no, p);
+    let answer = ans;
+    let ptText = ptCol ? cellText(row.getCell(ptCol).value) : '';
+    // AI가 탭 대신 띄어쓰기를 넣어 배점까지 정답 칸에 들어간 경우: "③    4", "3 cm, 6 cm  2 ; 2"
+    if (!ptText.trim()) {
+      const m = ans.match(/^(.*\S)(?:\s*\t\s*|\s{2,}|\s+\|\s+)(\d+(?:\.\d+)?(?:\s*[;；+]\s*\d+(?:\.\d+)?)*)\s*점?$/);
+      if (m) {
+        answer = m[1].trim();
+        ptText = m[2];
+      }
+    }
+    answers.set(no, answer);
+    if (ptText.trim()) {
+      const p = parsePoints(ptText);
+      if (p) {
+        points.set(no, p.points);
+        if (p.parts) partPoints.set(no, p.parts);
+      }
     }
   }
-  return { answers, points };
+  return { answers, points, partPoints };
+}
+
+/**
+ * 엑셀에 배점이 일부라도 있으면: 적힌 배점은 그대로, 나머지 문항은 남은 점수를 고르게 나눈다 (총점 100).
+ * 엑셀에 배점이 하나도 없으면 지금 배점(균등 분배 또는 문제지에 적힌 배점)을 그대로 둔다.
+ * @param {object[]} items 편집 중인 문항
+ * @param {Map<number,number>} points 엑셀 배점
+ */
+export function withSheetPoints(items, points) {
+  if (!points.size) return items;
+  const filled = fillDefaultPoints(items.map((it) => ({ ...it, points: points.get(Number(it.no)) ?? null })));
+  // 엑셀에 배점이 없어 새로 나눈 문항의 부분 점수는 같은 비율로 맞춘다
+  return filled.map((it) => (points.has(Number(it.no)) ? it : withPoints(it, it.points)));
 }

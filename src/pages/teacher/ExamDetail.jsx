@@ -12,7 +12,7 @@ import { findSameExam, sameExamMessage } from '../../lib/examDup.js';
 import {
   watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams,
 } from '../../lib/db.js';
-import { gradeSubmission } from '../../lib/grading.js';
+import { gradeSubmission, partPoints, partEarned } from '../../lib/grading.js';
 import { retakeState } from '../../lib/retake.js';
 import { DrawnAnswer } from '../../components/RetakeHistory.jsx';
 import SaveErrorDialog, { ErrorLine } from '../../components/SaveErrorDialog.jsx';
@@ -286,7 +286,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint }) {
                     title={`${answerToText(exam.questions[i], s.answers?.[it.no])}\n${it.overridden ? '교사 판정' : it.auto.reason || '자동 채점'}\n(클릭: 판정 바꾸기)`}
                     onClick={() => onJudge(s, it.no, nextOverride(it))}
                   >
-                    {MARK[it.status]}
+                    {it.partial ? it.earned : MARK[it.status]}
                   </button>
                 </td>
               ))}
@@ -401,14 +401,57 @@ function ReviewTab({ exam, keys, graded, onJudge, pages, examId }) {
               <div className="ans">{answerToText(q, s.answers?.[q.no])}</div>
               <div className="small" style={{ fontWeight: 600, marginTop: 8 }}>정답</div>
               <div className="ans" style={{ background: 'var(--ok-weak)' }}>{keyToText(q, keys[q.no])}</div>
-              <div className="row" style={{ marginTop: 12 }}>
-                <button className="btn ok lg" onClick={() => onJudge(s, q.no, 'correct')}>정답 인정</button>
-                <button className="btn bad lg" onClick={() => onJudge(s, q.no, 'wrong')}>오답 처리</button>
-              </div>
+              {partPoints(q) ? (
+                <PartialJudge q={q} it={it} onJudge={(v) => onJudge(s, q.no, v)} />
+              ) : (
+                <div className="row" style={{ marginTop: 12 }}>
+                  <button className="btn ok lg" onClick={() => onJudge(s, q.no, 'correct')}>정답 인정</button>
+                  <button className="btn bad lg" onClick={() => onJudge(s, q.no, 'wrong')}>오답 처리</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** 부분 점수 문항 판정: 확인할 부분을 인정/불인정하거나 점수를 직접 준다 */
+function PartialJudge({ q, it, onJudge }) {
+  const points = Number(q.points) || 0;
+  const ps = it.auto.partStatus;
+  // 선생님이 직접 채점하는 문항이면 부분마다 자동 결과가 없다 → 모두 확인할 부분
+  const ok = ps ? partEarned(q, ps, ['correct', 'review']) : points;
+  const base = ps ? partEarned(q, ps, ['correct']) : 0;
+  const [custom, setCustom] = useState('');
+  const pp = partPoints(q);
+  return (
+    <div className="stack" style={{ marginTop: 12, gap: 8 }}>
+      <div className="small muted">부분 점수: {pp.map((p, i) => `(${i + 1}) ${p}점`).join(' · ')}</div>
+      <div className="row">
+        <button className="btn ok lg" onClick={() => onJudge(ok >= points ? 'correct' : ok)}>
+          {ps ? '확인할 부분 정답 인정' : '정답 인정'} ({ok}점)
+        </button>
+        <button className="btn bad lg" onClick={() => onJudge(base > 0 ? base : 'wrong')}>
+          {ps ? '확인할 부분 오답 처리' : '오답 처리'} ({base}점)
+        </button>
+      </div>
+      <div className="row" style={{ gap: 6 }}>
+        <input
+          type="number"
+          min="0"
+          max={points}
+          step="0.5"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          style={{ width: 80 }}
+          aria-label={`${q.no}번 줄 점수`}
+        />
+        <button className="btn" disabled={custom === '' || !(Number(custom) >= 0)} onClick={() => onJudge(Math.min(points, Number(custom)))}>
+          점 주기 (최대 {points}점)
+        </button>
+      </div>
     </div>
   );
 }
@@ -657,7 +700,7 @@ function StudentDetail({ exam, keys, row, onJudge, onClose, pages, initialPaper,
                   <td className="small muted">{keyToText(q, keys[q.no])}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <span className={`mark ${it.status} ${it.overridden ? 'overridden' : ''}`}>{MARK[it.status]}</span>{' '}
-                    <span className="small muted">{it.overridden ? '교사 판정' : `${STATUS_LABEL[it.status]}${it.auto.reason ? ` · ${it.auto.reason}` : ''}`}</span>
+                    <span className="small muted">{it.overridden ? '교사 판정' : `${STATUS_LABEL[it.status]}${it.auto.reason ? ` · ${it.auto.reason}` : ''}`}{it.partial ? ` · 부분 점수 ${it.earned}/${it.points}점` : ''}</span>
                     <div className="row" style={{ gap: 4, marginTop: 4 }}>
                       <button className="btn sm" onClick={() => onJudge(s, q.no, 'correct')}>O</button>
                       <button className="btn sm" onClick={() => onJudge(s, q.no, 'wrong')}>X</button>
