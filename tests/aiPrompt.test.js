@@ -8,10 +8,11 @@ describe('buildAnswerPrompt', () => {
     { no: 3, type: 'draw' },
   ];
   const p = buildAnswerPrompt(qs, '5학년 1학기 수학 1. 약수와 배수 단원평가');
-  it('번호 범위·문항 수와 탭 형식을 알려 준다', () => {
+  it('번호 없이 정답만 문항 수만큼 한 줄씩', () => {
     expect(p).toContain('1번부터 3번까지 3문항');
-    expect(p).toContain('번호<탭>정답');
-    expect(p).toContain('번호\t정답');
+    expect(p).toContain('꼭 3줄');
+    expect(p).toMatch(/문항 번호.*쓰지 마/);
+    expect(p).not.toContain('\t');
   });
   it('문항마다 답 쓰는 법을 붙인다', () => {
     expect(p).toContain('- 1번: ① ② ③ ④ ⑤ 중에서 적기 (예: ①)');

@@ -80,8 +80,8 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
             </button>
           </span>
           <span className="row">
-            <span><b>②</b> AI로 정답 정리 (선택) →</span>
-            <button type="button" className="btn" onClick={() => setAiOpen(true)} title="정답지를 AI 채팅에 맡겨 엑셀에 붙여 넣을 표로 만들게 하는 명령어">
+            <span><b>②</b> AI로 엑셀 양식에 넣을 정답 정리 (선택) →</span>
+            <button type="button" className="btn" onClick={() => setAiOpen(true)} title="정답지를 AI 채팅에 맡겨 엑셀 양식 정답 칸에 붙여 넣을 정답 목록으로 만들게 하는 명령어">
               🤖 AI 명령어 복사하기
             </button>
           </span>
@@ -95,7 +95,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
         <div className="small muted">
           객관식 <code>4</code> 또는 <code>④</code>, 기호 <code>㉮</code>, ○표 <code>(3)</code>, 선 잇기 <code>(1)-① (2)-②</code>, 단답형은 답 그대로
           (답 칸이 여러 개면 쉼표로 <code>3, 6, 9</code> — 쉼표 수만큼 답 칸이 생겨요),
-          서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>), 그리기는 <code>그리기</code>, 선생님이 직접 채점할 문항은 <code>검토</code>. 문항 유형·배점·핵심어는 자동으로 정해집니다.
+          서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>), 한 문항에 답이 여러 부분이면 <code>;</code>로 (<code>문장 ; 20 cm</code>), 그리기는 <code>그리기</code>(선생님 채점), 선생님이 직접 채점할 문항은 <code>검토</code>. 문항 유형·배점·핵심어는 자동으로 정해집니다.
         </div>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
         {aiOpen && <AiPromptDialog questions={fromItems(items).questions} title={title} onClose={() => setAiOpen(false)} />}

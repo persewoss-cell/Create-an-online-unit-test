@@ -57,3 +57,45 @@ describe('한 문제에 답 유형 여러 개', () => {
     expect(question.parts[0].choiceLabels).toEqual(['왼쪽', '오른쪽']);
   });
 });
+
+describe('엑셀 정답에 ; 가 있으면 보통 문항도 여러 부분으로', () => {
+  const plain = { ...base, type: 'essay', choiceCount: 0, choices: [] };
+  const raw = '선분 ㄱㄴ의 길이는 두 원의 지름의 길이의 합과 같습니다. ; 20 cm';
+  it('문장 → 서술형, 짧은 답 → 단답형', () => {
+    const { question, key } = buildKey(plain, raw);
+    expect(question.parts.map((p) => p.type)).toEqual(['essay', 'short']);
+    expect(key.parts[0].model).toBe('선분 ㄱㄴ의 길이는 두 원의 지름의 길이의 합과 같습니다.');
+    expect(key.parts[1]).toEqual({ accepted: ['20 cm'] });
+  });
+  it('편집 칸으로 바꿨다 다시 저장해도 두 부분 그대로, 채점도 부분마다', () => {
+    const { question, key } = buildKey(plain, raw);
+    const item = toItems([question], { 3: key })[0];
+    const { questions, keys } = fromItems([item]);
+    expect(questions[0].type).toBe('parts');
+    expect(questions[0].parts.map((p) => p.type)).toEqual(['essay', 'short']);
+    const ans = { parts: { 0: '선분 ㄱㄴ의 길이는 두 원의 지름의 길이의 합과 같습니다.', 1: '20cm' } };
+    expect(gradeAnswer(questions[0], keys[3], ans).status).toBe('correct');
+    expect(gradeAnswer(questions[0], keys[3], { parts: { 0: ans.parts[0], 1: '10cm' } }).status).toBe('wrong');
+  });
+  it('객관식 + 단답도 된다', () => {
+    const { question, key } = buildKey({ ...base, type: 'short' }, '③ ; 3 cm');
+    expect(question.parts.map((p) => p.type)).toEqual(['mc', 'short']);
+    expect(key.parts).toEqual([{ choices: [3] }, { accepted: ['3 cm'] }]);
+  });
+});
+
+describe('엑셀 정답이 그리기면 늘 선생님 채점', () => {
+  it('그리기', () => {
+    const { question, key } = buildKey({ ...base, type: 'short' }, '그리기');
+    expect(question).toMatchObject({ type: 'draw', manual: true });
+    expect(key.manual).toBe(true);
+    const item = toItems([question], { 3: key })[0];
+    expect(item.manual).toBe(true);
+    expect(fromItems([item]).keys[3].manual).toBe(true);
+  });
+  it('그리기 + 답', () => {
+    const { question, key } = buildKey({ ...base, type: 'short' }, '그리기 + 3 cm');
+    expect(question).toMatchObject({ draw: true, manual: true });
+    expect(key).toMatchObject({ accepted: ['3 cm'], draw: true, manual: true });
+  });
+});

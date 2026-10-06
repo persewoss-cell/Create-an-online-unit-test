@@ -126,6 +126,17 @@ export function buildKey(question, raw) {
   let q = { ...question };
   const flags = (k) => ({ ...k, ...(q.draw ? { draw: true } : {}), ...(q.manual ? { manual: true } : {}) });
   if (raw == null || String(raw).trim() === '') return { question: q, key: flags(emptyKey(q.type)) };
+  // 보통 문항인데 정답이 ; 로 나뉘어 있으면("선분 ㄱㄴ의 길이는 … 같습니다. ; 20 cm") 답 종류가 여러 개인 문항으로:
+  // 부분마다 유형은 정답을 보고 정한다 (긴 문장 → 서술형, 짧은 답 → 단답형, ③ → 객관식)
+  if (!q.parts?.length && q.type !== 'draw') {
+    const pieces = String(raw).split(/\s*[;；]\s*/).map((x) => x.trim());
+    if (pieces.length >= 2 && pieces.length <= 4 && pieces.every(Boolean)) {
+      q = {
+        ...q, type: 'parts', draw: false, blankCount: undefined,
+        parts: pieces.map(() => ({ type: 'short', choiceCount: 0, choices: [], choiceLabels: null, multi: false })),
+      };
+    }
+  }
   // 여러 유형 문항: 엑셀 정답을 ; 로 나눠 부분마다 ("③ ; 3 cm")
   if (q.parts?.length) {
     const pieces = String(raw).split(/\s*[;；]\s*/);
@@ -215,17 +226,18 @@ function buildSpecialKey(q, raw) {
   if (/^(검토|선생님\s*(채점|검토|확인)|직접\s*채점)$/.test(s)) {
     return { question: { ...q, manual: true }, key: { ...emptyKey(q.type), manual: true } };
   }
-  // 그리기 문항: "그리기" 또는 "그리기 + 3 cm" (그림은 선생님 확인, 뒤의 답은 입력칸)
+  // 그리기 문항: "그리기" 또는 "그리기 + 3 cm" (뒤의 답은 입력칸)
+  // 그림은 자동으로 채점할 수 없으니 늘 선생님 채점으로
   const dm = s.match(/^그리기\s*(?:[+＋,/]\s*(.+))?$/s);
   if (dm) {
     if (!dm[1]) {
       return {
-        question: { ...q, type: 'draw', draw: true, choiceCount: 0, choices: [], choiceLabels: null, multi: false },
-        key: { draw: true },
+        question: { ...q, type: 'draw', draw: true, manual: true, choiceCount: 0, choices: [], choiceLabels: null, multi: false },
+        key: { draw: true, manual: true },
       };
     }
     const inner = buildKey({ ...q, draw: false, type: q.type === 'draw' ? 'short' : q.type }, dm[1]);
-    return { question: { ...inner.question, draw: true }, key: { ...inner.key, draw: true } };
+    return { question: { ...inner.question, draw: true, manual: true }, key: { ...inner.key, draw: true, manual: true } };
   }
   // 선 잇기: "(1) - ① (2) - ②"
   const pairs = [...s.matchAll(/\((\d{1,2})\)\s*[-–~→:]?\s*([①-⑩㉮-㉷])/g)];
