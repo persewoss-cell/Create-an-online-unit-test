@@ -7,6 +7,7 @@ import { fromItems, toItems } from '../lib/editorModel.js';
 import { buildKey, hasAnswer } from '../lib/parseAnswers.js';
 import { downloadAnswerTemplate, readAnswerSheet, answerHint } from '../lib/answerSheet.js';
 import { TYPE_LABEL } from '../lib/format.js';
+import AiPromptDialog from './AiPromptDialog.jsx';
 
 function keyOf(it) {
   const { keys } = fromItems([it]);
@@ -20,6 +21,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
   const [open, setOpen] = useState({});
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const update = (idx, patch) => onChange(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   const remove = (idx) => onChange(items.filter((_, i) => i !== idx));
@@ -70,14 +72,22 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
     <div className="stack">
       <div className="card stack" style={{ background: 'var(--primary-weak)', borderColor: '#bfd3fb' }}>
         <h2 style={{ margin: 0 }}>정답 넣기</h2>
-        <div className="row">
-          <span><b>①</b> 양식 받기 →</span>
-          <button type="button" className="btn" onClick={() => downloadAnswerTemplate(items, title)}>
-            정답 엑셀 양식 다운로드 ({items.length}문항)
-          </button>
+        <div className="row" style={{ columnGap: 24 }}>
+          <span className="row">
+            <span><b>①</b> 양식 받기 →</span>
+            <button type="button" className="btn" onClick={() => downloadAnswerTemplate(items, title)}>
+              정답 엑셀 양식 다운로드 ({items.length}문항)
+            </button>
+          </span>
+          <span className="row">
+            <span><b>②</b> AI로 정답 정리 (선택) →</span>
+            <button type="button" className="btn" onClick={() => setAiOpen(true)} title="정답지를 AI 채팅에 맡겨 엑셀에 붙여 넣을 표로 만들게 하는 명령어">
+              🤖 AI 명령어 복사하기
+            </button>
+          </span>
         </div>
         <div className="row">
-          <span><b>②</b> 번호 옆 “정답” 칸만 채워서 올리기 →</span>
+          <span><b>③</b> 번호 옆 “정답” 칸만 채워서 올리기 →</span>
           <div style={{ flex: 1, minWidth: 260 }}>
             <FileDrop compact accept=".xlsx" onFile={uploadSheet} label={busy ? '읽는 중…' : '정답 엑셀'} hint="작성한 정답 엑셀을 끌어다 놓거나 눌러서 고르세요" />
           </div>
@@ -88,6 +98,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
           서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>), 그리기는 <code>그리기</code>, 선생님이 직접 채점할 문항은 <code>검토</code>. 문항 유형·배점·핵심어는 자동으로 정해집니다.
         </div>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
+        {aiOpen && <AiPromptDialog questions={fromItems(items).questions} title={title} onClose={() => setAiOpen(false)} />}
       </div>
 
       <div className="row" style={{ justifyContent: 'space-between' }}>

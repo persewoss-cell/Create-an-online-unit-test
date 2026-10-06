@@ -321,7 +321,12 @@ function TeacherManual() {
       <Section id="t-key" icon="📊" title="6. 정답 넣기 (엑셀)">
         <ol className="m-steps">
           <li><b>①</b> <B>정답 엑셀 양식 다운로드 (20문항)</B> — 번호, 정답, 배점 칸이 있는 엑셀이 받아져요. 문항마다 적는 방법 안내도 들어 있어요.</li>
-          <li><b>②</b> “정답” 칸만 채워서 📂 칸에 올려요. → “20개 문항에 정답을 넣었습니다.”</li>
+          <li>
+            <b>②</b> (선택) <B>🤖 AI 명령어 복사하기</B> — 정답 입력이 번거로우면 AI에게 맡겨요. 창에서 <B kind="primary">📋 명령어 복사</B> →
+            ChatGPT·Gemini·Claude 같은 AI 채팅에 붙여 넣고 <b>정답지(PDF·사진)</b>를 함께 보내면, 이 사이트 규칙에 맞는 <b>번호 · 정답</b> 표를 만들어 줘요.
+            그 표를 복사해 ①에서 받은 엑셀의 <b>A1 칸</b>에 붙여 넣고 저장해요. (AI도 틀릴 수 있으니 기호·단위는 꼭 확인)
+          </li>
+          <li><b>③</b> “정답” 칸만 채워서 📂 칸에 올려요. → “20개 문항에 정답을 넣었습니다.”</li>
         </ol>
         <table className="data m-table">
           <thead><tr><th>문항</th><th>정답 칸에 적는 법</th></tr></thead>

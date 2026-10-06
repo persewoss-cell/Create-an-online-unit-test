@@ -533,3 +533,9 @@ table.exam-list td.unit-col { min-width: 160px; }
   .print-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 .graded-head { width: 100%; }
+
+/* AI 명령어(프롬프트) 창 */
+.ai-modal { position: relative; max-width: 720px; max-height: 90vh; overflow: auto; }
+.ai-modal h2 { padding-right: 44px; }
+.ai-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.ai-prompt { width: 100%; height: 300px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.5; resize: vertical; background: #f7f9fc; }
