@@ -10,6 +10,8 @@ import { TYPE_LABEL } from '../lib/format.js';
 import AiPromptDialog from './AiPromptDialog.jsx';
 import RegionEditor from './RegionEditor.jsx';
 import StudentPreview from './StudentPreview.jsx';
+import QuickAdjust from './QuickAdjust.jsx';
+import { FULL_PAGE } from './ExamViews.jsx';
 import { renumber, blankItem, insertAfter, move, duplicate, mergeWithNext, split } from '../lib/questionOps.js';
 
 const partOk = (it) => Array.isArray(it.partPoints) && it.partPoints.length >= 2 && it.partPoints.length === answerCount(it);
@@ -27,7 +29,8 @@ function keyOf(it) {
 export default function ExamPreviewEditor({ view, pages, items, onChange, title, onViewChange, structureLocked = false }) {
   const [open, setOpen] = useState({});
   const [editing, setEditing] = useState(null);
-  const [previewNo, setPreviewNo] = useState(null); // 학생 화면 미리보기를 시작할 문항 번호 // {kind:'q', idx, drawFirst} | {kind:'g', id, idx, drawFirst}
+  const [previewNo, setPreviewNo] = useState(null);
+  const [quick, setQuick] = useState(null); // 마우스 간편조정 중인 문항 {idx, regions} // 학생 화면 미리보기를 시작할 문항 번호 // {kind:'q', idx, drawFirst} | {kind:'g', id, idx, drawFirst}
   const groups = view.groups || [];
   const canEditView = !!onViewChange;
 
@@ -35,6 +38,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
   function restructure(next) {
     const r = renumber(next, groups);
     setOpen({});
+    setQuick(null);
     onChange(r.items);
     if (canEditView) onViewChange({ groups: r.groups });
     return r.items;
@@ -42,7 +46,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
   function addAfter(idx) {
     const base = items[idx] || items[items.length - 1];
     const next = restructure(insertAfter(items, idx, blankItem(base)));
-    // 새 문항은 바로 캡쳐 조정 창을 열어 문제 부분을 끌어 그리게 한다
+    // 새 문항은 바로 캡쳐 상세 조정 창을 열어 문제 부분을 끌어 그리게 한다
     setEditing({ kind: 'q', idx: idx + 1, drawFirst: true, page: next[idx + 1]?.page });
   }
   function removeAt(idx) {
@@ -204,7 +208,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
             <div className="left">
               <div className="pcard-tools">
                 <button type="button" className="btn xs primary" onClick={() => setEditing({ kind: 'q', idx, page: it.regions?.[0]?.page || it.page })} disabled={!pages.length}>
-                  ✂️ 캡쳐 조정{it.regions?.length > 1 ? ` (${it.regions.length}개)` : ''}
+                  ✂️ 캡쳐 상세 조정{it.regions?.length > 1 ? ` (${it.regions.length}개)` : ''}
                 </button>
                 <button type="button" className="btn xs" onClick={() => setPreviewNo(it.no)} disabled={!pages.length} title="이 문항을 학생 시험 화면 그대로 보기">
                   👀 미리보기
@@ -223,8 +227,46 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
                     )}
                   </>
                 )}
+                <span className="tools-end">
+                  {quick?.idx === idx ? (
+                    <>
+                      <button type="button" className="btn xs" onClick={() => setQuick(null)}>취소</button>
+                      <button
+                        type="button"
+                        className="btn xs primary"
+                        onClick={() => {
+                          update(idx, { regions: quick.regions, page: quick.regions[0]?.page || it.page });
+                          setQuick(null);
+                        }}
+                      >
+                        저장
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn xs"
+                      disabled={!pages.length}
+                      title="문제 그림 위에서 마우스 휠로 확대·축소, 끌어서 옮기기"
+                      onClick={() => setQuick({ idx, regions: it.regions?.length ? it.regions.map((r) => ({ ...r })) : [FULL_PAGE(it.page || 1)] })}
+                    >
+                      🖱 마우스 간편조정
+                    </button>
+                  )}
+                </span>
               </div>
-              <QuestionView exam={view} q={q} pages={pages} />
+              {quick?.idx === idx && <div className="quick-hint">🖱 휠을 굴리면 확대·축소, ✋ 그림을 끌면 위아래·좌우로 옮겨져요. 다 되면 저장.</div>}
+              {quick?.idx === idx ? (
+                <QuickAdjust
+                  exam={view}
+                  pages={pages}
+                  group={it.group ? groups.find((g) => g.id === it.group) : null}
+                  regions={quick.regions}
+                  onChange={(regions) => setQuick({ idx, regions })}
+                />
+              ) : (
+                <QuestionView exam={view} q={q} pages={pages} />
+              )}
             </div>
             <div className="right">
               <div className="head">
@@ -291,7 +333,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
         return (
           <RegionEditor
             key={`${e.kind}${e.idx}${e.id || ''}`}
-            title={e.kind === 'g' ? `📄 ${groupLabel(g || {})} — 지문 캡쳐 조정` : `✂️ ${it.no}번 — 캡쳐 조정`}
+            title={e.kind === 'g' ? `📄 ${groupLabel(g || {})} — 지문 캡쳐 조정` : `✂️ ${it.no}번 — 캡쳐 상세 조정`}
             note={e.kind === 'g'
               ? '이 지문을 쓰는 문항 모두에 함께 적용돼요. 지문은 문제 위에 따로 보여요.'
               : '파란 네모가 학생에게 보이는 부분이에요. 한 문제가 두 곳에 나뉘어 있으면 ＋ 캡쳐 추가로 하나 더 그리세요 (위에서부터 순서대로 이어 붙여 보여요).'}

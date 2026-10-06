@@ -625,3 +625,11 @@ table.exam-list td.unit-col { min-width: 160px; }
 
 /* 선생님용 학생 화면 미리보기 (전체 화면) */
 .student-preview { position: fixed; inset: 0; z-index: 1500; background: #e9edf3; }
+
+/* 마우스 간편조정 (문항 카드 위에서 휠로 확대·축소, 손으로 끌어 옮기기) */
+.quick-adjust .qview-question { outline: 2px solid #2f6fed; outline-offset: 2px; border-radius: 6px; }
+.quick-crop { cursor: grab; touch-action: none; user-select: none; }
+.quick-crop.grabbing { cursor: grabbing; }
+.quick-crop + .quick-crop { margin-top: 6px; border-top: 1px dashed var(--line); }
+.pcard-tools .tools-end { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+.quick-hint { font-size: 12px; color: var(--primary); margin: -2px 0 8px; }

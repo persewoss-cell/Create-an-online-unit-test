@@ -19,7 +19,7 @@ export function unitsPerCm(exam, regions) {
   return 1000 / ((r.x1 - r.x0) * pageCm);
 }
 
-const FULL_PAGE = (page) => ({ page, x0: 0, y0: 0, x1: 1, y1: 1 });
+export const FULL_PAGE = (page) => ({ page, x0: 0, y0: 0, x1: 1, y1: 1 });
 
 /** 문항의 지문 영역과 문제 영역 (영역 정보가 없으면 그 쪽 전체) */
 export function regionsOf(exam, q) {
