@@ -619,3 +619,6 @@ table.exam-list td.unit-col { min-width: 160px; }
 .pcard-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
 .pcard-tools select { width: auto; padding: 4px 8px; font-size: 13px; }
 .add-between { display: flex; justify-content: center; margin: 6px 0; }
+/* 캡쳐 조정 창 머리: 제목 왼쪽, [취소][적용]은 오른쪽 위 ✕ 바로 왼쪽 */
+.re-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 50px; min-height: 40px; flex-wrap: wrap; }
+.region-modal > .manual-close { top: 22px; }

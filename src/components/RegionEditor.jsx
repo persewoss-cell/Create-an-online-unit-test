@@ -196,13 +196,20 @@ export default function RegionEditor({ title, note, view, pages, regions, masks,
   };
 
   const previewView = { ...view, masks: msks };
+  const apply = () => onApply({ regions: regs.map(fix).filter(big), masks: msks.map(fix).filter(big) });
   const otherPages = [...new Set(regs.map((r) => r.page))].filter((p) => p !== page);
 
   return (
     <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="re-title" onClick={onClose}>
       <div className="modal stack region-modal" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기 (적용하지 않음)">✕</button>
-        <h2 id="re-title" style={{ margin: 0, paddingRight: 44 }}>{title}</h2>
+        <div className="re-head">
+          <h2 id="re-title" style={{ margin: 0 }}>{title}</h2>
+          <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+            <button type="button" className="btn" onClick={onClose}>취소</button>
+            <button type="button" className="btn primary" onClick={apply}>적용</button>
+          </span>
+        </div>
         {note && <div className="small muted">{note}</div>}
 
         <div className="re-toolbar">
@@ -271,13 +278,7 @@ export default function RegionEditor({ title, note, view, pages, regions, masks,
           </div>
         </div>
 
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <span className="small muted">네모 안을 끌면 옮겨지고, 모서리·변의 점을 끌면 크기가 바뀌어요. 키보드 화살표(Shift는 크게)·Delete 도 돼요.</span>
-          <span className="row">
-            <button type="button" className="btn" onClick={onClose}>취소</button>
-            <button type="button" className="btn primary" onClick={() => onApply({ regions: regs.map(fix).filter(big), masks: msks.map(fix).filter(big) })}>적용</button>
-          </span>
-        </div>
+        <span className="small muted">네모 안을 끌면 옮겨지고, 모서리·변의 점을 끌면 크기가 바뀌어요. 키보드 화살표(Shift는 크게)·Delete 도 돼요.</span>
       </div>
     </div>
   );
