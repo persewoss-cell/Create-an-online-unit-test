@@ -43,6 +43,7 @@ export function splitColumns(items, pageWidth) {
   if (!pageWidth) return [items];
   const total = items.reduce((s, it) => s + chars(it), 0);
   let best = null;
+  let loose = null;
   for (let r = 0.3; r <= 0.7001; r += 0.01) {
     const g = pageWidth * r;
     let left = 0;
@@ -57,7 +58,14 @@ export function splitColumns(items, pageWidth) {
     if (left >= total * 0.2 && right >= total * 0.2 && (!best || cross < best.cross)) {
       best = { g, cross };
     }
+    // 마지막 쪽처럼 한쪽 단에 짧은 문항만 있어 글자가 적은 경우(예: 오른쪽 단에 24, 25번만):
+    // 가운데(42~58%)에 가로지르는 글자가 거의 없는 깨끗한 단 경계가 있으면 2단으로 본다
+    if (r >= 0.42 && r <= 0.58 && left >= total * 0.05 && right >= total * 0.05 && cross <= total * 0.01) {
+      const startsNearGutter = items.some((it) => it.x >= g && it.x <= g + pageWidth * 0.12);
+      if (startsNearGutter && (!loose || cross < loose.cross)) loose = { g, cross };
+    }
   }
+  if (loose && (!best || best.cross > total * 0.08)) best = loose;
   if (!best || best.cross > total * 0.08) return [items];
   // 가운데를 가로지르는 제목 등은 왼쪽 단에 붙인다(보통 맨 위에 있으므로 먼저 읽힘)
   const left = items.filter((it) => it.x < best.g);
