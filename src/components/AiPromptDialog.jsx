@@ -33,8 +33,8 @@ export default function AiPromptDialog({ questions, title, onClose }) {
         </div>
         <ol className="ai-steps small">
           <li><b>명령어 복사</b>를 누르세요. 이 평가의 문항 수와 문항별 답 형식이 들어 있어요.</li>
-          <li>ChatGPT · Gemini · Claude 같은 <b>AI 채팅</b>에 붙여 넣고, <b>정답지(PDF·사진)</b>를 함께 올리거나 정답을 붙여 넣어 보내세요.</li>
-          <li>AI가 위아래로 나열한 정답을 복사해 <b>①에서 받은 정답 엑셀 양식의 B2 칸</b>(1번 정답 칸)을 누르고 붙여 넣은 뒤 저장하세요. 정답지에 배점이 있으면 AI가 정답 옆에 배점도 적어 주어 <b>배점 칸(C)</b>에 함께 들어가요.</li>
+          <li>ChatGPT · Gemini · Claude 같은 <b>AI 채팅</b>에 붙여 넣고, <b>정답지(PDF·사진)</b>를 함께 올리거나 정답을 붙여 넣어 보내세요. 배점이 문제지에 적혀 있으면 <b>문제지도 함께</b> 올리세요.</li>
+          <li>AI가 만든 코드 블록을 통째로 복사(코드 블록의 <b>복사</b> 버튼)해서, ①에서 받은 정답 엑셀 양식의 <b>B2 칸</b>(1번 정답 칸)을 누르고 붙여 넣은 뒤 저장하세요. 한 줄이 한 행이 되고, 정답은 <b>B열</b>, 배점은 <b>C열(배점)</b>에 들어가요.</li>
           <li><b>③</b>에 그 엑셀을 올리면 끝! 문항별 미리보기에서 정답이 맞는지 꼭 한 번 확인하세요.</li>
         </ol>
         <div className="small ai-points">

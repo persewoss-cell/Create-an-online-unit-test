@@ -173,9 +173,19 @@ export async function readAnswerSheet(data) {
     const no = Number(cellText(row.getCell(noCol).value).replace(/[^\d]/g, ''));
     const ans = cellText(row.getCell(ansCol).value).trim();
     if (!no || !ans) continue;
-    answers.set(no, ans);
-    if (ptCol) {
-      const p = parsePoints(cellText(row.getCell(ptCol).value));
+    let answer = ans;
+    let ptText = ptCol ? cellText(row.getCell(ptCol).value) : '';
+    // AI가 탭 대신 띄어쓰기를 넣어 배점까지 정답 칸에 들어간 경우: "③    4", "3 cm, 6 cm  2 ; 2"
+    if (!ptText.trim()) {
+      const m = ans.match(/^(.*\S)(?:\s*\t\s*|\s{2,}|\s+\|\s+)(\d+(?:\.\d+)?(?:\s*[;；+]\s*\d+(?:\.\d+)?)*)\s*점?$/);
+      if (m) {
+        answer = m[1].trim();
+        ptText = m[2];
+      }
+    }
+    answers.set(no, answer);
+    if (ptText.trim()) {
+      const p = parsePoints(ptText);
       if (p) {
         points.set(no, p.points);
         if (p.parts) partPoints.set(no, p.parts);
