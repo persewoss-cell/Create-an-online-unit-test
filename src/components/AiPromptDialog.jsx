@@ -29,7 +29,12 @@ export default function AiPromptDialog({ questions, title, onClose }) {
       <div className="modal stack ai-modal" onClick={(e) => e.stopPropagation()}>
         <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
           <h2 id="ai-title" style={{ margin: 0 }}>🤖 AI로 엑셀 양식에 넣을 정답 정리하기</h2>
-          <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기">✕</button>
+          <div className="row" style={{ gap: 8, flexWrap: 'nowrap', flexShrink: 0 }}>
+            {copied === 'ok' && <span className="save-ok">✓ 복사했어요 (Ctrl+V로 붙여 넣기)</span>}
+            {copied === 'manual' && <span className="small" style={{ color: 'var(--warn)' }}>글이 선택되었어요. Ctrl+C 로 복사하세요.</span>}
+            <button type="button" className="btn primary" onClick={copy}>📋 명령어 복사</button>
+            <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기">✕</button>
+          </div>
         </div>
         <ol className="ai-steps small">
           <li><b>명령어 복사</b>를 누르세요. 이 평가의 문항 수와 문항별 답 형식이 들어 있어요.</li>
@@ -42,11 +47,6 @@ export default function AiPromptDialog({ questions, title, onClose }) {
           <b>📌 부분 점수</b> — 정답지에 부분 점수가 <b>분명히 적힌 문항만</b> 답마다 <code>2 ; 2</code>처럼 나눠 적어요 (AI가 짐작해서 만들지 않게 명령어에 넣었어요). 그 밖의 문항은 모두 맞혀야 점수예요.
         </div>
         <textarea ref={area} className="ai-prompt" readOnly value={text} aria-label="AI 명령어" onFocus={(e) => e.target.select()} />
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          {copied === 'ok' && <span className="save-ok">✓ 복사했어요. AI 채팅에 붙여 넣으세요 (Ctrl+V)</span>}
-          {copied === 'manual' && <span className="small" style={{ color: 'var(--warn)' }}>글이 선택되었어요. Ctrl+C 로 복사하세요.</span>}
-          <button type="button" className="btn primary" onClick={copy}>📋 명령어 복사</button>
-        </div>
         <div className="muted small">AI도 틀릴 수 있어요. 특히 기호(①, ㉮)와 단위가 맞는지 확인해 주세요.</div>
       </div>
     </div>
