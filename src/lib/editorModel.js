@@ -114,6 +114,9 @@ export function fromItems(items) {
       const built = it.parts.map((p) => answerSpec(p));
       q.parts = built.map((b) => b.spec);
       k = { parts: built.map((b) => b.key) };
+      // 부분 점수 (부분마다 배점). 부분 수와 맞을 때만 저장
+      const pp = (it.partPoints || []).map(Number);
+      if (pp.length === q.parts.length && pp.every((n) => n >= 0) && pp.some((n) => n > 0)) q.partPoints = pp;
     }
     if (q.draw) k.draw = true;
     if (q.manual) k.manual = true;

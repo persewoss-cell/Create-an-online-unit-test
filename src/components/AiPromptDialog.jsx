@@ -28,13 +28,13 @@ export default function AiPromptDialog({ questions, title, onClose }) {
     <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="ai-title" onClick={onClose}>
       <div className="modal stack ai-modal" onClick={(e) => e.stopPropagation()}>
         <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
-          <h2 id="ai-title" style={{ margin: 0 }}>🤖 AI로 정답 정리하기</h2>
+          <h2 id="ai-title" style={{ margin: 0 }}>🤖 AI로 엑셀 양식에 넣을 정답 정리하기</h2>
           <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기">✕</button>
         </div>
         <ol className="ai-steps small">
           <li><b>명령어 복사</b>를 누르세요. 이 평가의 문항 수와 문항별 답 형식이 들어 있어요.</li>
           <li>ChatGPT · Gemini · Claude 같은 <b>AI 채팅</b>에 붙여 넣고, <b>정답지(PDF·사진)</b>를 함께 올리거나 정답을 붙여 넣어 보내세요.</li>
-          <li>AI가 만든 표(번호 · 정답)를 복사해 <b>①에서 받은 정답 엑셀 양식의 A1 칸</b>을 누르고 붙여 넣은 뒤 저장하세요.</li>
+          <li>AI가 위아래로 나열한 정답을 복사해 <b>①에서 받은 정답 엑셀 양식의 B2 칸</b>(1번 정답 칸)을 누르고 붙여 넣은 뒤 저장하세요. 배점이 있으면 옆 배점 칸에 함께 들어가요.</li>
           <li><b>③</b>에 그 엑셀을 올리면 끝! 문항별 미리보기에서 정답이 맞는지 꼭 한 번 확인하세요.</li>
         </ol>
         <textarea ref={area} className="ai-prompt" readOnly value={text} aria-label="AI 명령어" onFocus={(e) => e.target.select()} />

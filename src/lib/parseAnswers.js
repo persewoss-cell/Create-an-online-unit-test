@@ -123,20 +123,47 @@ export function splitAlternatives(text) {
  * 문제지만으로 판단한 유형이 정답을 보고 바뀔 수 있다(예: 정답이 ③이면 객관식).
  */
 export function buildKey(question, raw) {
+  const built = buildKeyRaw(question, raw);
+  // 그림을 그리는 문항은 자동 채점할 수 없으므로 반드시 선생님 채점
+  const q = built.question;
+  const drawn = q.type === 'draw' || q.draw || q.parts?.some((p) => p.type === 'draw');
+  if (drawn && raw != null && String(raw).trim() !== '') {
+    return { question: { ...q, manual: true }, key: { ...built.key, manual: true } };
+  }
+  return built;
+}
+
+const SPLIT_PARTS = /\s*[;；]\s*/;
+const isDrawPiece = (s) => /^그리기$/.test(String(s).replace(LEAD_RE, '').trim());
+
+function buildKeyRaw(question, raw) {
   let q = { ...question };
   const flags = (k) => ({ ...k, ...(q.draw ? { draw: true } : {}), ...(q.manual ? { manual: true } : {}) });
   if (raw == null || String(raw).trim() === '') return { question: q, key: flags(emptyKey(q.type)) };
   // 여러 유형 문항: 엑셀 정답을 ; 로 나눠 부분마다 ("③ ; 3 cm")
   if (q.parts?.length) {
-    const pieces = String(raw).split(/\s*[;；]\s*/);
+    const pieces = String(raw).split(SPLIT_PARTS);
     const built = q.parts.map((p, i) => buildKey({ ...p, no: q.no, parts: undefined }, pieces[i] ?? ''));
     return {
       question: { ...q, parts: built.map((b, i) => ({ ...q.parts[i], ...pick(b.question) })) },
       key: flags({ parts: built.map((b) => b.key) }),
     };
   }
+  // 문제지에서는 답 칸 하나로 읽었지만 정답이 ; 로 여러 부분이면(예: "서술형 문장 ; 20 cm")
+  // 부분마다 답 형식이 따로 있는 문항으로 바꾼다 (부분마다 서술형·단답형·객관식 등을 정답 보고 정함)
+  const pieces = String(raw).split(SPLIT_PARTS).map((x) => x.trim()).filter(Boolean);
+  if (pieces.length >= 2) {
+    const drawPiece = pieces.some(isDrawPiece);
+    const rest = pieces.filter((x) => !isDrawPiece(x));
+    // "그리기 ; 3 cm" → 그림 + 답 문항
+    if (drawPiece && rest.length === 1) return buildKeyRaw({ ...q, draw: true, type: q.type === 'draw' ? 'short' : q.type }, `그리기 + ${rest[0]}`);
+    const base = { ...q, type: 'short', draw: false, choiceCount: 0, choices: [], choiceLabels: null, multi: false, blankCount: 0 };
+    const parts = rest.map(() => ({ type: 'short', choiceCount: 0, choices: [], choiceLabels: null, multi: false, matchCount: 0, matchLabels: null, blankCount: 0 }));
+    const built = buildKeyRaw({ ...base, parts }, rest.join(' ; '));
+    return drawPiece ? { question: { ...built.question, manual: true }, key: { ...built.key, manual: true } } : built;
+  }
   // 그림만 그리는 문항으로 인식했는데 답을 적었다면 → 그림 + 답 문항
-  if (q.type === 'draw' && !/^\s*그리기/.test(String(raw))) q = { ...q, type: 'short' };
+  if (q.type === 'draw' && !/^\s*그리기/.test(String(raw))) q = { ...q, type: 'short', draw: true };
   const built = buildKeyInner(q, raw);
   return { question: built.question, key: flags(built.key) };
 }

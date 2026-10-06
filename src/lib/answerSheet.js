@@ -1,6 +1,8 @@
 // 정답 엑셀 양식 만들기 / 읽기
-// 양식: 번호 | 정답 | 배점(선택, 비우면 자동)
+// 양식: 번호 | 정답 | 배점(선택, 비우면 자동 · 부분 점수는 3 ; 2)
 // 정답 칸에는 객관식이든 단답형이든 서술형이든 그대로 적으면 문항 유형·핵심어는 자동으로 정해진다.
+
+import { fillDefaultPoints } from './parseQuestions.js';
 
 function download(buf, filename) {
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -64,7 +66,11 @@ export async function buildAnswerTemplate(list) {
     row.getCell('hint').font = { color: { argb: 'FF5D6B7E' } };
   }
   ws.getColumn('answer').numFmt = '@'; // 정답은 글자로 (3/4 가 날짜로 바뀌지 않게)
-  for (let r = 2; r <= numbers.length + 1; r++) ws.getCell(`B${r}`).numFmt = '@';
+  ws.getColumn('points').numFmt = '@'; // 부분 점수 "3 ; 2"
+  for (let r = 2; r <= numbers.length + 1; r++) {
+    ws.getCell(`B${r}`).numFmt = '@';
+    ws.getCell(`C${r}`).numFmt = '@';
+  }
   ws.views = [{ state: 'frozen', ySplit: 1 }];
 
   const help = wb.addWorksheet('작성 방법');
@@ -79,7 +85,8 @@ export async function buildAnswerTemplate(list) {
     ['선 잇기', '(1)-① (2)-②'],
     ['○표 할 괄호 고르기', '오른쪽  (또는 왼쪽, 가운데, 위, 아래)'],
     ['□ 칸이 여러 개', '3, 6  (순서대로 쉼표)'],
-    ['그리기', '그리기  /  그리기 + 3 cm'],
+    ['그리기 (선생님 채점)', '그리기  /  그리기 + 3 cm'],
+    ['한 문항에 답 종류가 여러 개', '부분마다 ;  (예: 두 원의 지름의 합과 같습니다. ; 20 cm)'],
     ['선생님이 직접 채점', '검토'],
     ['단답형', '서까래'],
     ['단답형 (여러 답 인정)', '로제타 선생님 / 로제타'],
@@ -87,7 +94,8 @@ export async function buildAnswerTemplate(list) {
     ['서술형', '모범 답안 문장을 그대로 적기'],
     ['서술형 (예시 답안)', '(예) 우울한 표정 / 걱정하는 목소리 등'],
     ['', ''],
-    ['배점', '비워 두면 100점을 문항 수로 나눠 자동으로 정합니다.'],
+    ['배점', '비워 두면 100점을 문항 수로 나눠 자동으로 정합니다. 일부만 적으면 나머지 점수를 남은 문항에 고르게 나눕니다.'],
+    ['부분 점수', '정답을 ; 로 나눈 문항은 배점도 부분마다 ;  (예: 3 ; 2 → 맞힌 부분만큼 점수)'],
   ].forEach((r, i) => {
     const row = help.addRow(r);
     if (i === 0) row.font = { bold: true };
@@ -112,9 +120,23 @@ function cellText(v) {
 }
 
 /**
+ * 배점 칸 읽기: "5" → 5점, 부분 점수 "3 ; 2" 또는 "3+2" → 5점 (부분 3점, 2점)
+ * @returns {{points:number, parts:number[]|null}|null}
+ */
+export function parsePoints(text) {
+  const s = String(text ?? '').replace(/점/g, '').trim();
+  if (!s) return null;
+  const nums = s.split(/\s*[;；+＋]\s*/).filter(Boolean).map(Number);
+  if (!nums.length || nums.some((n) => !(n >= 0) || Number.isNaN(n))) return null;
+  const total = Math.round(nums.reduce((a, b) => a + b, 0) * 10) / 10;
+  if (!(total > 0)) return null;
+  return { points: total, parts: nums.length > 1 ? nums : null };
+}
+
+/**
  * 정답 엑셀 읽기
  * @param {ArrayBuffer} data
- * @returns {Promise<{answers: Map<number,string>, points: Map<number,number>}>}
+ * @returns {Promise<{answers: Map<number,string>, points: Map<number,number>, partPoints: Map<number,number[]>}>}
  */
 export async function readAnswerSheet(data) {
   const { default: ExcelJS } = await import('exceljs');
@@ -142,6 +164,7 @@ export async function readAnswerSheet(data) {
   }
   const answers = new Map();
   const points = new Map();
+  const partPoints = new Map();
   for (let r = startRow; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
     const no = Number(cellText(row.getCell(noCol).value).replace(/[^\d]/g, ''));
@@ -149,9 +172,23 @@ export async function readAnswerSheet(data) {
     if (!no || !ans) continue;
     answers.set(no, ans);
     if (ptCol) {
-      const p = Number(cellText(row.getCell(ptCol).value));
-      if (p > 0) points.set(no, p);
+      const p = parsePoints(cellText(row.getCell(ptCol).value));
+      if (p) {
+        points.set(no, p.points);
+        if (p.parts) partPoints.set(no, p.parts);
+      }
     }
   }
-  return { answers, points };
+  return { answers, points, partPoints };
+}
+
+/**
+ * 엑셀에 배점이 일부라도 있으면: 적힌 배점은 그대로, 나머지 문항은 남은 점수를 고르게 나눈다 (총점 100).
+ * 엑셀에 배점이 하나도 없으면 지금 배점(균등 분배 또는 문제지에 적힌 배점)을 그대로 둔다.
+ * @param {object[]} items 편집 중인 문항
+ * @param {Map<number,number>} points 엑셀 배점
+ */
+export function withSheetPoints(items, points) {
+  if (!points.size) return items;
+  return fillDefaultPoints(items.map((it) => ({ ...it, points: points.get(Number(it.no)) ?? null })));
 }

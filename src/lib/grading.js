@@ -269,9 +269,12 @@ export function gradeAnswer(question, key, answer, leniency = 'normal', subject 
       return isBlank(a, pq) ? { status: 'wrong', reason: '답 없음' } : gradeAnswer(pq, key?.parts?.[i] || {}, a, leniency, subject);
     });
     const tag = rs.map((r, i) => `(${i + 1}) ${r.status === 'correct' ? 'O' : r.status === 'wrong' ? 'X' : '?'}`).join(' ');
-    if (rs.some((r) => r.status === 'wrong')) return { status: 'wrong', reason: tag };
-    if (rs.some((r) => r.status === 'review')) return { status: 'review', reason: `${tag} — 선생님 확인` };
-    return { status: 'correct', reason: tag };
+    const partStatus = rs.map((r) => r.status);
+    // 부분 점수가 있으면 틀린 부분이 있어도 확인할 부분은 선생님이 봐야 점수가 정해진다
+    if (partPoints(question) && rs.some((r) => r.status === 'review')) return { status: 'review', reason: `${tag} — 선생님 확인`, partStatus };
+    if (rs.some((r) => r.status === 'wrong')) return { status: 'wrong', reason: tag, partStatus };
+    if (rs.some((r) => r.status === 'review')) return { status: 'review', reason: `${tag} — 선생님 확인`, partStatus };
+    return { status: 'correct', reason: tag, partStatus };
   }
   if (question.type === 'draw') return { status: 'review', reason: '그린 그림 — 선생님 확인' };
   if (question.draw) {
@@ -303,16 +306,26 @@ export function gradeSubmission(exam, keys, submission) {
   const items = exam.questions.map((q) => {
     const auto = gradeAnswer(q, keys[q.no], submission.answers?.[q.no], exam.leniency, exam.subject);
     const ov = overrides[q.no];
-    const status = ov || auto.status;
     const points = Number(q.points) || 0;
+    let status;
+    let earned;
+    if (typeof ov === 'number') {
+      // 선생님이 준 점수 (부분 점수)
+      earned = round1(Math.max(0, Math.min(points, ov)));
+      status = earned >= points ? 'correct' : 'wrong';
+    } else {
+      status = ov || auto.status;
+      earned = status === 'correct' ? points : ov ? 0 : partEarned(q, auto.partStatus, ['correct']);
+    }
     return {
       no: q.no,
       type: q.type,
       points,
       auto,
-      overridden: !!ov,
+      overridden: ov != null,
       status,
-      earned: status === 'correct' ? points : 0,
+      earned,
+      partial: earned > 0 && earned < points,
     };
   });
   const total = items.reduce((s, it) => s + it.points, 0);
@@ -325,6 +338,27 @@ export function gradeSubmission(exam, keys, submission) {
     correctCount: items.filter((it) => it.status === 'correct').length,
     reviewCount: items.filter((it) => it.status === 'review').length,
   };
+}
+
+/** 문항의 부분 배점 (부분 수와 맞을 때만). 없으면 null — 모두 맞아야 점수 */
+export function partPoints(q) {
+  const pp = q?.partPoints;
+  if (!q?.parts?.length || !Array.isArray(pp) || pp.length !== q.parts.length) return null;
+  const nums = pp.map(Number);
+  return nums.every((n) => n >= 0) && nums.some((n) => n > 0) ? nums : null;
+}
+
+/**
+ * 부분 점수: 주어진 상태(정답 등)인 부분의 배점 합. 부분 배점 합이 문항 배점과 다르면 비율로 맞춘다.
+ * @param {string[]} [partStatus] 부분마다 채점 결과
+ * @param {string[]} statuses 점수를 줄 상태
+ */
+export function partEarned(q, partStatus, statuses) {
+  const pp = partPoints(q);
+  if (!pp || !partStatus) return 0;
+  const sum = pp.reduce((a, b) => a + b, 0);
+  const got = pp.reduce((a, p, i) => a + (statuses.includes(partStatus[i]) ? p : 0), 0);
+  return round1(((Number(q.points) || 0) * got) / sum);
 }
 
 function round1(n) {

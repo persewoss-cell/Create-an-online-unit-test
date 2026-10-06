@@ -5,7 +5,7 @@ import FileDrop from './FileDrop.jsx';
 import { QuestionRow } from './QuestionEditor.jsx';
 import { fromItems, toItems } from '../lib/editorModel.js';
 import { buildKey, hasAnswer } from '../lib/parseAnswers.js';
-import { downloadAnswerTemplate, readAnswerSheet, answerHint } from '../lib/answerSheet.js';
+import { downloadAnswerTemplate, readAnswerSheet, answerHint, parsePoints, withSheetPoints } from '../lib/answerSheet.js';
 import { TYPE_LABEL } from '../lib/format.js';
 import AiPromptDialog from './AiPromptDialog.jsx';
 
@@ -40,7 +40,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
     setBusy(true);
     setMsg(null);
     try {
-      const { answers, points } = await readAnswerSheet(await file.arrayBuffer());
+      const { answers, points, partPoints } = await readAnswerSheet(await file.arrayBuffer());
       if (!answers.size) throw new Error('엑셀에서 정답을 찾지 못했습니다. 양식의 “번호”, “정답” 칸을 확인해 주세요.');
       let applied = 0;
       const boxChanged = []; // 엑셀 쉼표 수에 맞춰 답 칸 수가 바뀐 문항
@@ -53,10 +53,11 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
         const before = it.type === 'short' ? Math.max(1, Number(it.blankCount) || 1) : 0;
         const after = question.type === 'short' ? Math.max(1, Number(question.blankCount) || 1) : 0;
         if (before && after && before !== after) boxChanged.push(`${no}번 ${before}→${after}칸`);
-        return { ...fresh, points: points.get(no) ?? it.points };
+        const pp = partPoints.get(no);
+        return { ...fresh, points: points.get(no) ?? it.points, partPoints: pp && pp.length === fresh.parts?.length ? pp : null };
       });
       const unknown = [...answers.keys()].filter((n) => !items.some((it) => Number(it.no) === n));
-      onChange(next);
+      onChange(withSheetPoints(next, points));
       setMsg({
         type: unknown.length ? 'warn' : 'success',
         text: `${applied}개 문항에 정답을 넣었습니다.${boxChanged.length ? ` 엑셀 정답에 맞춰 답 칸 수를 바꿨습니다: ${boxChanged.join(', ')}.` : ''}${unknown.length ? ` 문제지에 없는 번호: ${unknown.join(', ')}번` : ''}`,
@@ -80,8 +81,8 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
             </button>
           </span>
           <span className="row">
-            <span><b>②</b> AI로 정답 정리 (선택) →</span>
-            <button type="button" className="btn" onClick={() => setAiOpen(true)} title="정답지를 AI 채팅에 맡겨 엑셀에 붙여 넣을 표로 만들게 하는 명령어">
+            <span><b>②</b> AI로 엑셀 양식에 넣을 정답 정리 (선택) →</span>
+            <button type="button" className="btn" onClick={() => setAiOpen(true)} title="정답지를 AI 채팅에 맡겨 엑셀 정답 칸에 붙여 넣을 정답을 위아래로 나열하게 하는 명령어">
               🤖 AI 명령어 복사하기
             </button>
           </span>
@@ -95,7 +96,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
         <div className="small muted">
           객관식 <code>4</code> 또는 <code>④</code>, 기호 <code>㉮</code>, ○표 <code>(3)</code>, 선 잇기 <code>(1)-① (2)-②</code>, 단답형은 답 그대로
           (답 칸이 여러 개면 쉼표로 <code>3, 6, 9</code> — 쉼표 수만큼 답 칸이 생겨요),
-          서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>), 그리기는 <code>그리기</code>, 선생님이 직접 채점할 문항은 <code>검토</code>. 문항 유형·배점·핵심어는 자동으로 정해집니다.
+          서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>), 그리기는 <code>그리기</code>(언제나 선생님 채점), 선생님이 직접 채점할 문항은 <code>검토</code>, 한 문항에 답이 여러 종류면 <code>문장 ; 20 cm</code>. 배점 칸을 비우면 100점을 고르게 나누고, 부분 점수는 <code>3 ; 2</code>. 문항 유형·핵심어는 자동으로 정해집니다.
         </div>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
         {aiOpen && <AiPromptDialog questions={fromItems(items).questions} title={title} onClose={() => setAiOpen(false)} />}
@@ -135,6 +136,9 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
                     aria-label={`${it.no}번 배점`}
                   />
                 </label>
+                {it.parts?.length > 0 && (
+                  <PartPointsInput it={it} onChange={(patch) => update(idx, patch)} />
+                )}
               </div>
               <div className="small muted">학생 화면 미리보기 (초록색이 정답)</div>
               <div className="small" style={{ color: 'var(--primary)' }}>답 쓰는 법: {answerHint(fromItems([it]).questions[0])}</div>
@@ -156,5 +160,36 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title 
         );
       })}
     </div>
+  );
+}
+
+/** 부분 점수 입력: "3 ; 2" (부분 수만큼). 비우면 모두 맞아야 점수 */
+function PartPointsInput({ it, onChange }) {
+  const cur = (it.partPoints || []).join(' ; ');
+  const [text, setText] = useState(cur);
+  const [prev, setPrev] = useState(cur);
+  if (prev !== cur) {
+    setPrev(cur);
+    setText(cur);
+  }
+  const n = it.parts.length;
+  function commit(v) {
+    setText(v);
+    if (!v.trim()) return onChange({ partPoints: null });
+    const p = parsePoints(v);
+    if (p?.parts?.length === n) onChange({ partPoints: p.parts, points: p.points });
+  }
+  const bad = text.trim() && parsePoints(text)?.parts?.length !== n;
+  return (
+    <label className="small row" style={{ gap: 4 }} title={`부분마다 점수를 ; 로 (${n}부분, 예: ${Array.from({ length: n }, () => 2).join(' ; ')}). 비우면 모두 맞아야 점수`}>
+      부분 점수
+      <input
+        value={text}
+        onChange={(e) => commit(e.target.value)}
+        placeholder={Array.from({ length: n }, () => '-').join(' ; ')}
+        style={{ width: 90, padding: '4px 6px', borderColor: bad ? 'var(--warn)' : undefined }}
+        aria-label={`${it.no}번 부분 점수`}
+      />
+    </label>
   );
 }
