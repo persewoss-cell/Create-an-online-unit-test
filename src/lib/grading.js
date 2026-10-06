@@ -47,7 +47,17 @@ function gradeChoice(key, answer) {
   const got = [...new Set((Array.isArray(answer) ? answer : [answer]).map(Number))].sort();
   if (!want.length) return { status: 'review', reason: '정답이 등록되지 않음' };
   const ok = want.length === got.length && want.every((v, i) => v === got[i]);
-  return { status: ok ? 'correct' : 'wrong' };
+  if (want.length < 2) return { status: ok ? 'correct' : 'wrong' };
+  // 답이 여러 개: 정답 보기마다 맞았는지 (부분 점수용). 틀린 보기를 더 골랐으면 그 수만큼 맞힌 것을 뺀다
+  const partStatus = want.map((v) => (got.includes(v) ? 'correct' : 'wrong'));
+  let extra = got.filter((v) => !want.includes(v)).length;
+  for (let i = partStatus.length - 1; i >= 0 && extra > 0; i--) {
+    if (partStatus[i] === 'correct') {
+      partStatus[i] = 'wrong';
+      extra--;
+    }
+  }
+  return { status: ok ? 'correct' : 'wrong', partStatus };
 }
 
 /** 한 개의 정답 표현(쉼표로 구분된 필수 요소 포함)과 학생 답 비교 */
@@ -146,22 +156,32 @@ function gradeBoxes(key, answers, rule) {
       if (answers.length <= 7) pick(0, []);
       if (best) assign = best.acc;
     }
-    if (assign.every((r) => r.status === 'correct')) return { status: 'correct' };
-    if (assign.some((r) => r.status === 'wrong')) return { status: 'wrong' };
+    const partStatus = assign.map((r) => r.status);
+    if (assign.every((r) => r.status === 'correct')) return { status: 'correct', partStatus };
+    if (assign.some((r) => r.status === 'wrong')) return { status: 'wrong', partStatus };
     const bad = assign.map((r, i) => (r.status === 'review' ? i + 1 : 0)).filter(Boolean);
-    return { status: 'review', reason: `${bad.join(', ')}번째 칸 확인 필요` };
+    return { status: 'review', reason: `${bad.join(', ')}번째 칸 확인 필요`, partStatus };
   }
   const accepted = (key.accepted || []).filter((a) => String(a).trim());
   if (!accepted.length) return { status: 'review', reason: '정답이 등록되지 않음' };
   let best = { status: 'wrong' };
+  let bestHits = -1;
   let compared = false;
   for (const alt of accepted) {
     const parts = splitCommas(alt);
     if (parts.length !== answers.length) continue;
     compared = true;
     const rs = parts.map((p, i) => compareShort(p, String(answers[i] ?? ''), rule));
-    if (rs.every((r) => r.status === 'correct')) return { status: 'correct' };
-    if (rs.every((r) => r.status !== 'wrong')) best = { status: 'review', reason: '칸 일부 확인 필요' };
+    const partStatus = rs.map((r) => r.status);
+    if (rs.every((r) => r.status === 'correct')) return { status: 'correct', partStatus };
+    const hits = rs.filter((r) => r.status !== 'wrong').length;
+    if (rs.every((r) => r.status !== 'wrong')) {
+      best = { status: 'review', reason: '칸 일부 확인 필요', partStatus };
+      bestHits = Infinity;
+    } else if (hits > bestHits && best.status !== 'review') {
+      best = { status: 'wrong', partStatus };
+      bestHits = hits;
+    }
   }
   // 정답의 칸 수가 학생 칸 수와 다르게 등록된 경우에만 이어 붙여서 비교
   if (!compared) return gradeShortText(key, answers.join(', '), rule);
@@ -203,8 +223,8 @@ function gradeMatch(key, answer) {
   const want = key.pairs || [];
   if (!want.length) return { status: 'review', reason: '정답이 등록되지 않음' };
   const got = Array.isArray(answer) ? answer.map(Number) : [];
-  const ok = want.every((v, i) => got[i] === v);
-  return { status: ok ? 'correct' : 'wrong' };
+  const partStatus = want.map((v, i) => (got[i] === v ? 'correct' : 'wrong'));
+  return { status: partStatus.every((x) => x === 'correct') ? 'correct' : 'wrong', ...(want.length > 1 ? { partStatus } : {}) };
 }
 
 /** 예시 답안이 여러 개인 서술형: 하나라도 충분히 비슷하면 정답, 열린 문항이면 나머지는 선생님 확인 */
@@ -258,6 +278,16 @@ function gradeEssay(key, answer, rule) {
  * @param {string} [subject] 과목 — '수학'이면 단위를 빠뜨린 답은 틀림
  */
 export function gradeAnswer(question, key, answer, leniency = 'normal', subject = '') {
+  const r = gradeAnswerBase(question, key, answer, leniency, subject);
+  // 부분 점수 문항: 틀린 답이 있어도 확인할 답이 남아 있으면 선생님이 봐야 점수가 정해진다
+  const pp = partPoints(question);
+  if (pp && r.status === 'wrong' && r.partStatus?.length === pp.length && r.partStatus.includes('review')) {
+    return { ...r, status: 'review', reason: `${r.reason ? `${r.reason} · ` : ''}부분 점수 — 선생님 확인` };
+  }
+  return r;
+}
+
+function gradeAnswerBase(question, key, answer, leniency = 'normal', subject = '') {
   const rule = { ...(LENIENCY[leniency] || LENIENCY.normal), requireUnit: subject === '수학' };
   if (isBlank(answer, question)) return { status: 'wrong', reason: '답 없음' };
   if (question.manual) return { status: 'review', reason: '선생님이 직접 채점하는 문항' };
@@ -270,8 +300,6 @@ export function gradeAnswer(question, key, answer, leniency = 'normal', subject 
     });
     const tag = rs.map((r, i) => `(${i + 1}) ${r.status === 'correct' ? 'O' : r.status === 'wrong' ? 'X' : '?'}`).join(' ');
     const partStatus = rs.map((r) => r.status);
-    // 부분 점수가 있으면 틀린 부분이 있어도 확인할 부분은 선생님이 봐야 점수가 정해진다
-    if (partPoints(question) && rs.some((r) => r.status === 'review')) return { status: 'review', reason: `${tag} — 선생님 확인`, partStatus };
     if (rs.some((r) => r.status === 'wrong')) return { status: 'wrong', reason: tag, partStatus };
     if (rs.some((r) => r.status === 'review')) return { status: 'review', reason: `${tag} — 선생님 확인`, partStatus };
     return { status: 'correct', reason: tag, partStatus };
@@ -340,10 +368,13 @@ export function gradeSubmission(exam, keys, submission) {
   };
 }
 
-/** 문항의 부분 배점 (부분 수와 맞을 때만). 없으면 null — 모두 맞아야 점수 */
+/**
+ * 문항의 부분 배점 (답이 여러 개인 문항에서 답마다 점수). 없으면 null — 모두 맞아야 점수.
+ * 답 개수와 맞는지는 채점할 때(partStatus 길이) 확인한다.
+ */
 export function partPoints(q) {
   const pp = q?.partPoints;
-  if (!q?.parts?.length || !Array.isArray(pp) || pp.length !== q.parts.length) return null;
+  if (!Array.isArray(pp) || pp.length < 2) return null;
   const nums = pp.map(Number);
   return nums.every((n) => n >= 0) && nums.some((n) => n > 0) ? nums : null;
 }
@@ -355,7 +386,7 @@ export function partPoints(q) {
  */
 export function partEarned(q, partStatus, statuses) {
   const pp = partPoints(q);
-  if (!pp || !partStatus) return 0;
+  if (!pp || !partStatus || partStatus.length !== pp.length) return 0;
   const sum = pp.reduce((a, b) => a + b, 0);
   const got = pp.reduce((a, p, i) => a + (statuses.includes(partStatus[i]) ? p : 0), 0);
   return round1(((Number(q.points) || 0) * got) / sum);

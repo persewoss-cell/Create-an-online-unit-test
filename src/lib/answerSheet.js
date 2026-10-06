@@ -3,6 +3,7 @@
 // 정답 칸에는 객관식이든 단답형이든 서술형이든 그대로 적으면 문항 유형·핵심어는 자동으로 정해진다.
 
 import { fillDefaultPoints } from './parseQuestions.js';
+import { withPoints } from './editorModel.js';
 
 function download(buf, filename) {
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -52,7 +53,7 @@ export async function buildAnswerTemplate(list) {
   ws.columns = [
     { header: '번호', key: 'no', width: 8 },
     { header: '정답', key: 'answer', width: 40 },
-    { header: '배점(비우면 자동)', key: 'points', width: 18 },
+    { header: '배점(비우면 자동)', key: 'points', width: 20 },
     { header: '답 쓰는 법 (자동 안내)', key: 'hint', width: 70 },
   ];
   const head = ws.getRow(1);
@@ -95,7 +96,9 @@ export async function buildAnswerTemplate(list) {
     ['서술형 (예시 답안)', '(예) 우울한 표정 / 걱정하는 목소리 등'],
     ['', ''],
     ['배점', '비워 두면 100점을 문항 수로 나눠 자동으로 정합니다. 일부만 적으면 나머지 점수를 남은 문항에 고르게 나눕니다.'],
-    ['부분 점수', '정답을 ; 로 나눈 문항은 배점도 부분마다 ;  (예: 3 ; 2 → 맞힌 부분만큼 점수)'],
+    ['부분 점수 (답지에 있을 때만)', '답이 여러 개인 문항은 배점 칸에 답마다 ; 로  (예: 정답 3 cm, 6 cm → 배점 2 ; 2)'],
+    ['', '여러 부분(;) · 답 칸 여러 개(,) · 선 잇기 짝 · 객관식 답 여러 개 모두 같은 방법. 답 개수와 같은 수를 적어요.'],
+    ['', '숫자 하나만 적으면(예: 4) 모두 맞아야 4점이에요.'],
   ].forEach((r, i) => {
     const row = help.addRow(r);
     if (i === 0) row.font = { bold: true };
@@ -190,5 +193,7 @@ export async function readAnswerSheet(data) {
  */
 export function withSheetPoints(items, points) {
   if (!points.size) return items;
-  return fillDefaultPoints(items.map((it) => ({ ...it, points: points.get(Number(it.no)) ?? null })));
+  const filled = fillDefaultPoints(items.map((it) => ({ ...it, points: points.get(Number(it.no)) ?? null })));
+  // 엑셀에 배점이 없어 새로 나눈 문항의 부분 점수는 같은 비율로 맞춘다
+  return filled.map((it) => (points.has(Number(it.no)) ? it : withPoints(it, it.points)));
 }

@@ -16,10 +16,13 @@ describe('buildAnswerPrompt', () => {
     expect(p).not.toContain('번호\t정답');
   });
   it('배점이 있으면 탭 뒤에, 부분 점수는 ; 로, 없으면 쓰지 않게 한다', () => {
-    expect(p).toMatch(/배점 숫자만/);
     expect(p).toContain('3 ; 2');
-    expect(p).toMatch(/배점이 적혀 있지 않으면 배점은 쓰지 말고/);
+    expect(p).toMatch(/배점이 적혀 있지 않은 문항은 탭도 배점도 쓰지 말고/);
     expect(p).toContain('20 cm\t3 ; 2');
+    expect(p).toContain('3 cm, 6 cm\t2 ; 2');
+    expect(p).toMatch(/부분 점수가 분명히 적혀 있는 문항만/);
+    expect(p).toMatch(/네가 판단해서 부분 점수를 만들면 안 돼/);
+    expect(p).toMatch(/배점을 짐작해서 만들지 마/);
   });
   it('문항마다 답 쓰는 법을 붙인다', () => {
     expect(p).toContain('- 1번: ① ② ③ ④ ⑤ 중에서 적기 (예: ①)');
