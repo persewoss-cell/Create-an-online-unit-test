@@ -6,6 +6,7 @@ import { useTeacher } from './TeacherAuth.jsx';
 import { teacherLabel } from '../lib/school.js';
 import { desktopState, enableDesktop, disableDesktop } from '../lib/desktopNotify.js';
 import { logout } from '../lib/db.js';
+import ManualDialog from '../pages/Manual.jsx';
 
 /** 바탕화면(Windows) 알림 켜기/끄기 */
 function AlertToggle() {
@@ -33,6 +34,17 @@ function AlertToggle() {
   );
 }
 
+/** 사용설명서 (선생님용 탭으로 열기) */
+function ManualButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="btn sm" onClick={() => setOpen(true)} title="사용설명서 보기">📖 설명서</button>
+      {open && <ManualDialog initial="teacher" onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 /** 선생님 화면 상단바. 관리자가 선생님 방을 보고 있으면 알림 줄과 "관리자 화면으로" 버튼을 보여 준다 */
 export default function TeacherBar({ children }) {
   const { teacher, isAdmin, viewing, viewAs, setTeacher } = useTeacher();
@@ -43,6 +55,7 @@ export default function TeacherBar({ children }) {
     <>
       <TopBar home={isAdmin && !viewing ? '/teacher/admin' : '/teacher/dashboard'} who={who}>
         <AlertToggle />
+        <ManualButton />
         {children}
         {/* 선생님 화면 어디서든 맨 오른쪽에 로그아웃 */}
         {teacher && (

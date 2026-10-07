@@ -248,6 +248,7 @@ function TeacherManual() {
           <tbody>
             <tr><td className="nowrap"><b>📝 온라인 단원평가</b></td><td>누르면 내 단원평가 목록으로 가요.</td></tr>
             <tr><td className="nowrap"><B>🔕 바탕화면 알림 켜기</B> / <B kind="okline">🔔 알림 켜짐</B></td><td>창을 내려 두어도 학생 제출을 Windows 알림으로 알려 줘요. (14번 참고)</td></tr>
+            <tr><td className="nowrap"><B>📖 설명서</B></td><td>알림 버튼 오른쪽에 있어요. 어느 화면에서든 이 사용설명서를 열어 봐요.</td></tr>
             <tr><td className="nowrap"><B>비밀번호 변경</B></td><td>목록 화면에 있어요. 현재 비밀번호와 새 비밀번호를 넣어요.</td></tr>
             <tr><td className="nowrap"><B>목록</B></td><td>평가 화면·새 평가 만들기·학생 명단에서 목록으로 돌아가요.</td></tr>
             <tr><td className="nowrap"><B>로그아웃</B></td><td>모든 선생님 화면의 맨 오른쪽에 있어요.</td></tr>
