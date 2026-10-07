@@ -367,7 +367,6 @@ export default function TakeExam({ retake = false, preview = null }) {
       <header className="exam-top">
         <b className="exam-title">{retake && <span className="badge review" style={{ marginRight: 6 }}>오답 재응시</span>}{exam.title}</b>
         <span className="muted small">{who}</span>
-        {preview && <button type="button" className="btn sm" onClick={preview.onClose}>✕ 미리보기 닫기</button>}
         <div className="exam-progress">
           <span className={`save-state small ${saveState}`} data-testid="save-state">
             {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '✓ 자동 저장됨' : saveState === 'local' ? '✓ 이 기기에 저장됨' : ''}
@@ -375,6 +374,7 @@ export default function TakeExam({ retake = false, preview = null }) {
           <span className="small">답한 문항 <b>{answeredCount}</b>/{total}</span>
           <div className="progress"><div style={{ width: `${(answeredCount / total) * 100}%` }} /></div>
         </div>
+        {preview && <button type="button" className="btn sm preview-close" onClick={preview.onClose}>✕ 미리보기 닫기</button>}
       </header>
 
       <main ref={mainRef} className={`exam-main ${portrait ? 'portrait' : ''} ${side ? 'side' : 'stack'}`} aria-label={`${q.no}번 문제`}>

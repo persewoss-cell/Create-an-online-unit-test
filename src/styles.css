@@ -647,3 +647,4 @@ table.exam-list td.unit-col { min-width: 160px; }
 .qh.e::after, .qh.w::after { top: calc(50% - 18px); left: 5px; width: 4px; height: 36px; }
 .qh.ne::after, .qh.nw::after, .qh.se::after, .qh.sw::after { inset: 4px; border-radius: 2px; }
 .qh:hover::after { background: #1b4fc4; }
+.pcard-bar .bar-end { margin-left: auto; }

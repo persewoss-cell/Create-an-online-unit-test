@@ -191,9 +191,10 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
         const q = fromItems([it]).questions[0];
         return (
           <div key={idx} className={`pcard ${hasAnswer(key) ? '' : 'warn'}`} data-testid={`preview-${it.no}`}>
-            {!structureLocked && (
-              <div className="pcard-bar">
-                <b>{it.no}번</b>
+            <div className="pcard-bar">
+              <b>{it.no}번</b>
+              {!structureLocked && (
+                <>
                 <button type="button" className="btn xs" onClick={() => restructure(move(items, idx, -1))} disabled={idx === 0} title="위로 (번호도 바뀜)" aria-label={`${it.no}번 위로`}>▲</button>
                 <button type="button" className="btn xs" onClick={() => restructure(move(items, idx, 1))} disabled={idx === items.length - 1} title="아래로 (번호도 바뀜)" aria-label={`${it.no}번 아래로`}>▼</button>
                 <span className="sep" />
@@ -203,15 +204,16 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
                 <button type="button" className="btn xs" onClick={() => splitAt(idx)} title="두 문항으로 나누기">✂ 둘로 나누기</button>
                 <span className="sep" />
                 <button type="button" className="btn xs danger" onClick={() => removeAt(idx)}>🗑 삭제</button>
-              </div>
-            )}
+                </>
+              )}
+              <button type="button" className="btn xs bar-end" onClick={() => setPreviewNo(it.no)} disabled={!pages.length} title="이 문항을 학생 시험 화면 그대로 보기">
+                👀 미리보기
+              </button>
+            </div>
             <div className="left">
               <div className="pcard-tools">
                 <button type="button" className="btn xs primary" onClick={() => setEditing({ kind: 'q', idx, page: it.regions?.[0]?.page || it.page })} disabled={!pages.length}>
                   ✂️ 캡쳐 상세 조정{it.regions?.length > 1 ? ` (${it.regions.length}개)` : ''}
-                </button>
-                <button type="button" className="btn xs" onClick={() => setPreviewNo(it.no)} disabled={!pages.length} title="이 문항을 학생 시험 화면 그대로 보기">
-                  👀 미리보기
                 </button>
                 {canEditView && (
                   <>
