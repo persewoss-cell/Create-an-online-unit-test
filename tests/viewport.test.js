@@ -31,3 +31,20 @@ describe('마우스 간편조정 계산', () => {
     expect(clampRegion({ x0: -0.1, x1: 0.3, y0: 0.9, y1: 1.2 })).toMatchObject({ x0: 0, x1: 0.4, y0: 0.7, y1: 1 });
   });
 });
+
+describe('테두리 끌기', () => {
+  it('오른쪽 변을 왼쪽으로 끌면 잘리고, 오른쪽으로 끌면 더 보인다', async () => {
+    const { resizeRegionEdge } = await import('../src/lib/viewport.js');
+    const cut = resizeRegionEdge(r, 'e', -0.25, 0); // 칸 폭의 1/4만큼 안으로
+    expect(cut).toMatchObject({ x0: 0.2, x1: 0.5, y0: 0.2, y1: 0.4 });
+    const more = resizeRegionEdge(r, 'e', 0.5, 0);
+    expect(more.x1).toBe(0.8);
+    expect(resizeRegionEdge(r, 'e', 5, 0).x1).toBe(1); // 쪽 끝까지만
+  });
+  it('위·왼쪽 변, 모서리', async () => {
+    const { resizeRegionEdge } = await import('../src/lib/viewport.js');
+    expect(resizeRegionEdge(r, 'n', 0, -0.5)).toMatchObject({ y0: 0.1, y1: 0.4 });
+    expect(resizeRegionEdge(r, 'w', 2, 0).x0).toBe(0.58); // 반대쪽 변을 넘지 않음 (최소 2%)
+    expect(resizeRegionEdge(r, 'se', -0.5, 0.5)).toMatchObject({ x1: 0.4, y1: 0.5 });
+  });
+});

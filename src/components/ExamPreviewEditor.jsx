@@ -255,7 +255,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
                   )}
                 </span>
               </div>
-              {quick?.idx === idx && <div className="quick-hint">🖱 휠을 굴리면 확대·축소, ✋ 그림을 끌면 위아래·좌우로 옮겨져요. 다 되면 저장.</div>}
+              {quick?.idx === idx && <div className="quick-hint">🖱 휠: 확대·축소 · ✋ 그림 끌기: 옮기기 · ↔ 파란 테두리 끌기: 안으로 끌면 그만큼 잘리고, 밖으로 끌면 더 보여요. 다 되면 저장.</div>}
               {quick?.idx === idx ? (
                 <QuickAdjust
                   exam={view}

@@ -633,3 +633,17 @@ table.exam-list td.unit-col { min-width: 160px; }
 .quick-crop + .quick-crop { margin-top: 6px; border-top: 1px dashed var(--line); }
 .pcard-tools .tools-end { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
 .quick-hint { font-size: 12px; color: var(--primary); margin: -2px 0 8px; }
+/* 간편조정 테두리 손잡이: 변(가운데 굵은 막대)과 모서리 */
+.quick-crop { position: relative; }
+.qh { position: absolute; z-index: 2; touch-action: none; }
+.qh.n, .qh.s { left: 14px; right: 14px; height: 14px; cursor: ns-resize; }
+.qh.e, .qh.w { top: 14px; bottom: 14px; width: 14px; cursor: ew-resize; }
+.qh.n { top: -7px; } .qh.s { bottom: -7px; } .qh.e { right: -7px; } .qh.w { left: -7px; }
+.qh.ne, .qh.nw, .qh.se, .qh.sw { width: 16px; height: 16px; }
+.qh.ne { top: -8px; right: -8px; cursor: nesw-resize; } .qh.sw { bottom: -8px; left: -8px; cursor: nesw-resize; }
+.qh.nw { top: -8px; left: -8px; cursor: nwse-resize; } .qh.se { bottom: -8px; right: -8px; cursor: nwse-resize; }
+.qh::after { content: ''; position: absolute; background: #2f6fed; border-radius: 3px; box-shadow: 0 0 0 2px #fff; }
+.qh.n::after, .qh.s::after { left: calc(50% - 18px); top: 5px; width: 36px; height: 4px; }
+.qh.e::after, .qh.w::after { top: calc(50% - 18px); left: 5px; width: 4px; height: 36px; }
+.qh.ne::after, .qh.nw::after, .qh.se::after, .qh.sw::after { inset: 4px; border-radius: 2px; }
+.qh:hover::after { background: #1b4fc4; }

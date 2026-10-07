@@ -36,3 +36,20 @@ export function panRegion(r, dxFrac, dyFrac) {
   const h = r.y1 - r.y0;
   return clampRegion({ ...r, x0: r.x0 - dxFrac * w, x1: r.x1 - dxFrac * w, y0: r.y0 - dyFrac * h, y1: r.y1 - dyFrac * h });
 }
+
+/**
+ * 테두리 끌기: edge(n, s, e, w 또는 ne 처럼 둘)를 (dxFrac, dyFrac)만큼(캡쳐 칸 크기 기준) 끌기.
+ * 오른쪽 변을 왼쪽으로 끌면 그만큼 잘려 나가고(남은 부분이 칸에 맞춰 커짐),
+ * 오른쪽으로 끌면 문제지가 그만큼 더 보인다. 쪽 밖으로는 못 나가고 너무 작아지지 않는다(쪽의 2%).
+ */
+export function resizeRegionEdge(r, edge, dxFrac, dyFrac) {
+  const MIN = 0.02;
+  const w = r.x1 - r.x0;
+  const h = r.y1 - r.y0;
+  const n = { ...r };
+  if (edge.includes('e')) n.x1 = Math.min(1, Math.max(r.x0 + MIN, r.x1 + dxFrac * w));
+  if (edge.includes('w')) n.x0 = Math.max(0, Math.min(r.x1 - MIN, r.x0 + dxFrac * w));
+  if (edge.includes('s')) n.y1 = Math.min(1, Math.max(r.y0 + MIN, r.y1 + dyFrac * h));
+  if (edge.includes('n')) n.y0 = Math.max(0, Math.min(r.y1 - MIN, r.y0 + dyFrac * h));
+  return { ...n, x0: r4(n.x0), x1: r4(n.x1), y0: r4(n.y0), y1: r4(n.y1) };
+}
