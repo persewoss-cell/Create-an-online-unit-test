@@ -159,15 +159,13 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
           </span>
         </div>
         <div className="row">
-          <span><b>③</b> 번호 옆 “정답” 칸만 채워서 올리기 →</span>
+          <span><b>③</b> 엑셀 양식 채워서 올리기 →</span>
           <div style={{ flex: 1, minWidth: 260 }}>
             <FileDrop compact accept=".xlsx" onFile={uploadSheet} label={busy ? '읽는 중…' : '정답 엑셀'} hint="작성한 정답 엑셀을 끌어다 놓거나 눌러서 고르세요" />
           </div>
         </div>
         <div className="small muted">
-          객관식 <code>4</code> 또는 <code>④</code>, 기호 <code>㉮</code>, ○표 <code>(3)</code>, 선 잇기 <code>(1)-① (2)-②</code>, 단답형은 답 그대로
-          (답 칸이 여러 개면 쉼표로 <code>3, 6, 9</code> — 쉼표 수만큼 답 칸이 생겨요),
-          서술형은 모범 답안(예시 답안은 <code>(예) … / …</code>), 그리기는 <code>그리기</code>(언제나 선생님 채점), 선생님이 직접 채점할 문항은 <code>검토</code>, 한 문항에 답이 여러 종류면 <code>문장 ; 20 cm</code>. 배점 칸을 비우면 100점을 고르게 나누고, 답지에 부분 점수가 있으면 답마다 <code>2 ; 2</code>. 문항 유형·핵심어는 자동으로 정해집니다.
+          답이 여러 개일 때는 답 칸마다 쉼표(<code>3, 6, 9</code>), 여러 답 중 하나만 맞아도 정답이면 빗금(<code>답1 / 답2</code>), 한 문항에 답 종류가 여러 개면 세미콜론(<code>문장 ; 20 cm</code>)으로 구분해요.
         </div>
         {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
         {aiOpen && <AiPromptDialog questions={fromItems(items).questions} title={title} onClose={() => setAiOpen(false)} />}
