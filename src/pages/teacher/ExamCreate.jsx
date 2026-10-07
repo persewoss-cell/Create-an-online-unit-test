@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import TeacherBar, { ListButton } from '../../components/TeacherBar.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
 import ExamPreviewEditor from '../../components/ExamPreviewEditor.jsx';
+import StudentPreview from '../../components/StudentPreview.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { openPdf, extractPages, renderPages, readFileAsArrayBuffer } from '../../lib/pdfText.js';
 import { parseQuestions, fillDefaultPoints } from '../../lib/parseQuestions.js';
@@ -25,7 +26,8 @@ export default function ExamCreate() {
   });
   const [qFile, setQFile] = useState(null);
   const [groups, setGroups] = useState([]);
-  const [masks, setMasks] = useState([]); // 선생님이 문제지에서 가린 부분(흰 칸)
+  const [masks, setMasks] = useState([]);
+  const [previewing, setPreviewing] = useState(false); // 저장 전 학생 화면 미리보기 // 선생님이 문제지에서 가린 부분(흰 칸)
   const [aspects, setAspects] = useState([]);
   const [widthsCm, setWidthsCm] = useState([]);
   const location = useLocation();
@@ -253,7 +255,18 @@ export default function ExamCreate() {
               <button className="btn" onClick={() => setStep(1)} disabled={!!busy}>← 다시 올리기</button>
               <div className="row">
                 <span className="muted small">채점 기준: {LENIENCY[meta.leniency].label} · 저장한 뒤 <b>시험 개시</b>를 눌러야 학생에게 보여요</span>
+                <button className="btn" onClick={() => setPreviewing(true)} disabled={!items.length || !pages.length} title="학생 시험 화면 그대로 처음부터 넘겨 보기 (답은 저장되지 않아요)">
+                  👀 전체 미리보기
+                </button>
                 <button className="btn primary" onClick={() => save()} disabled={!!busy}>저장</button>
+                {previewing && (
+                  <StudentPreview
+                    exam={{ groups, masks, pageAspects: aspects, pageWidthsCm: widthsCm, title: meta.title.trim() || defaultTitle(meta) || '단원평가', questions: fromItems(items).questions }}
+                    pages={pages}
+                    startNo={items[0]?.no}
+                    onClose={() => setPreviewing(false)}
+                  />
+                )}
               </div>
             </div>
           </div>

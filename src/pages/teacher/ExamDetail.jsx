@@ -528,6 +528,7 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
   const [items, setItems] = useState(() => toItems(exam.questions, keys));
   const [groups, setGroups] = useState(() => exam.groups || []);
   const [masks, setMasks] = useState(() => exam.masks || []);
+  const [previewing, setPreviewing] = useState(false); // 저장 전 고친 내용 그대로 학생 화면 미리보기
   const [errs, setErrs] = useState([]);
   const [popup, setPopup] = useState(null); // 지금 화면 가운데에 띄울 저장 오류
   const [msg, setMsg] = useState('');
@@ -584,7 +585,18 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
           <button type="button" className="btn sm danger" onClick={() => setPopup(errs)}>⚠️ 고칠 곳 {errs.length}개 보기</button>
         )}
         {msg && !errs.length && <span className="save-ok">✓ 저장했어요</span>}
+        <button className="btn" onClick={() => setPreviewing(true)} disabled={!items.length || !pages?.length} title="고친 내용 그대로 학생 시험 화면을 처음부터 넘겨 보기 (답은 저장되지 않아요)">
+          👀 전체 미리보기
+        </button>
         <button className="btn primary" onClick={save} disabled={busy}>{busy ? '저장 중…' : '문항·정답 저장'}</button>
+        {previewing && (
+          <StudentPreview
+            exam={{ ...exam, groups, masks, questions: fromItems(items).questions }}
+            pages={pages}
+            startNo={items[0]?.no}
+            onClose={() => setPreviewing(false)}
+          />
+        )}
       </div>
       <SaveErrorDialog errors={popup} onClose={() => setPopup(null)} />
     </div>
