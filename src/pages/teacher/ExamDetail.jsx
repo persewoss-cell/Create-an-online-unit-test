@@ -92,13 +92,13 @@ export default function ExamDetail() {
         <ListButton />
       </TeacherBar>
       <div className="container">
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
+        <div className="row exam-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ minWidth: 0 }}>
             <div className="muted small">{exam.subject} · {exam.grade}학년 {exam.semester}학기 · {exam.unit}</div>
-            <h1 style={{ margin: '4px 0 8px' }}>{exam.title}</h1>
-            <span className={`badge ${exam.status}`}>{STATUS[exam.status]}</span>
+            <h1 className="exam-head-title">{exam.title}</h1>
           </div>
           <div className="row head-actions">
+            <span className={`badge ${exam.status}`} title="지금 상태">{STATUS[exam.status]}</span>
             <StatusButtons exam={exam} onChange={(status) => updateExam(id, { status }).then(() => setExam({ ...exam, status }))} />
             <button className="btn" onClick={() => setPreviewOpen(true)} disabled={!pages?.length} title="학생이 보는 시험 화면 그대로 넘겨 보기 (답은 저장되지 않아요)">
               👀 미리보기
@@ -171,28 +171,33 @@ export default function ExamDetail() {
   );
 }
 
-/** [시험 개시] [응시 마감] — 지금 상태에서 누를 수 없는 버튼은 흐리게 */
+/**
+ * 상태 버튼 하나로 순환 (목록의 상태 버튼과 같은 순서)
+ *  개시 전 → [시험 개시] → 응시 중 → [응시 마감] → 마감 → [개시 전 복원] → 개시 전
+ */
+const STATUS_ACTION = {
+  draft: { label: '▶ 시험 개시', cls: 'ok', next: 'open', hint: '학생 목록에 이 시험이 보이고 응시할 수 있게 됩니다' },
+  open: { label: '■ 응시 마감', cls: 'danger', next: 'closed', hint: '응시를 마감합니다 (제출한 학생은 결과만 볼 수 있어요)' },
+  closed: { label: '↺ 개시 전 복원', cls: '', next: 'draft', hint: '개시 전으로 되돌립니다 (학생에게 안 보이고, 응시 기록은 그대로)' },
+};
 function StatusButtons({ exam, onChange }) {
-  const open = exam.status === 'open';
+  const a = STATUS_ACTION[exam.status] || STATUS_ACTION.draft;
+  const [busy, setBusy] = useState(false);
+  async function click() {
+    if (a.next === 'closed' && !confirm('응시를 마감할까요?\n마감하면 학생 목록에서 시험이 빠지고, 제출한 학생은 결과만 볼 수 있어요.')) return;
+    setBusy(true);
+    try {
+      await onChange(a.next);
+    } catch (err) {
+      alert(`상태를 바꾸지 못했어요: ${err.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <>
-      <button
-        className="btn ok"
-        disabled={open}
-        onClick={() => onChange('open')}
-        title={open ? '이미 응시 중입니다' : '학생 목록에 이 시험이 보이고 응시할 수 있게 됩니다'}
-      >
-        {exam.status === 'closed' ? '시험 다시 개시' : '시험 개시'}
-      </button>
-      <button
-        className="btn danger"
-        disabled={!open}
-        onClick={() => confirm('응시를 마감할까요?\n마감하면 학생 목록에서 시험이 빠지고, 제출한 학생은 결과만 볼 수 있어요.') && onChange('closed')}
-        title={open ? '응시를 마감합니다' : '응시 중일 때만 마감할 수 있습니다'}
-      >
-        응시 마감
-      </button>
-    </>
+    <button className={`btn ${a.cls}`} onClick={click} disabled={busy} title={a.hint}>
+      {a.label}
+    </button>
   );
 }
 

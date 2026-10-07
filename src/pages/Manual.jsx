@@ -371,7 +371,7 @@ function TeacherManual() {
           </li>
           <li>
             <b>학생 화면 미리보기</b> — 학생이 보는 시험 화면을 그대로 띄워 넘겨 보며 답도 눌러 볼 수 있어요(저장·제출은 안 돼요).
-            평가 화면 위 <B>👀 미리보기</B>(응시 마감 오른쪽), 문항 확인 화면의 <B>👀 전체 미리보기</B>(배점 100점 균등 분배 옆, 아래 <B kind="primary">문항·정답 저장</B>·<B kind="primary">저장</B> 왼쪽), 문항 카드 맨 위 막대 오른쪽 끝의 <B>👀 미리보기</B>(그 문항부터).
+            평가 화면 위 <B>👀 미리보기</B>(상태 버튼 오른쪽), 문항 확인 화면의 <B>👀 전체 미리보기</B>(배점 100점 균등 분배 옆, 아래 <B kind="primary">문항·정답 저장</B>·<B kind="primary">저장</B> 왼쪽), 문항 카드 맨 위 막대 오른쪽 끝의 <B>👀 미리보기</B>(그 문항부터).
             오른쪽 맨 위 <B>✕ 미리보기 닫기</B> 또는 Esc로 닫아요. 저장하기 전에도 고친 내용 그대로 보여요.
           </li>
           <li>이미 응시한 학생이 있는 평가는 문항 추가·삭제·순서 바꾸기를 할 수 없어요(학생 답이 문항 번호로 저장되어 있어서). 캡쳐 조정·가리기·정답 수정은 돼요.</li>
@@ -395,10 +395,11 @@ function TeacherManual() {
 
       <Section id="t-open" icon="🚦" title="8. 시험 개시·마감">
         <ul className="m-list">
-          <li>평가 화면 오른쪽 위: <B kind="ok">시험 개시</B> <B kind="dangerline">응시 마감</B> <B>👀 미리보기</B> <B kind="primary">결과받기(엑셀)</B></li>
-          <li><B kind="ok">시험 개시</B>를 누르면 <Badge kind="open">응시 중</Badge> — 학생 목록에 바로 나타나요.</li>
-          <li><B kind="dangerline">응시 마감</B>(확인 창) → <Badge kind="closed">마감</Badge> — 학생 목록에서 빠지고, 낸 학생은 결과만 볼 수 있어요. 마감 후 <B kind="ok">시험 다시 개시</B>도 돼요.</li>
-          <li>지금 누를 수 없는 버튼은 흐리게 보여요.</li>
+          <li>평가 화면 오른쪽 위: <Badge>개시 전</Badge>(지금 상태) <B kind="ok">▶ 시험 개시</B> <B>👀 미리보기</B> <B kind="primary">결과받기(엑셀)</B></li>
+          <li>상태 버튼은 하나이고, 누를 때마다 다음 단계로 바뀌어요(목록의 상태 버튼과 같은 순서).</li>
+          <li><Badge>개시 전</Badge>일 때 <B kind="ok">▶ 시험 개시</B> → <Badge kind="open">응시 중</Badge> — 학생 목록에 바로 나타나요.</li>
+          <li><Badge kind="open">응시 중</Badge>일 때 <B kind="danger">■ 응시 마감</B>(확인 창) → <Badge kind="closed">마감</Badge> — 학생 목록에서 빠지고, 낸 학생은 결과만 볼 수 있어요.</li>
+          <li><Badge kind="closed">마감</Badge>일 때 <B>↺ 개시 전 복원</B> → <Badge>개시 전</Badge> — 다시 <B kind="ok">▶ 시험 개시</B>를 누를 수 있어요(응시 기록은 그대로).</li>
         </ul>
       </Section>
 

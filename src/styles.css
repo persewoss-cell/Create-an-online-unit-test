@@ -652,3 +652,8 @@ table.exam-list td.unit-col { min-width: 160px; }
 .head-actions { gap: 6px; flex-wrap: nowrap; flex-shrink: 0; }
 .head-actions .btn { font-size: 14px; padding: 7px 11px; white-space: nowrap; }
 @media (max-width: 640px) { .head-actions { flex-wrap: wrap; } }
+/* 평가 화면 제목: 오른쪽 버튼 줄과 높이가 비슷하게 작게 */
+.exam-head { flex-wrap: nowrap; }
+.exam-head-title { margin: 2px 0 0; font-size: 21px; line-height: 1.3; overflow-wrap: anywhere; }
+.head-actions .badge { white-space: nowrap; }
+@media (max-width: 640px) { .exam-head { flex-wrap: wrap; } }
