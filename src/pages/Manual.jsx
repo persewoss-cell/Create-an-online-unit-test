@@ -395,7 +395,7 @@ function TeacherManual() {
 
       <Section id="t-open" icon="🚦" title="8. 시험 개시·마감">
         <ul className="m-list">
-          <li>평가 화면 오른쪽 위: <B kind="ok">시험 개시</B> <B kind="dangerline">응시 마감</B> <B kind="primary">시험 결과 엑셀 다운로드</B></li>
+          <li>평가 화면 오른쪽 위: <B kind="ok">시험 개시</B> <B kind="dangerline">응시 마감</B> <B>👀 미리보기</B> <B kind="primary">결과받기(엑셀)</B></li>
           <li><B kind="ok">시험 개시</B>를 누르면 <Badge kind="open">응시 중</Badge> — 학생 목록에 바로 나타나요.</li>
           <li><B kind="dangerline">응시 마감</B>(확인 창) → <Badge kind="closed">마감</Badge> — 학생 목록에서 빠지고, 낸 학생은 결과만 볼 수 있어요. 마감 후 <B kind="ok">시험 다시 개시</B>도 돼요.</li>
           <li>지금 누를 수 없는 버튼은 흐리게 보여요.</li>
@@ -420,7 +420,7 @@ function TeacherManual() {
             <b>검토 요청</b> 탭 — 자동으로 판단하기 어려운 답(오타, 일부만 맞음, 그림, 선생님 직접 채점 문항)이 모여요.
             문제 그림(그림 답은 문제 위에 학생 그림), 학생 답, 정답을 보고 <B kind="ok">정답 인정</B> 또는 <B kind="bad">오답 처리</B>.
           </li>
-          <li><B kind="primary">시험 결과 엑셀 다운로드</B> — <b>성적</b>(점수·득점·맞은 개수·등수·제출 시각·문항별 O/X), <b>답안</b>(학생 답 원문), <b>문항분석</b> 시트</li>
+          <li><B kind="primary">결과받기(엑셀)</B> — <b>성적</b>(점수·득점·맞은 개수·등수·제출 시각·문항별 O/X), <b>답안</b>(학생 답 원문), <b>문항분석</b> 시트</li>
         </ul>
       </Section>
 

@@ -648,3 +648,7 @@ table.exam-list td.unit-col { min-width: 160px; }
 .qh.ne::after, .qh.nw::after, .qh.se::after, .qh.sw::after { inset: 4px; border-radius: 2px; }
 .qh:hover::after { background: #1b4fc4; }
 .pcard-bar .bar-end { margin-left: auto; }
+/* 평가 화면 오른쪽 위 버튼(시험 개시·응시 마감·미리보기·결과받기): 한 줄에 들어가게 조금 작게 */
+.head-actions { gap: 6px; flex-wrap: nowrap; flex-shrink: 0; }
+.head-actions .btn { font-size: 14px; padding: 7px 11px; white-space: nowrap; }
+@media (max-width: 640px) { .head-actions { flex-wrap: wrap; } }

@@ -98,13 +98,13 @@ export default function ExamDetail() {
             <h1 style={{ margin: '4px 0 8px' }}>{exam.title}</h1>
             <span className={`badge ${exam.status}`}>{STATUS[exam.status]}</span>
           </div>
-          <div className="row">
+          <div className="row head-actions">
             <StatusButtons exam={exam} onChange={(status) => updateExam(id, { status }).then(() => setExam({ ...exam, status }))} />
             <button className="btn" onClick={() => setPreviewOpen(true)} disabled={!pages?.length} title="학생이 보는 시험 화면 그대로 넘겨 보기 (답은 저장되지 않아요)">
               👀 미리보기
             </button>
-            <button className="btn primary" onClick={() => exportResultsXlsx(exam, keys, subs)} disabled={!subs.length}>
-              시험 결과 엑셀 다운로드
+            <button className="btn primary" onClick={() => exportResultsXlsx(exam, keys, subs)} disabled={!subs.length} title="성적·답안·문항분석을 엑셀 파일로 받기">
+              결과받기(엑셀)
             </button>
           </div>
         </div>
