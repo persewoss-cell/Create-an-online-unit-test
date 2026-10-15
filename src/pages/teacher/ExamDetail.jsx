@@ -91,7 +91,7 @@ export default function ExamDetail() {
       <TeacherBar>
         <ListButton />
       </TeacherBar>
-      <div className="container">
+      <div className="container wide">
         <div className="row exam-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ minWidth: 0 }}>
             <div className="muted small">{exam.subject} · {exam.grade}학년 {exam.semester}학기 · {exam.unit}</div>

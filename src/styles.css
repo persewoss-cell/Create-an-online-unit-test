@@ -321,9 +321,9 @@ button.mark { cursor: pointer; }
 .nowrap { white-space: nowrap; }
 /* 관리자 결과표: 한 학생 한 줄, 좌우 스크롤 없이 */
 .results-table { font-size: 13px; }
-.results-table th, .results-table td { padding: 5px 4px; vertical-align: middle; }
+.results-table th, .results-table td { padding: 5px 3px; vertical-align: middle; }
 .results-table th:first-child, .results-table td:first-child { padding-left: 12px; }
-.results-table .qcol { width: 24px; padding: 4px 1px; }
+.results-table .qcol { width: 22px; padding: 3px 0; }
 .mark.sm { width: 20px; height: 20px; font-size: 12px; border-radius: 4px; }
 .btn.xs { padding: 3px 8px; font-size: 12px; border-radius: 6px; white-space: nowrap; }
 .compact-table td, .compact-table th { padding: 4px 12px; vertical-align: middle; }
@@ -681,3 +681,8 @@ table.exam-list td.unit-col { min-width: 160px; }
 /* 결과표: 인원이 몇 명이든 위아래로 모두 펼쳐 보이기 (세로 스크롤 없음, 문항이 많으면 가로로만 밀기) */
 .results-scroll { overflow-x: auto; overflow-y: visible; }
 .re-sticky ~ .re-body .re-preview { position: static; } /* 고정된 도구 줄 아래로 숨지 않게 */
+
+/* 평가 화면은 창 폭을 넓게 써서 결과표가 좌우로 밀리지 않게 */
+.container.wide { max-width: 1560px; }
+.results-table .btn.xs { padding: 3px 7px; }
+.results-table .mark.sm { width: 19px; height: 19px; }
