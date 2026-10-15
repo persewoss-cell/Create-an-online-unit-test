@@ -678,7 +678,6 @@ table.exam-list td.unit-col { min-width: 160px; }
 .shared-scroll thead th { position: sticky; top: 0; z-index: 2; }
 /* 평가 화면: 제목·상태 버튼 줄은 위쪽 파란 줄 바로 아래에 고정 */
 .exam-head { position: sticky; top: var(--topbar-h); z-index: 9; background: var(--bg); margin: 0 -8px; padding: 8px 8px; }
-/* 결과표: 표 안에서 스크롤, 머리줄(반·번·이름·문항 번호) 고정 */
-.results-scroll { max-height: calc(100vh - var(--topbar-h) - 220px); min-height: 240px; overflow: auto; }
-.results-scroll thead th { position: sticky; top: 0; z-index: 2; }
+/* 결과표: 인원이 몇 명이든 위아래로 모두 펼쳐 보이기 (세로 스크롤 없음, 문항이 많으면 가로로만 밀기) */
+.results-scroll { overflow-x: auto; overflow-y: visible; }
 .re-sticky ~ .re-body .re-preview { position: static; } /* 고정된 도구 줄 아래로 숨지 않게 */
