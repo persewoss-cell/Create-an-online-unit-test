@@ -11,7 +11,7 @@ import {
 } from '../../lib/db.js';
 import { useToast } from '../../components/Toast.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
-import { retakeState } from '../../lib/retake.js';
+import { retakeState, retakeMessage } from '../../lib/retake.js';
 import { stableKey } from '../../lib/format.js';
 
 export default function Result() {
@@ -143,15 +143,7 @@ export default function Result() {
           <div className="card retake-card" style={{ marginBottom: 16 }}>
             <div>
               <b>오답 재응시</b>
-              <div className="small muted" style={{ marginTop: 4 }}>
-                {rt.done
-                  ? `틀린 문제를 모두 다시 풀어 맞혔어요!${rt.attempts ? ` (${rt.attempts}번 도전)` : ''}`
-                  : rt.remaining.length
-                    ? `틀린 문제 ${rt.remaining.join(', ')}번을 다시 풀어요. 점수는 처음 제출한 점수 그대로예요.`
-                    : '다시 푼 답을 선생님이 확인하고 있어요.'}
-                {!rt.done && rt.fixed.length > 0 && ` 다시 풀어 맞힌 문제: ${rt.fixed.join(', ')}번`}
-                {!rt.done && rt.remaining.length > 0 && rt.pending.length > 0 && ` 선생님 확인 중: ${rt.pending.map((x) => x.no).join(', ')}번`}
-              </div>
+              <div className="small muted" style={{ marginTop: 4 }}>{retakeMessage(rt)}</div>
             </div>
             <div className="row">
               {rt.attempts > 0 && (

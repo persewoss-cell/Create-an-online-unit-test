@@ -13,8 +13,8 @@ import {
   watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams,
 } from '../../lib/db.js';
 import { gradeSubmission, partPoints, partEarned } from '../../lib/grading.js';
-import { retakeState } from '../../lib/retake.js';
-import { DrawnAnswer } from '../../components/RetakeHistory.jsx';
+import { retakeState, retakeMessage } from '../../lib/retake.js';
+import RetakeHistory, { DrawnAnswer } from '../../components/RetakeHistory.jsx';
 import SaveErrorDialog, { ErrorLine } from '../../components/SaveErrorDialog.jsx';
 import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
 import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '../../lib/format.js';
@@ -136,6 +136,7 @@ export default function ExamDetail() {
             examId={id}
             keys={keys}
             onPrint={pages?.length ? setPrintRows : null}
+            pages={pages}
           />
         )}
         {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} pages={pages} examId={id} />}
@@ -202,16 +203,58 @@ function StatusButtons({ exam, onChange }) {
 }
 
 /** 결과표의 오답 재응시 진행 상황 */
-function RetakeCell({ st }) {
+/** 결과표의 오답 재응시 진행 상황 — 누르면 학생 화면과 같은 오답 재응시 현황 창 */
+function RetakeCell({ st, onOpen }) {
   if (!st.enabled) return <span className="muted">-</span>;
+  let cls = 'review';
+  let label;
+  let tip;
   if (st.pending.length && !st.remaining.length) {
-    return <span className="badge review" title={`${st.pending.map((p) => p.no).join(', ')}번 — 검토 요청 탭에서 확인`}>확인 필요 {st.pending.length}</span>;
+    label = `확인 필요 ${st.pending.length}`;
+    tip = `${st.pending.map((p) => p.no).join(', ')}번 — 검토 요청 탭에서 확인`;
+  } else if (st.done) {
+    cls = 'open';
+    label = `완료${st.attempts ? ` · ${st.attempts}회` : ''}`;
+  } else {
+    label = `남은 ${st.remaining.length}문제${st.attempts ? ` · ${st.attempts}회` : ''}`;
+    tip = `남은 문제: ${st.remaining.join(', ')}번`;
   }
-  if (st.done) return <span className="badge open">완료{st.attempts ? ` · ${st.attempts}회` : ''}</span>;
   return (
-    <span className="badge review" title={`남은 문제: ${st.remaining.join(', ')}번`}>
-      남은 {st.remaining.length}문제{st.attempts ? ` · ${st.attempts}회` : ''}
-    </span>
+    <button type="button" className={`badge ${cls} badge-btn`} onClick={onOpen} title={`${tip ? `${tip}\n` : ''}누르면 오답 재응시 현황 보기`}>
+      {label}
+    </button>
+  );
+}
+
+/** 선생님용 오답 재응시 현황: 학생 결과 화면의 오답 재응시 칸 + 재응시 결과(회차별 답)와 같은 내용 */
+function RetakeStatusDialog({ exam, pages, s, st, onClose }) {
+  useEffect(() => {
+    const esc = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onClose]);
+  return (
+    <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="rt-title" onClick={onClose}>
+      <div className="modal stack retake-modal" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기">✕</button>
+        <h2 id="rt-title" style={{ margin: 0, paddingRight: 44 }}>{s.classNo}반 {s.number}번 {s.name} — 오답 재응시 현황</h2>
+        <div className="card retake-card">
+          <div>
+            <b>오답 재응시</b>
+            <div className="small muted" style={{ marginTop: 4 }}>{retakeMessage(st)}</div>
+          </div>
+          <span className={`badge ${st.done ? 'open' : 'review'}`}>
+            {st.done ? '✔ 오답 재응시 완료' : !st.remaining.length ? '선생님 확인 중' : `남은 ${st.remaining.length}문제`}
+            {st.attempts ? ` · ${st.attempts}회 도전` : ''}
+          </span>
+        </div>
+        {st.attempts > 0 ? (
+          pages?.length ? <RetakeHistory exam={exam} pages={pages} history={st.history} /> : <Loading />
+        ) : (
+          <div className="muted small">아직 다시 푼 답이 없어요.</div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -222,7 +265,8 @@ function nextOverride(item) {
   return null;
 }
 
-function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint }) {
+function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint, pages }) {
+  const [retakeOf, setRetakeOf] = useState(null); // 오답 재응시 현황을 볼 학생 id
   if (!graded.length) return <div className="card center muted">아직 제출한 학생이 없습니다.</div>;
   const states = Object.fromEntries(graded.map(({ s, r }) => [s.id, retakeState(exam, keys, s, r)]));
   async function allowRetake(s) {
@@ -283,7 +327,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint }) {
               <td>{s.number}</td>
               <td className="nowrap">{s.name}</td>
               <td className="c"><b>{r.score100}</b></td>
-              <td className="c nowrap small"><RetakeCell st={states[s.id]} /></td>
+              <td className="c nowrap small"><RetakeCell st={states[s.id]} onOpen={() => setRetakeOf(s.id)} /></td>
               <td className="c">
                 <span className="row" style={{ gap: 4, flexWrap: 'nowrap', justifyContent: 'center' }}>
                   <button className="btn xs" onClick={() => onOpen(s.id, true)} aria-label={`${s.name} 결과지`}>📄 보기</button>
@@ -316,6 +360,10 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint }) {
           ))}
         </tbody>
       </table>
+      {retakeOf && (() => {
+        const g = graded.find((x) => x.s.id === retakeOf);
+        return g ? <RetakeStatusDialog exam={exam} pages={pages} s={g.s} st={states[g.s.id]} onClose={() => setRetakeOf(null)} /> : null;
+      })()}
       <p className="muted small" style={{ padding: '0 12px' }}>
         O/X/? 를 누르면 판정을 바꿀 수 있습니다 (자동 → 정답 → 오답 → 자동). 테두리가 있는 표시는 교사가 직접 판정한 것입니다. “오답만 재응시”는 틀린 문제만 맞힐 때까지 다시 풀게 합니다(점수는 처음 제출한 점수 그대로). “전체 재응시”는 응시 기록을 지워 처음부터 다시 보게 합니다.
       </p>

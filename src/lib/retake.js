@@ -50,3 +50,15 @@ export function retakeState(exam, keys, sub, result = gradeSubmission(exam, keys
 export function retakeJudgeKey(round, no) {
   return `r${round}_q${no}`;
 }
+
+/** 오답 재응시 진행 상황 한 줄 설명 (학생 결과 화면과 선생님 현황 창이 같은 말을 쓴다) */
+export function retakeMessage(rt) {
+  let text = rt.done
+    ? `틀린 문제를 모두 다시 풀어 맞혔어요!${rt.attempts ? ` (${rt.attempts}번 도전)` : ''}`
+    : rt.remaining.length
+      ? `틀린 문제 ${rt.remaining.join(', ')}번을 다시 풀어요. 점수는 처음 제출한 점수 그대로예요.`
+      : '다시 푼 답을 선생님이 확인하고 있어요.';
+  if (!rt.done && rt.fixed.length > 0) text += ` 다시 풀어 맞힌 문제: ${rt.fixed.join(', ')}번`;
+  if (!rt.done && rt.remaining.length > 0 && rt.pending.length > 0) text += ` 선생님 확인 중: ${rt.pending.map((x) => x.no).join(', ')}번`;
+  return text;
+}

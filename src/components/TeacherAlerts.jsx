@@ -41,10 +41,8 @@ export default function TeacherAlerts() {
         if (!old) {
           const review = pendingOf(x, sub);
           tell(x.exam, `${who} 학생이 제출했어요.${review ? ` 확인할 답 ${review}개` : ''}`, review ? 'review' : '');
-        } else if ((sub.retakes?.length || 0) > (old.retakes?.length || 0)) {
-          const more = pendingOf(x, sub) > pendingOf(x, old);
-          tell(x.exam, `${who} 학생이 오답 재응시 답을 냈어요.${more ? ' 선생님 확인이 필요해요.' : ''}`, more ? 'review' : '');
         }
+        // 오답 재응시 답은 알림을 울리지 않는다 (결과표·검토 요청 탭에서 확인)
       }
     };
     const stopList = watchMyExams(

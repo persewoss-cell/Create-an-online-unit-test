@@ -657,3 +657,7 @@ table.exam-list td.unit-col { min-width: 160px; }
 .exam-head-title { margin: 2px 0 0; font-size: 21px; line-height: 1.3; overflow-wrap: anywhere; }
 .head-actions .badge { white-space: nowrap; }
 @media (max-width: 640px) { .exam-head { flex-wrap: wrap; } }
+/* 결과표의 오답 재응시 표시: 누르면 현황 창 */
+.badge-btn { border: 0; cursor: pointer; font: inherit; }
+.badge-btn:hover { filter: brightness(0.95); text-decoration: underline; }
+.retake-modal { position: relative; max-width: 900px; max-height: 92vh; overflow: auto; }
