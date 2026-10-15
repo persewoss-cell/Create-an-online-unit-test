@@ -236,8 +236,10 @@ function RetakeStatusDialog({ exam, pages, s, st, onClose }) {
   return (
     <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="rt-title" onClick={onClose}>
       <div className="modal stack retake-modal" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기">✕</button>
-        <h2 id="rt-title" style={{ margin: 0, paddingRight: 44 }}>{s.classNo}반 {s.number}번 {s.name} — 오답 재응시 현황</h2>
+        <div className="row modal-head" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+          <h2 id="rt-title" style={{ margin: 0 }}>{s.classNo}반 {s.number}번 {s.name} — 오답 재응시 현황</h2>
+          <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기">✕</button>
+        </div>
         <div className="card retake-card">
           <div>
             <b>오답 재응시</b>
@@ -312,6 +314,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint, page
           전체 학생 오답만 재응시{waiting.length ? ` (${waiting.length}명)` : ''}
         </button>
       </div>
+      <div className="results-scroll">
       <table className="data results-table">
         <thead>
           <tr>
@@ -360,6 +363,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint, page
           ))}
         </tbody>
       </table>
+      </div>
       {retakeOf && (() => {
         const g = graded.find((x) => x.s.id === retakeOf);
         return g ? <RetakeStatusDialog exam={exam} pages={pages} s={g.s} st={states[g.s.id]} onClose={() => setRetakeOf(null)} /> : null;
@@ -757,7 +761,7 @@ function StudentDetail({ exam, keys, row, onJudge, onClose, pages, initialPaper,
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 960, maxHeight: '92vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div className="row modal-head" style={{ justifyContent: 'space-between' }}>
           <h2 style={{ margin: 0 }}>{s.classNo}반 {s.number}번 {s.name} — {r.score100}점</h2>
           <div className="row">
             <button className="btn sm" onClick={() => setPaper(!paper)} disabled={!pages?.length}>

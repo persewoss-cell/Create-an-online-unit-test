@@ -661,3 +661,24 @@ table.exam-list td.unit-col { min-width: 160px; }
 .badge-btn { border: 0; cursor: pointer; font: inherit; }
 .badge-btn:hover { filter: brightness(0.95); text-decoration: underline; }
 .retake-modal { position: relative; max-width: 900px; max-height: 92vh; overflow: auto; }
+
+/* 팝업 맨 위 제목·버튼 줄: 아래로 스크롤해도 위에 붙어 있게 (.modal 안쪽 여백 20px 만큼 끌어올림) */
+.modal-head { position: sticky; top: -20px; z-index: 6; background: #fff; margin: -20px -20px 12px; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+.modal-head .manual-close { position: static; flex: 0 0 auto; }
+
+/* ───── 스크롤해도 위에 붙어 있는 줄들 ───── */
+:root { --topbar-h: 53px; }
+/* 캡쳐 상세 조정 창: 제목·취소·적용·도구 줄 */
+.re-sticky { position: sticky; top: -20px; z-index: 8; background: #fff; margin: -20px -20px 0; padding: 14px 20px 10px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+.re-sticky .re-head { padding-right: 0; }
+.re-sticky .manual-close { position: static; }
+/* 공유 시험지 가져오기: 제목·찾기 칸은 그대로, 표만 안에서 스크롤하고 머리줄 고정 */
+.shared-modal { display: flex; flex-direction: column; overflow: hidden; }
+.shared-scroll { flex: 1; min-height: 0; overflow: auto; }
+.shared-scroll thead th { position: sticky; top: 0; z-index: 2; }
+/* 평가 화면: 제목·상태 버튼 줄은 위쪽 파란 줄 바로 아래에 고정 */
+.exam-head { position: sticky; top: var(--topbar-h); z-index: 9; background: var(--bg); margin: 0 -8px; padding: 8px 8px; }
+/* 결과표: 표 안에서 스크롤, 머리줄(반·번·이름·문항 번호) 고정 */
+.results-scroll { max-height: calc(100vh - var(--topbar-h) - 220px); min-height: 240px; overflow: auto; }
+.results-scroll thead th { position: sticky; top: 0; z-index: 2; }
+.re-sticky ~ .re-body .re-preview { position: static; } /* 고정된 도구 줄 아래로 숨지 않게 */

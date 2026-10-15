@@ -202,12 +202,14 @@ export default function RegionEditor({ title, note, view, pages, regions, masks,
   return (
     <div className="modal-back" role="dialog" aria-modal="true" aria-labelledby="re-title" onClick={onClose}>
       <div className="modal stack region-modal" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기 (적용하지 않음)">✕</button>
+        {/* 제목·[취소][적용]·도구 줄은 아래로 스크롤해도 위에 붙어 있게 */}
+        <div className="re-sticky">
         <div className="re-head">
           <h2 id="re-title" style={{ margin: 0 }}>{title}</h2>
           <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
             <button type="button" className="btn" onClick={onClose}>취소</button>
             <button type="button" className="btn primary" onClick={apply}>적용</button>
+            <button type="button" className="manual-close" onClick={onClose} aria-label="닫기" title="닫기 (적용하지 않음)">✕</button>
           </span>
         </div>
         {note && <div className="small muted">{note}</div>}
@@ -246,6 +248,7 @@ export default function RegionEditor({ title, note, view, pages, regions, masks,
             </span>
           )}
           <button type="button" className="btn sm danger" disabled={!sel} onClick={remove}>🗑 삭제</button>
+        </div>
         </div>
 
         <div className="re-body">

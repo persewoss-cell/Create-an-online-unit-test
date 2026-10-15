@@ -69,7 +69,7 @@ export default function SharedImport({ owner, myExams = [], onClose }) {
         {!list && !error && <Loading />}
         {list && !shown.length && <div className="center muted">{q ? '찾는 시험지가 없어요.' : '아직 공유된 시험지가 없어요.'}</div>}
         {shown.length > 0 && (
-          <div className="table-wrap">
+          <div className="table-wrap shared-scroll">
             <table className="data exam-list">
               <thead>
                 <tr>
