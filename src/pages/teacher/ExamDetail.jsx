@@ -204,7 +204,9 @@ function StatusButtons({ exam, onChange }) {
 
 /** 결과표의 오답 재응시 진행 상황 */
 /** 결과표의 오답 재응시 진행 상황 — 누르면 학생 화면과 같은 오답 재응시 현황 창 */
-function RetakeCell({ st, onOpen }) {
+function RetakeCell({ st, score, onOpen }) {
+  // 처음부터 100점(틀린 문제 없음)이면 재응시할 게 없으니 초록 표시로 (누르는 버튼 아님)
+  if (score === 100 && !st.firstWrong.length) return <span className="badge open" title="틀린 문제가 없어요">100점</span>;
   if (!st.enabled) return <span className="muted">-</span>;
   let cls = 'review';
   let label;
@@ -330,7 +332,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint, page
               <td>{s.number}</td>
               <td className="nowrap">{s.name}</td>
               <td className="c"><b>{r.score100}</b></td>
-              <td className="c nowrap small"><RetakeCell st={states[s.id]} onOpen={() => setRetakeOf(s.id)} /></td>
+              <td className="c nowrap small"><RetakeCell st={states[s.id]} score={r.score100} onOpen={() => setRetakeOf(s.id)} /></td>
               <td className="c">
                 <span className="row" style={{ gap: 4, flexWrap: 'nowrap', justifyContent: 'center' }}>
                   <button className="btn xs" onClick={() => onOpen(s.id, true)} aria-label={`${s.name} 결과지`}>📄 보기</button>
