@@ -105,6 +105,32 @@ service cloud.firestore {
       allow list, write: if isAdmin();
     }
 
+    // 등록된 학교·반 목록 (로그인 화면에서 학교 고르기). 누구나 읽고, 관리자 또는 그 반 선생님만 자기 반을 적는다
+    match /directory/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+      allow create, update: if isTeacher()
+        && id == myTeacher().school + '_' + string(myTeacher().grade) + '_' + string(myTeacher().classNo)
+        && request.resource.data.keys().hasOnly(['school', 'grade', 'classNo'])
+        && request.resource.data.school == myTeacher().school
+        && request.resource.data.grade == myTeacher().grade
+        && request.resource.data.classNo == myTeacher().classNo;
+    }
+
+    // 반별 평가 평균 (로그인 없이 보는 화면). 학생 개인 점수는 없고 평균·인원만. 평가 주인(선생님)만 올리고 내린다
+    match /classStats/{examId} {
+      allow read: if true;
+      allow create, update: if isOwner(examId)
+        && request.resource.data.keys().hasOnly(['school', 'grade', 'classNo', 'title', 'subject', 'semester', 'unit', 'avg', 'count', 'status', 'createdAt', 'at'])
+        && request.resource.data.school == examSchool(examId)
+        && request.resource.data.grade == examDoc(examId).data.grade
+        && request.resource.data.classNo is int
+        && request.resource.data.count is int
+        && request.resource.data.avg is number;
+      allow delete: if isAdmin() || isOwner(examId)
+        || (isTeacher() && !exists(/databases/$(database)/documents/exams/$(examId)));
+    }
+
     // 교사 비밀번호: 관리자가 바꿔 줄 수 있도록 관리자와 본인만 읽고 쓴다
     match /teacherSecrets/{uid} {
       allow read: if isAdmin() || (isTeacher() && request.auth.uid == uid);

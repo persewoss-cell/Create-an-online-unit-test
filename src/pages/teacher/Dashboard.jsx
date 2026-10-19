@@ -5,7 +5,7 @@ import TeacherBar from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
-  watchMyExams, watchSubmissionsLive, watchKeysLive, changeAdminPassword, changeTeacherPassword, setExamShared, deleteExam, updateExam,
+  watchMyExams, watchSubmissionsLive, watchKeysLive, watchClassStats, publishClassStat, ensureDirectory, changeAdminPassword, changeTeacherPassword, setExamShared, deleteExam, updateExam,
 } from '../../lib/db.js';
 import SharedImport from './SharedImport.jsx';
 import { AUTH_ERR } from './TeacherLogin.jsx';
@@ -14,6 +14,7 @@ import { retakeState } from '../../lib/retake.js';
 import { MIN_TEACHER_PASSWORD, classTarget, teacherLabel } from '../../lib/school.js';
 import AdminPanel from './AdminPanel.jsx';
 import { sortExams } from '../../lib/examSort.js';
+import { stableKey } from '../../lib/format.js';
 import SortThBase, { loadSort, saveSort } from '../../components/SortTh.jsx';
 
 export const STATUS = { draft: '개시 전', open: '응시 중', closed: '마감' };
@@ -53,6 +54,39 @@ export default function Dashboard({ adminRoute = false }) {
       updateExam(e.id, { grade: target.grade, classes: target.classes }).catch(() => fixed.current.delete(e.id));
     }
   }, [exams, owner]);
+  // 로그인 화면 학교 목록에 이 선생님 학교·반이 꼭 들어가게
+  useEffect(() => {
+    ensureDirectory(owner).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner?.uid, owner?.school, owner?.grade, owner?.classNo]);
+  // 반별 평균 화면(로그인 없이 보는 /scores)에 평가별 평균·응시 인원만 올린다 (학생 개인 점수는 올리지 않음)
+  const [published, setPublished] = useState(null);
+  useEffect(() => {
+    const target = classTarget(owner);
+    if (!target) return undefined;
+    setPublished(null);
+    return watchClassStats(owner.school, target.grade, target.classes[0], (list) => setPublished(new Map(list.map((x) => [x.id, x]))), () => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner?.uid, owner?.school, owner?.grade, owner?.classNo]);
+  useEffect(() => {
+    const target = classTarget(owner);
+    if (!target || !exams || !published) return;
+    for (const e of exams) {
+      const st = stats[e.id];
+      if (!st) continue; // 아직 계산 전
+      const want = e.status !== 'draft' && st.count > 0 && st.avg != null
+        ? {
+          school: owner.school, grade: target.grade, classNo: target.classes[0],
+          title: e.title || '', subject: e.subject || '', semester: Number(e.semester) || 1, unit: e.unit || '',
+          avg: st.avg, count: st.count, status: e.status, createdAt: e.createdAt?.seconds || 0,
+        }
+        : null;
+      const have = published.get(e.id);
+      if (!want && !have) continue;
+      if (want && have && stableKey({ ...have, id: undefined, at: undefined }) === stableKey(want)) continue;
+      publishClassStat(e.id, want && { ...want, at: Date.now() }).catch(() => {});
+    }
+  }, [exams, stats, published, owner]);
   const sorted = useMemo(() => (exams ? sortExams(exams, stats, sort) : null), [exams, stats, sort]);
   const SortTh = (p) => <SortThBase {...p} sort={sort} setSort={setSort} />;
 

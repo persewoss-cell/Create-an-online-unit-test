@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Loading from '../../components/Loading.jsx';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import {
-  listTeachers, addTeacher, setTeacherPassword, updateTeacher, removeTeacher, legacyDataCount, moveLegacyData,
+  listTeachers, syncDirectory, addTeacher, setTeacherPassword, updateTeacher, removeTeacher, legacyDataCount, moveLegacyData,
 } from '../../lib/db.js';
 import { DEFAULT_TEACHER_PASSWORD, LEGACY_SCHOOL, MIN_TEACHER_PASSWORD } from '../../lib/school.js';
 import { AUTH_ERR } from './TeacherLogin.jsx';
@@ -27,7 +27,9 @@ export default function AdminPanel({ onMoved }) {
 
   async function reload() {
     try {
-      setList(await listTeachers());
+      const list = await listTeachers();
+      setList(list);
+      syncDirectory(list).catch(() => {}); // 로그인 화면의 학교 목록을 선생님 목록과 맞춘다
     } catch (e) {
       setError(errText(e));
     }

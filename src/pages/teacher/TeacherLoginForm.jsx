@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { teacherSignIn } from '../../lib/db.js';
 import { normalizeSchool } from '../../lib/school.js';
+import SchoolSelect from '../../components/SchoolSelect.jsx';
 import { AUTH_ERR } from './TeacherLogin.jsx';
 
 const REMEMBER = 'teacher-remember';
@@ -57,10 +58,7 @@ export default function TeacherLoginForm() {
 
   return (
     <form className="card stack login-form" onSubmit={submit}>
-      <label className="field">
-        <span>학교</span>
-        <input type="text" value={form.school} onChange={set('school')} placeholder="예: 광양중동초등학교" maxLength={40} aria-label="교사 학교" />
-      </label>
+      <SchoolSelect value={form.school} onChange={(school) => setForm((f) => ({ ...f, school }))} label="학교" ariaLabel="교사 학교" />
       <div className="grid2">
         <label className="field">
           <span>학년</span>

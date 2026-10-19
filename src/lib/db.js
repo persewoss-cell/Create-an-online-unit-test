@@ -10,6 +10,8 @@
 //  exams/{examId}/private/key          정답 (교사만, 또는 제출을 마친 학생만 읽기 가능)
 //  exams/{examId}/submissions/{학년-반-번}  학생 답안 (한 번만 생성 가능 → 1회 응시)
 //  exams/{examId}/submitters/{uid}     제출 표시 (정답 열람 권한 확인용)
+//  directory/{학교_학년_반}             등록된 학교·반 목록 {school, grade, classNo} — 로그인 학교 고르기 (누구나 읽기)
+//  classStats/{examId}                 반별 평가 평균 {school, grade, classNo, title, subject, unit, avg, count, ...} (누구나 읽기)
 
 import {
   collection, collectionGroup, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp, updateDoc, deleteField,
@@ -140,6 +142,7 @@ export async function addTeacher(input) {
   batch.set(doc(db, 'teachers', uid), { role: 'teacher', ...info, email, loginId, createdAt: serverTimestamp() });
   batch.set(doc(db, 'teacherLogins', loginId), { email, uid });
   batch.set(doc(db, 'teacherSecrets', uid), { password, at: serverTimestamp() });
+  batch.set(doc(db, 'directory', loginId), dirEntry(info));
   await batch.commit();
   return { uid, role: 'teacher', ...info, email, loginId, password };
 }
@@ -163,8 +166,12 @@ export async function updateTeacher(teacher, input) {
     throw new Error(`${info.school} ${info.grade}학년 ${info.classNo}반 선생님은 이미 등록되어 있습니다.`);
   }
   const batch = writeBatch(db);
-  if (teacher.loginId && loginId !== teacher.loginId) batch.delete(doc(db, 'teacherLogins', teacher.loginId));
+  if (teacher.loginId && loginId !== teacher.loginId) {
+    batch.delete(doc(db, 'teacherLogins', teacher.loginId));
+    batch.delete(doc(db, 'directory', teacher.loginId));
+  }
   batch.set(doc(db, 'teacherLogins', loginId), { email: teacher.email, uid: teacher.uid });
+  batch.set(doc(db, 'directory', loginId), dirEntry(info));
   batch.update(doc(db, 'teachers', teacher.uid), { ...info, loginId });
   await batch.commit();
   if (info.school !== teacher.school) await moveTeacherData(teacher.uid, { ...teacher, ...info });
@@ -181,10 +188,64 @@ export async function removeTeacher(teacher) {
     }).catch(() => {}); // 로그인 계정을 못 지워도 프로필이 없으면 로그인할 수 없다
   }
   const batch = writeBatch(db);
-  if (teacher.loginId) batch.delete(doc(db, 'teacherLogins', teacher.loginId));
+  if (teacher.loginId) {
+    batch.delete(doc(db, 'teacherLogins', teacher.loginId));
+    batch.delete(doc(db, 'directory', teacher.loginId));
+  }
   batch.delete(doc(db, 'teacherSecrets', teacher.uid));
   batch.delete(doc(db, 'teachers', teacher.uid));
   await batch.commit();
+}
+
+const dirEntry = (t) => ({ school: normalizeSchool(t.school), grade: Number(t.grade), classNo: Number(t.classNo) });
+
+/** 등록된 학교·반 목록 (로그인 전에도 읽을 수 있음) → [{school, grade, classNo}] */
+export async function listDirectory() {
+  const snap = await getDocs(collection(db, 'directory'));
+  return snap.docs.map((d) => d.data());
+}
+
+/** 관리자: 학교·반 목록을 선생님 목록과 똑같이 맞춘다 (없는 반은 빼고, 빠진 반은 넣는다) */
+export async function syncDirectory(teachers) {
+  const cur = await getDocs(collection(db, 'directory'));
+  const want = new Map(teachers.filter((t) => t.school && t.grade && t.classNo).map((t) => [teacherLoginId(t), dirEntry(t)]));
+  const have = new Map(cur.docs.map((d) => [d.id, d.data()]));
+  const ops = [];
+  for (const [id, v] of want) {
+    const h = have.get(id);
+    if (!h || h.school !== v.school || h.grade !== v.grade || h.classNo !== v.classNo) {
+      ops.push((b) => b.set(doc(db, 'directory', id), v));
+    }
+  }
+  for (const id of have.keys()) if (!want.has(id)) ops.push((b) => b.delete(doc(db, 'directory', id)));
+  if (ops.length) await commitOps(ops);
+}
+
+/** 선생님: 내 학교·반이 목록에 없으면 넣는다 (관리자가 목록을 맞추기 전에 만든 계정도 고를 수 있게) */
+export async function ensureDirectory(t) {
+  if (!t?.school || !t.grade || !t.classNo) return;
+  const ref = doc(db, 'directory', teacherLoginId(t));
+  const snap = await getDoc(ref);
+  const v = dirEntry(t);
+  const h = snap.exists() ? snap.data() : null;
+  if (!h || h.school !== v.school || h.grade !== v.grade || h.classNo !== v.classNo) await setDoc(ref, v);
+}
+
+/** 반별 평균 화면: 그 학교·학년·반의 평가 평균을 실시간으로 (로그인 없이) */
+export function watchClassStats(school, grade, classNo, cb, onError) {
+  const q = query(
+    collection(db, 'classStats'),
+    where('school', '==', normalizeSchool(school)),
+    where('grade', '==', Number(grade)),
+    where('classNo', '==', Number(classNo)),
+  );
+  return live(q, listData, cb, onError);
+}
+
+/** 선생님: 평가 평균을 반별 평균 화면에 올린다 (stat = null 이면 내린다) */
+export function publishClassStat(examId, stat) {
+  const ref = doc(db, 'classStats', examId);
+  return stat ? setDoc(ref, stat) : deleteDoc(ref);
 }
 
 async function commitOps(ops) {
@@ -542,6 +603,7 @@ export async function importSharedExam(src, owner, { unit } = {}) {
 }
 
 export async function deleteExam(examId) {
+  await deleteDoc(doc(db, 'classStats', examId)).catch(() => {}); // 반별 평균 화면에서도 내린다
   for (const sub of ['pages', 'submissions', 'submitters', 'private', 'drafts']) {
     const snap = await getDocs(collection(db, 'exams', examId, sub));
     for (const d of snap.docs) await deleteDoc(d.ref);

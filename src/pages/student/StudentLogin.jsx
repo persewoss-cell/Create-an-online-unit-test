@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { loadStudent, saveStudent, loadRemembered, setRemembered } from '../../lib/student.js';
 import { startStudentSession } from '../../lib/db.js';
 import { normalizeSchool } from '../../lib/school.js';
+import SchoolSelect from '../../components/SchoolSelect.jsx';
 
 /** 학생 로그인: 학교 이름 · 학년 · 반 · 번호 · 이름 */
 export default function StudentLogin() {
@@ -31,7 +32,7 @@ export default function StudentLogin() {
       name: form.name.trim(),
     };
     if (!p.school || !p.grade || !p.classNo || !p.number || !p.name) {
-      setError('학교 이름, 학년, 반, 번호, 이름을 모두 입력해 주세요.');
+      setError('학교, 학년, 반, 번호, 이름을 모두 입력해 주세요.');
       return;
     }
     if (p.name.length > 20) {
@@ -53,10 +54,7 @@ export default function StudentLogin() {
 
   return (
     <form className="card stack login-form" onSubmit={submit}>
-      <label className="field">
-        <span>학교 이름</span>
-        <input type="text" value={form.school} onChange={set('school')} placeholder="예: 광양중동초등학교" maxLength={40} aria-label="학교 이름" />
-      </label>
+      <SchoolSelect value={form.school} onChange={(school) => setForm((f) => ({ ...f, school }))} />
       <div className="grid3">
         <label className="field">
           <span>학년</span>

@@ -314,7 +314,32 @@ await expectOk('마감 후에도 오답 재응시 제출', () => retake(S4, 6));
 await expectOk('선생님이 오답 재응시 끄기', () => updateDoc(subRef(T), { retake: { on: false } }));
 await expectDenied('꺼진 뒤 오답 재응시 제출', () => retake(S4, 7));
 
-for (const c of [A, T, T2, S, S2, S3, S4, S5, anon, anonS]) {
+console.log('학교 목록 · 반별 평균');
+const dirId = `${SCHOOL}_5_1`;
+await expectOk('선생님이 자기 반을 학교 목록에 넣기', () => setDoc(doc(T.db, 'directory', dirId), { school: SCHOOL, grade: 5, classNo: 1 }));
+await expectDenied('선생님이 다른 반을 학교 목록에 넣기', () => setDoc(doc(T.db, 'directory', `${SCHOOL}_5_2`), { school: SCHOOL, grade: 5, classNo: 2 }));
+await expectDenied('선생님이 학교 목록에 다른 값 넣기', () => setDoc(doc(T.db, 'directory', dirId), { school: OTHER, grade: 5, classNo: 1 }));
+await expectDenied('선생님이 학교 목록 지우기', () => deleteDoc(doc(T.db, 'directory', dirId)));
+await expectDenied('학생이 학교 목록 고치기', () => setDoc(doc(S4.db, 'directory', `${SCHOOL}_5_9`), { school: SCHOOL, grade: 5, classNo: 9 }));
+await expectOk('관리자가 학교 목록 고치기', async () => {
+  await setDoc(doc(A.db, 'directory', `${OTHER}_5_1`), { school: OTHER, grade: 5, classNo: 1 });
+  await deleteDoc(doc(A.db, 'directory', `${OTHER}_5_1`));
+});
+const nobody = client(); // 로그인 안 한 사람
+await expectOk('로그인 전 학교 목록 보기', () => getDocs(collection(nobody.db, 'directory')));
+const stat = { school: SCHOOL, grade: 5, classNo: 1, title: 't', subject: '수학', semester: 1, unit: '약수', avg: 85.5, count: 20, status: 'closed', createdAt: 1, at: 2 };
+await expectOk('선생님이 반별 평균 올리기', () => setDoc(doc(T.db, 'classStats', examId), stat));
+await expectDenied('반별 평균에 다른 항목(학생 점수) 넣기', () => setDoc(doc(T.db, 'classStats', examId), { ...stat, scores: [100, 50] }));
+await expectDenied('반별 평균의 학교 바꾸기', () => setDoc(doc(T.db, 'classStats', examId), { ...stat, school: OTHER }));
+await expectDenied('다른 선생님이 반별 평균 올리기', () => setDoc(doc(T2.db, 'classStats', examId), stat));
+await expectDenied('학생이 반별 평균 고치기', () => setDoc(doc(S4.db, 'classStats', examId), { ...stat, avg: 100 }));
+await expectOk('로그인 없이 반별 평균 보기', () =>
+  getDocs(query(collection(nobody.db, 'classStats'), where('school', '==', SCHOOL), where('grade', '==', 5), where('classNo', '==', 1))));
+await expectDenied('로그인 없이 평가 보기', () => getDoc(doc(nobody.db, 'exams', examId)));
+await expectDenied('로그인 없이 답안 보기', () => getDocs(collection(nobody.db, 'exams', examId, 'submissions')));
+await expectOk('선생님이 반별 평균 내리기', () => deleteDoc(doc(T.db, 'classStats', examId)));
+
+for (const c of [A, T, T2, S, S2, S3, S4, S5, anon, anonS, nobody]) {
   await signOut(c.auth);
   await terminate(c.db);
 }
