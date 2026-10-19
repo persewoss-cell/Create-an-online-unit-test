@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { backState, goBackTo } from '../../lib/nav.js';
 import TopBar from '../../components/TopBar.jsx';
@@ -7,7 +7,7 @@ import { GradedPaper } from '../../components/ExamViews.jsx';
 import RetakeHistory from '../../components/RetakeHistory.jsx';
 import { loadStudent } from '../../lib/student.js';
 import {
-  getExam, getKeys, getMySubmission, getPages, studentIdOf, ensureStudentSession, watchMySubmissionLive, watchExamLive, watchKeysLive,
+  getExam, getKeys, getMySubmission, getPages, reopenRetake, studentIdOf, ensureStudentSession, watchMySubmissionLive, watchExamLive, watchKeysLive,
 } from '../../lib/db.js';
 import { useToast } from '../../components/Toast.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
@@ -23,6 +23,8 @@ export default function Result() {
   const [error, setError] = useState('');
 
   const [showHistory, setShowHistory] = useState(false);
+  const [reopening, setReopening] = useState(false);
+  const selfReopen = useRef(false); // 학생이 스스로 켠 경우 "선생님이 열었어요" 알림을 띄우지 않는다
   const [toast, notify] = useToast(10000);
   useEffect(() => {
     if (!p) return undefined;
@@ -76,7 +78,10 @@ export default function Result() {
                 notify('선생님이 답을 확인했어요. 점수가 새로 반영되었어요.', { kind: 'success' });
               }
             }
-            if (!retakeOn(old) && retakeOn(sub)) notify('선생님이 오답 재응시를 열었어요. 틀린 문제를 다시 풀어 보세요!', { kind: 'success' });
+            if (!retakeOn(old) && retakeOn(sub)) {
+              if (selfReopen.current) selfReopen.current = false;
+              else notify('선생님이 오답 재응시를 열었어요. 틀린 문제를 다시 풀어 보세요!', { kind: 'success' });
+            }
             if (retakeOn(old) && !retakeOn(sub)) notify('선생님이 오답 재응시를 닫았어요.');
             const oj = old.retake?.judge || {};
             const nj = sub.retake?.judge || {};
@@ -135,6 +140,19 @@ export default function Result() {
 
   const { exam, keys, sub, pages, result } = data;
   const rt = retakeState(exam, keys, sub, result);
+  const reopen = async () => {
+    setReopening(true);
+    selfReopen.current = true;
+    try {
+      await reopenRetake(id, p);
+      notify('오답 재응시를 다시 켰어요. 틀린 문제를 다시 풀어 보세요!', { kind: 'success' });
+    } catch (e) {
+      selfReopen.current = false;
+      notify(e.message, { kind: 'warn' });
+    } finally {
+      setReopening(false);
+    }
+  };
   return (
     <>
       <TopBar who={who}>
@@ -154,6 +172,21 @@ export default function Result() {
             </div>
           )}
         </div>
+        {!rt.enabled && rt.firstWrong.length > 0 && (
+          <div className="card retake-card" style={{ marginBottom: 16 }}>
+            <div>
+              <b>오답 재응시</b>
+              <div className="small muted" style={{ marginTop: 4 }}>
+                선생님이 오답 재응시를 꺼 두었어요. 틀린 문제를 다시 풀고 싶으면 다시 켜세요.
+              </div>
+            </div>
+            <div className="row">
+              <button className="btn primary" onClick={reopen} disabled={reopening}>
+                {reopening ? '켜는 중…' : '🔁 오답 재응시 다시 켜기'}
+              </button>
+            </div>
+          </div>
+        )}
         {rt.enabled && rt.firstWrong.length > 0 && (
           <div className="card retake-card" style={{ marginBottom: 16 }}>
             <div>

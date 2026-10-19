@@ -267,7 +267,11 @@ const retake = (c, n) => updateDoc(subRef(c), { retakes: arrayUnion({ answers: {
 await expectOk('제출 직후 오답 재응시 제출 (저절로 켜짐)', () => retake(S4, 1));
 await expectOk('선생님이 오답 재응시 끄기', () => updateDoc(subRef(T), { retake: { on: false } }));
 await expectDenied('선생님이 끈 뒤 오답 재응시', () => retake(S4, 6));
-await expectDenied('학생이 스스로 오답 재응시 켜기', () => updateDoc(subRef(S4), { retake: { on: true } }));
+await expectDenied('학생이 오답 재응시 켜면서 판정 바꾸기', () => updateDoc(subRef(S4), { retake: { on: true, judge: { r1_q1: 'correct' } } }));
+await expectDenied('학생이 오답 재응시 끄기 (켜기만 가능)', () => updateDoc(subRef(S4), { 'retake.on': false }));
+await expectDenied('다른 학생이 오답 재응시 켜기', () => updateDoc(subRef(S2), { 'retake.on': true }));
+await expectOk('학생이 스스로 오답 재응시 다시 켜기', () => updateDoc(subRef(S4), { 'retake.on': true }));
+await expectOk('선생님이 다시 끄기', () => updateDoc(subRef(T), { retake: { on: false } }));
 await expectOk('선생님이 오답 재응시 다시 켜기', () => updateDoc(subRef(T), { retake: { on: true } }));
 await expectOk('오답 재응시 제출', () => retake(S4, 2));
 await expectOk('또 틀려서 다시 제출', () => retake(S4, 3));

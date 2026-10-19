@@ -596,6 +596,16 @@ export async function submitRetake(examId, profile, answers) {
   }
 }
 
+/** 학생: 선생님이 끈 오답 재응시를 스스로 다시 켜기 (retake.on 만 true 로) */
+export async function reopenRetake(examId, profile) {
+  try {
+    await updateDoc(doc(db, 'exams', examId, 'submissions', studentIdOf(profile)), { 'retake.on': true });
+  } catch (e) {
+    if (e.code === 'permission-denied') throw new Error('지금은 오답 재응시를 켤 수 없어요. 선생님께 문의하세요.');
+    throw e;
+  }
+}
+
 /** 응시 기록 삭제 → 그 학생은 다시 응시할 수 있다 */
 export async function deleteSubmission(examId, submission) {
   const batch = writeBatch(db);

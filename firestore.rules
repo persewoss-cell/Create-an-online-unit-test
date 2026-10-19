@@ -76,6 +76,15 @@ service cloud.firestore {
         && (before.get('retakes', []).size() == 0
           || after.retakes[0:before.get('retakes', []).size()] == before.get('retakes', []));
     }
+    // 선생님이 끈 오답 재응시를 학생이 스스로 다시 켤 수 있다 (retake.on → true 만, 판정은 그대로)
+    function isRetakeReopen(before, after) {
+      return hasSession()
+        && before.get('gsid', legacySchool() + '_' + before.studentId) == myGsid()
+        && after.diff(before).affectedKeys().hasOnly(['retake'])
+        && after.retake is map
+        && after.retake.diff(before.get('retake', {})).affectedKeys().hasOnly(['on'])
+        && after.retake.on == true;
+    }
     // 다른 선생님이 "공유"한 평가 (모든 학교 선생님이 보고 가져갈 수 있음)
     function isSharedExam(examId) {
       return isTeacher() && examDoc(examId).data.get('shared', false) == true;
@@ -195,7 +204,8 @@ service cloud.firestore {
         allow update: if (isOwner(examId)
           && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['overrides', 'reviewedAt', 'retake'])
             || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['school', 'gsid']))))
-          || isRetake(resource.data, request.resource.data);
+          || isRetake(resource.data, request.resource.data)
+          || isRetakeReopen(resource.data, request.resource.data);
         allow delete: if isOwner(examId);
       }
 
