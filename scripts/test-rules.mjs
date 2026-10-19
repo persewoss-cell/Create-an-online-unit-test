@@ -263,9 +263,12 @@ await expectOk('관리자가 정답 판정', () =>
 console.log('오답 재응시');
 const subRef = (c) => doc(c.db, 'exams', examId, 'submissions', '5-1-3');
 const retake = (c, n) => updateDoc(subRef(c), { retakes: arrayUnion({ answers: { 1: [n] }, at: n }) });
-await expectDenied('선생님이 켜기 전에 오답 재응시', () => retake(S4, 1));
+// 제출하면 저절로 켜져 있다 → 선생님이 끄면 막히고, 다시 켜면 된다
+await expectOk('제출 직후 오답 재응시 제출 (저절로 켜짐)', () => retake(S4, 1));
+await expectOk('선생님이 오답 재응시 끄기', () => updateDoc(subRef(T), { retake: { on: false } }));
+await expectDenied('선생님이 끈 뒤 오답 재응시', () => retake(S4, 6));
 await expectDenied('학생이 스스로 오답 재응시 켜기', () => updateDoc(subRef(S4), { retake: { on: true } }));
-await expectOk('선생님이 오답 재응시 켜기', () => updateDoc(subRef(T), { retake: { on: true } }));
+await expectOk('선생님이 오답 재응시 다시 켜기', () => updateDoc(subRef(T), { retake: { on: true } }));
 await expectOk('오답 재응시 제출', () => retake(S4, 2));
 await expectOk('또 틀려서 다시 제출', () => retake(S4, 3));
 await expectDenied('오답 재응시하면서 처음 답안 고치기', () =>

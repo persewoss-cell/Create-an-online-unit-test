@@ -207,7 +207,8 @@ function StatusButtons({ exam, onChange }) {
 function RetakeCell({ st, score, onOpen }) {
   // 처음부터 100점(틀린 문제 없음)이면 재응시할 게 없으니 초록 표시로 (누르는 버튼 아님)
   if (score === 100 && !st.firstWrong.length) return <span className="badge open" title="틀린 문제가 없어요">100점</span>;
-  if (!st.enabled) return <span className="muted">-</span>;
+  // 틀린 문제가 없으면(확인 중인 문제만 있으면) 다시 풀 게 없음 — 선생님이 확인해서 틀리면 그때 오답 재응시에 들어감
+  if (!st.enabled || !st.firstWrong.length) return <span className="muted" title={st.enabled ? '틀린 문제가 없어요' : '오답 재응시가 꺼져 있어요'}>-</span>;
   let cls = 'review';
   let label;
   let tip;

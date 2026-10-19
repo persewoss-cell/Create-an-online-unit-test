@@ -63,11 +63,12 @@ service cloud.firestore {
         && examSchool(examId) == mySchool()
         && exists(/databases/$(database)/documents/exams/$(examId)/submissions/$(mySid()));
     }
-    // 오답 재응시: 선생님이 켠 본인 답안에, 다시 푼 기록(retakes)을 한 줄씩만 덧붙일 수 있다
+    // 오답 재응시: 본인 답안에 다시 푼 기록(retakes)을 한 줄씩만 덧붙일 수 있다
+    // (제출하면 저절로 켜져 있고, 선생님이 끈 답안(retake.on == false)만 막는다)
     function isRetake(before, after) {
       return hasSession()
         && before.get('gsid', legacySchool() + '_' + before.studentId) == myGsid()
-        && before.get('retake', {}).get('on', false) == true
+        && before.get('retake', {}).get('on', true) == true
         && after.diff(before).affectedKeys().hasOnly(['retakes'])
         && after.retakes is list
         && after.retakes.size() == before.get('retakes', []).size() + 1

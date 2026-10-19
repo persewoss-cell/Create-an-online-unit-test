@@ -5,6 +5,7 @@ import TopBar from '../../components/TopBar.jsx';
 import Loading from '../../components/Loading.jsx';
 import { loadStudent, clearStudent } from '../../lib/student.js';
 import { ensureStudentSession, watchOpenExams, watchMyResults } from '../../lib/db.js';
+import { retakeOn } from '../../lib/retake.js';
 import { useToast } from '../../components/Toast.jsx';
 
 export default function ExamList() {
@@ -36,7 +37,14 @@ export default function ExamList() {
         }
         for (const m of cur.mine) {
           const old = before.mine.find((x) => x.exam.id === m.exam.id);
-          if (old && !old.submission.retake?.on && m.submission.retake?.on) notify(`오답 재응시가 열렸어요: ${m.exam.title}`, { kind: 'success' });
+          if (!old) continue;
+          if (!retakeOn(old.submission) && retakeOn(m.submission)) notify(`오답 재응시가 열렸어요: ${m.exam.title}`, { kind: 'success' });
+          // 선생님이 확인해서 틀렸다고 한 문제 → 오답 재응시에서 다시 풀기
+          const oo = old.submission.overrides || {};
+          const wrongNow = Object.entries(m.submission.overrides || {}).filter(([no, v]) => v === 'wrong' && oo[no] !== 'wrong').map(([no]) => no);
+          if (wrongNow.length && retakeOn(m.submission)) {
+            notify(`${m.exam.title}: 선생님이 ${wrongNow.join(', ')}번을 확인했어요. 틀린 문제라 오답 재응시에서 다시 풀어 보세요!`, { kind: 'warn', sticky: true });
+          }
         }
         for (const m of before.mine) {
           if (!cur.mine.some((x) => x.exam.id === m.exam.id) && cur.open.some((x) => x.id === m.exam.id)) {

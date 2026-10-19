@@ -58,3 +58,13 @@ describe('오답 재응시', () => {
     expect(st.history[1][1]).toMatchObject({ round: 1, status: 'correct', judged: true });
   });
 });
+
+describe('오답 재응시는 제출하면 저절로 켜짐', () => {
+  it('retake 칸이 없으면 켜짐, 선생님이 끄면(on: false) 꺼짐', async () => {
+    const { retakeOn } = await import('../src/lib/retake.js');
+    expect(retakeOn({})).toBe(true);
+    expect(retakeOn({ retake: { judge: {} } })).toBe(true);
+    expect(retakeOn({ retake: { on: true } })).toBe(true);
+    expect(retakeOn({ retake: { on: false } })).toBe(false);
+  });
+});

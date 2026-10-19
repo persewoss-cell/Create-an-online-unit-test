@@ -11,7 +11,7 @@ import {
 } from '../../lib/db.js';
 import { useToast } from '../../components/Toast.jsx';
 import { gradeSubmission } from '../../lib/grading.js';
-import { retakeState, retakeMessage } from '../../lib/retake.js';
+import { retakeState, retakeMessage, retakeOn } from '../../lib/retake.js';
 import { stableKey } from '../../lib/format.js';
 
 export default function Result() {
@@ -57,12 +57,22 @@ export default function Result() {
               return;
             }
             const old = cur.sub;
+            const before = gradeSubmission(cur.exam, cur.keys, old);
             cur.sub = sub;
             redraw();
             if (!ready) return;
-            if (stableKey(sub.overrides || {}) !== stableKey(old.overrides || {})) notify('선생님이 답을 확인했어요. 점수가 새로 반영되었어요.', { kind: 'success' });
-            if (!old.retake?.on && sub.retake?.on) notify('선생님이 오답 재응시를 열었어요. 틀린 문제를 다시 풀어 보세요!', { kind: 'success' });
-            if (old.retake?.on && !sub.retake?.on) notify('선생님이 오답 재응시를 닫았어요.');
+            if (stableKey(sub.overrides || {}) !== stableKey(old.overrides || {})) {
+              // 선생님 확인 결과 틀린 문제는 오답 재응시에 들어간다 → 다시 풀라고 알림
+              const after = gradeSubmission(cur.exam, cur.keys, sub);
+              const nowWrong = after.items.filter((it, i) => it.status === 'wrong' && before.items[i]?.status !== 'wrong').map((it) => it.no);
+              if (nowWrong.length && retakeOn(sub)) {
+                notify(`선생님이 ${nowWrong.join(', ')}번을 확인했어요. 틀린 문제라 오답 재응시에 넣었어요. 다시 풀어 보세요!`, { kind: 'warn', sticky: true });
+              } else {
+                notify('선생님이 답을 확인했어요. 점수가 새로 반영되었어요.', { kind: 'success' });
+              }
+            }
+            if (!retakeOn(old) && retakeOn(sub)) notify('선생님이 오답 재응시를 열었어요. 틀린 문제를 다시 풀어 보세요!', { kind: 'success' });
+            if (retakeOn(old) && !retakeOn(sub)) notify('선생님이 오답 재응시를 닫았어요.');
             const oj = old.retake?.judge || {};
             const nj = sub.retake?.judge || {};
             for (const k of Object.keys(nj)) {
@@ -139,11 +149,14 @@ export default function Result() {
             </div>
           )}
         </div>
-        {rt.enabled && (
+        {rt.enabled && rt.firstWrong.length > 0 && (
           <div className="card retake-card" style={{ marginBottom: 16 }}>
             <div>
               <b>오답 재응시</b>
-              <div className="small muted" style={{ marginTop: 4 }}>{retakeMessage(rt)}</div>
+              <div className="small muted" style={{ marginTop: 4 }}>
+                {retakeMessage(rt)}
+                {result.reviewCount > 0 && ' 선생님이 확인하고 있는 문제는 확인 뒤 틀리면 오답 재응시에 들어가요.'}
+              </div>
             </div>
             <div className="row">
               {rt.attempts > 0 && (
@@ -163,7 +176,7 @@ export default function Result() {
             </div>
           </div>
         )}
-        {rt.enabled && showHistory && (
+        {rt.enabled && rt.firstWrong.length > 0 && showHistory && (
           <div style={{ marginBottom: 16 }}>
             <RetakeHistory exam={exam} pages={pages} history={rt.history} />
           </div>

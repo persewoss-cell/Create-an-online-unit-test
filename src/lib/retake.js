@@ -1,8 +1,12 @@
 // 오답 재응시: 처음 제출한 점수는 그대로 두고, 틀린 문제만 다시 풀어 맞힐 때까지 반복한다.
-//  submission.retake  = { on: true, judge: { r1_q9: 'correct' } }
-//                       선생님이 "오답만 재응시"를 켬 / 확인이 필요한 재응시 답(그림 등)에 대한 선생님 판정
+//  submission.retake  = { on: false, judge: { r1_q9: 'correct' } }
+//                       오답 재응시는 제출하자마자 저절로 켜져 있다(on이 없으면 켜짐). 선생님이 끄면 on: false
+//                       judge: 확인이 필요한 재응시 답(그림 등)에 대한 선생님 판정
 //  submission.retakes = [{ answers: {번호: 답}, at }]  학생이 다시 푼 기록 (차례대로)
 import { gradeAnswer, gradeSubmission } from './grading.js';
+
+/** 오답 재응시가 켜져 있는지: 선생님이 끄지 않았으면 켜짐 (보안 규칙 isRetake 와 같은 기준) */
+export const retakeOn = (sub) => sub?.retake?.on !== false;
 
 /**
  * @returns {{enabled:boolean, firstWrong:number[], remaining:number[], fixed:number[], attempts:number, done:boolean,
@@ -35,7 +39,7 @@ export function retakeState(exam, keys, sub, result = gradeSubmission(exam, keys
     });
   });
   return {
-    enabled: !!sub.retake?.on,
+    enabled: retakeOn(sub),
     firstWrong,
     remaining,
     fixed: firstWrong.filter((no) => !remaining.includes(no) && !pending.some((p) => p.no === no)),
