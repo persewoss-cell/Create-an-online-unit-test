@@ -333,8 +333,16 @@ await expectDenied('반별 평균에 다른 항목(학생 점수) 넣기', () =>
 await expectDenied('반별 평균의 학교 바꾸기', () => setDoc(doc(T.db, 'classStats', examId), { ...stat, school: OTHER }));
 await expectDenied('다른 선생님이 반별 평균 올리기', () => setDoc(doc(T2.db, 'classStats', examId), stat));
 await expectDenied('학생이 반별 평균 고치기', () => setDoc(doc(S4.db, 'classStats', examId), { ...stat, avg: 100 }));
-await expectOk('로그인 없이 반별 평균 보기', () =>
-  getDocs(query(collection(nobody.db, 'classStats'), where('school', '==', SCHOOL), where('grade', '==', 5), where('classNo', '==', 1))));
+const statQ = (c, school = SCHOOL, g = 5, cl = 1) =>
+  getDocs(query(collection(c.db, 'classStats'), where('school', '==', school), where('grade', '==', g), where('classNo', '==', cl)));
+await expectDenied('로그인 없이 반별 평균 보기', () => statQ(nobody));
+await expectDenied('로그인 없이 반별 평균 한 건 보기', () => getDoc(doc(nobody.db, 'classStats', examId)));
+await expectOk('그 반 학생이 반별 평균 보기', () => statQ(S4));
+await expectDenied('학생이 다른 반 평균 보기', () => statQ(S4, SCHOOL, 5, 2));
+await expectDenied('다른 학교 학생이 이 반 평균 보기', () => statQ(S5));
+await expectOk('그 반 선생님이 반별 평균 보기', () => statQ(T));
+await expectDenied('다른 학교 선생님이 이 반 평균 보기', () => statQ(T2));
+await expectOk('관리자가 반별 평균 보기', () => statQ(A));
 await expectDenied('로그인 없이 평가 보기', () => getDoc(doc(nobody.db, 'exams', examId)));
 await expectDenied('로그인 없이 답안 보기', () => getDocs(collection(nobody.db, 'exams', examId, 'submissions')));
 await expectOk('선생님이 반별 평균 내리기', () => deleteDoc(doc(T.db, 'classStats', examId)));

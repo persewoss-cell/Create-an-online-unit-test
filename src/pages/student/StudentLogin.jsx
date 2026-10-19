@@ -5,8 +5,8 @@ import { startStudentSession } from '../../lib/db.js';
 import { normalizeSchool } from '../../lib/school.js';
 import SchoolSelect from '../../components/SchoolSelect.jsx';
 
-/** 학생 로그인: 학교 이름 · 학년 · 반 · 번호 · 이름 */
-export default function StudentLogin() {
+/** 학생 로그인: 학교 이름 · 학년 · 반 · 번호 · 이름 (onDone 이 있으면 평가 목록 대신 그걸 부른다) */
+export default function StudentLogin({ onDone }) {
   const nav = useNavigate();
   const remembered = loadRemembered();
   const prev = remembered || loadStudent();
@@ -45,7 +45,8 @@ export default function StudentLogin() {
       await startStudentSession(p);
       saveStudent(p);
       setRemembered(remember ? p : null);
-      nav('/exams');
+      if (onDone) onDone(p);
+      else nav('/exams');
     } catch (err) {
       setError(err.message.startsWith('학생 명단') ? err.message : `접속에 실패했습니다: ${err.message}`);
       setBusy(false);

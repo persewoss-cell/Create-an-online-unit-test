@@ -25,8 +25,8 @@ function setRemembered(v) {
   }
 }
 
-/** 교사 로그인: 학교 · 학년 · 반 · 비밀번호 */
-export default function TeacherLoginForm() {
+/** 교사 로그인: 학교 · 학년 · 반 · 비밀번호 (onDone 이 있으면 내 단원평가 대신 그걸 부른다) */
+export default function TeacherLoginForm({ onDone }) {
   const nav = useNavigate();
   const { setTeacher } = useTeacher();
   const remembered = loadRemembered();
@@ -47,9 +47,11 @@ export default function TeacherLoginForm() {
     setError('');
     setBusy(true);
     try {
-      setTeacher(await teacherSignIn({ ...info, password: form.password }, remember));
+      const t = await teacherSignIn({ ...info, password: form.password }, remember);
+      setTeacher(t);
       setRemembered(remember ? info : null);
-      nav('/teacher/dashboard');
+      if (onDone) onDone(t);
+      else nav('/teacher/dashboard');
     } catch (err) {
       setError(AUTH_ERR[err.code] || err.message);
       setBusy(false);

@@ -117,9 +117,18 @@ service cloud.firestore {
         && request.resource.data.classNo == myTeacher().classNo;
     }
 
-    // 반별 평가 평균 (로그인 없이 보는 화면). 학생 개인 점수는 없고 평균·인원만. 평가 주인(선생님)만 올리고 내린다
+    // 반별 평가 평균 (/scores). 학생 개인 점수는 없고 평균·인원만. 평가 주인(선생님)만 올리고 내린다
+    // 볼 수 있는 사람: 그 반 학생(명단 확인된 세션) · 그 반 선생님 · 관리자
     match /classStats/{examId} {
-      allow read: if true;
+      allow read: if isAdmin()
+        || (isTeacher()
+          && resource.data.school == myTeacher().school
+          && resource.data.grade == myTeacher().grade
+          && resource.data.classNo == myTeacher().classNo)
+        || (hasSession()
+          && resource.data.school == mySchool()
+          && resource.data.grade == session().grade
+          && resource.data.classNo == session().classNo);
       allow create, update: if isOwner(examId)
         && request.resource.data.keys().hasOnly(['school', 'grade', 'classNo', 'title', 'subject', 'semester', 'unit', 'avg', 'count', 'status', 'createdAt', 'at'])
         && request.resource.data.school == examSchool(examId)

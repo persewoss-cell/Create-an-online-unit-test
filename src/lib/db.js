@@ -11,7 +11,7 @@
 //  exams/{examId}/submissions/{학년-반-번}  학생 답안 (한 번만 생성 가능 → 1회 응시)
 //  exams/{examId}/submitters/{uid}     제출 표시 (정답 열람 권한 확인용)
 //  directory/{학교_학년_반}             등록된 학교·반 목록 {school, grade, classNo} — 로그인 학교 고르기 (누구나 읽기)
-//  classStats/{examId}                 반별 평가 평균 {school, grade, classNo, title, subject, unit, avg, count, ...} (누구나 읽기)
+//  classStats/{examId}                 반별 평가 평균 {school, grade, classNo, title, subject, unit, avg, count, ...} (그 반 학생·선생님·관리자만 읽기)
 
 import {
   collection, collectionGroup, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp, updateDoc, deleteField,
@@ -231,7 +231,7 @@ export async function ensureDirectory(t) {
   if (!h || h.school !== v.school || h.grade !== v.grade || h.classNo !== v.classNo) await setDoc(ref, v);
 }
 
-/** 반별 평균 화면: 그 학교·학년·반의 평가 평균을 실시간으로 (로그인 없이) */
+/** 반별 평균 화면: 그 학교·학년·반의 평가 평균을 실시간으로 (그 반 학생·선생님·관리자) */
 export function watchClassStats(school, grade, classNo, cb, onError) {
   const q = query(
     collection(db, 'classStats'),
