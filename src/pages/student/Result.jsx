@@ -65,7 +65,12 @@ export default function Result() {
               // 선생님 확인 결과 틀린 문제는 오답 재응시에 들어간다 → 다시 풀라고 알림
               const after = gradeSubmission(cur.exam, cur.keys, sub);
               const nowWrong = after.items.filter((it, i) => it.status === 'wrong' && before.items[i]?.status !== 'wrong').map((it) => it.no);
-              if (nowWrong.length && retakeOn(sub)) {
+              const ov = sub.overrides || {};
+              const oo = old.overrides || {};
+              const changed = Object.keys({ ...ov, ...oo }).filter((k) => ov[k] !== oo[k]);
+              if (changed.length && changed.every((k) => ov[k] === 'review')) {
+                notify(`선생님이 ${changed.join(', ')}번을 다시 확인하고 있어요.`);
+              } else if (nowWrong.length && retakeOn(sub)) {
                 notify(`선생님이 ${nowWrong.join(', ')}번을 확인했어요. 틀린 문제라 오답 재응시에 넣었어요. 다시 풀어 보세요!`, { kind: 'warn', sticky: true });
               } else {
                 notify('선생님이 답을 확인했어요. 점수가 새로 반영되었어요.', { kind: 'success' });

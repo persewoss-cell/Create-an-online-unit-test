@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import TeacherBar, { ListButton } from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
@@ -10,7 +10,7 @@ import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { classTarget } from '../../lib/school.js';
 import { findSameExam, sameExamMessage } from '../../lib/examDup.js';
 import {
-  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams,
+  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, setOverrideAll, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams,
 } from '../../lib/db.js';
 import { gradeSubmission, partPoints, partEarned } from '../../lib/grading.js';
 import { retakeState, retakeMessage } from '../../lib/retake.js';
@@ -64,6 +64,13 @@ export default function ExamDetail() {
 
   const [printRows, setPrintRows] = useState(null); // 인쇄할 결과지 (학생들)
   const [previewOpen, setPreviewOpen] = useState(false); // 학생 화면 미리보기
+  // 위에 붙어 있는 제목 줄의 높이를 재서, 탭 줄이 그 바로 아래에 붙도록 (--examhead-h)
+  const headRef = useCallback((el) => {
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty('--examhead-h', `${el.offsetHeight}px`);
+    set();
+    new ResizeObserver(set).observe(el);
+  }, []);
   const graded = useMemo(() => {
     if (!exam || !keys || !subs) return [];
     return sortSubmissions(subs).map((s) => ({ s, r: gradeSubmission(exam, keys, s) }));
@@ -92,7 +99,7 @@ export default function ExamDetail() {
         <ListButton />
       </TeacherBar>
       <div className="container wide">
-        <div className="row exam-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <div ref={headRef} className="row exam-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ minWidth: 0 }}>
             <div className="muted small">{exam.subject} · {exam.grade}학년 {exam.semester}학기 · {exam.unit}</div>
             <h1 className="exam-head-title">{exam.title}</h1>
@@ -116,7 +123,7 @@ export default function ExamDetail() {
           <div className="stat"><div className="v" style={{ color: reviewCount ? 'var(--warn)' : undefined }}>{reviewCount}건</div><div className="l">검토 요청</div></div>
         </div>
 
-        <div className="tabs">
+        <div className="tabs exam-tabs">
           {TABS.map(([k, label]) => (
             <button key={k} className={tab === k ? 'active' : ''} onClick={() => setParams({ tab: k }, { replace: true, state: location.state })}>
               {label}{k === 'review' && reviewCount ? ` (${reviewCount})` : ''}
@@ -140,7 +147,7 @@ export default function ExamDetail() {
           />
         )}
         {tab === 'review' && <ReviewTab exam={exam} keys={keys} graded={graded} onJudge={judge} pages={pages} examId={id} />}
-        {tab === 'analysis' && <AnalysisTab exam={exam} keys={keys} graded={graded} />}
+        {tab === 'analysis' && <AnalysisTab exam={exam} keys={keys} graded={graded} examId={id} />}
         {tab === 'edit' && (
           <EditTab
             exam={exam}
@@ -378,18 +385,24 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint, page
   );
 }
 
+const secOf = (t) => (t?.seconds != null ? t.seconds * 1000 : typeof t === 'number' ? t : Number.MAX_SAFE_INTEGER);
+
 function ReviewTab({ exam, keys, graded, onJudge, pages, examId }) {
   const items = [];
   const retakeItems = [];
   for (const { s, r } of graded) {
     r.items.forEach((it, i) => {
-      if (it.status === 'review') items.push({ s, it, q: exam.questions[i] });
+      if (it.status === 'review') items.push({ s, it, q: exam.questions[i], at: secOf(s.submittedAt) });
     });
     for (const p of retakeState(exam, keys, s, r).pending) {
       const q = exam.questions.find((x) => x.no === p.no);
-      if (q) retakeItems.push({ s, p, q });
+      if (q) retakeItems.push({ s, p, q, at: secOf(s.retakes?.[p.round - 1]?.at) });
     }
   }
+  // 먼저 제출한 답이 위, 나중에 제출한 답이 아래 (같은 학생은 문항 번호 순)
+  const byTime = (a, b) => a.at - b.at || a.q.no - b.q.no;
+  items.sort(byTime);
+  retakeItems.sort(byTime);
   if (!items.length && !retakeItems.length) return <div className="card center muted">검토할 답안이 없습니다. 👍</div>;
   async function judgeRetake(s, p, value) {
     try {
@@ -544,13 +557,26 @@ function ReviewQuestion({ exam, q, pages, strokes }) {
   );
 }
 
-function AnalysisTab({ exam, keys, graded }) {
+function AnalysisTab({ exam, keys, graded, examId }) {
+  const [busyNo, setBusyNo] = useState(null);
   if (!graded.length) return <div className="card center muted">아직 제출한 학생이 없습니다.</div>;
+  /** 그 문항을 응시한 학생 모두의 답을 검토 요청으로 보내 선생님이 다시 판정 */
+  async function reviewAll(q) {
+    if (!confirm(`${q.no}번 문항의 답 ${graded.length}개를 모두 검토 요청으로 보낼까요?\n지금의 자동 채점·선생님 판정 대신, 검토 요청 탭에서 한 명씩 정답 인정 / 오답 처리를 다시 정해요.\n(정하기 전까지 그 문항은 점수에 들어가지 않아요)`)) return;
+    setBusyNo(q.no);
+    try {
+      await setOverrideAll(examId, graded.map((g) => g.s.id), q.no, 'review');
+    } catch (err) {
+      alert(`저장 실패: ${err.message}`);
+    } finally {
+      setBusyNo(null);
+    }
+  }
   return (
     <div className="card table-wrap" style={{ padding: 0 }}>
       <table className="data analysis-table">
         <thead>
-          <tr><th className="c">번호</th><th>유형</th><th>정답</th><th>정답률</th><th className="c">검토</th></tr>
+          <tr><th className="c">번호</th><th>유형</th><th>정답</th><th>정답률</th><th className="c">검토</th><th className="c">재검토</th></tr>
         </thead>
         <tbody>
           {exam.questions.map((q, i) => {
@@ -575,6 +601,17 @@ function AnalysisTab({ exam, keys, graded }) {
                   </div>
                 </td>
                 <td className="c">{rv || '-'}</td>
+                <td className="c">
+                  <button
+                    type="button"
+                    className="btn xs"
+                    disabled={busyNo != null || rv === graded.length}
+                    onClick={() => reviewAll(q)}
+                    title={rv === graded.length ? '이미 모두 검토 요청에 있어요' : '이 문항의 모든 학생 답을 검토 요청으로 보내 다시 판정'}
+                  >
+                    {busyNo === q.no ? '보내는 중…' : '전부 재검토'}
+                  </button>
+                </td>
               </tr>
             );
           })}

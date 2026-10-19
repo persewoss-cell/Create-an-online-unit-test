@@ -552,6 +552,16 @@ export async function deleteExam(examId) {
 
 
 /** 교사 판정 저장. value가 null이면 판정 취소(자동 채점으로 되돌림) */
+/** 한 문항을 응시한 학생 모두의 판정을 한꺼번에 (예: 'review' = 선생님이 전부 다시 검토) */
+export async function setOverrideAll(examId, studentIds, no, value) {
+  await commitOps(
+    studentIds.map((sid) => (b) => b.update(doc(db, 'exams', examId, 'submissions', sid), {
+      [`overrides.${no}`]: value ?? deleteField(),
+      reviewedAt: serverTimestamp(),
+    })),
+  );
+}
+
 export function setOverride(examId, studentId, no, value) {
   return updateDoc(doc(db, 'exams', examId, 'submissions', studentId), {
     [`overrides.${no}`]: value ?? deleteField(),
