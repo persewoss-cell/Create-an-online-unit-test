@@ -65,12 +65,14 @@ export default function ExamDetail() {
   const [printRows, setPrintRows] = useState(null); // 인쇄할 결과지 (학생들)
   const [previewOpen, setPreviewOpen] = useState(false); // 학생 화면 미리보기
   // 위에 붙어 있는 제목 줄의 높이를 재서, 탭 줄이 그 바로 아래에 붙도록 (--examhead-h)
-  const headRef = useCallback((el) => {
+  const measure = (name) => (el) => {
     if (!el) return;
-    const set = () => document.documentElement.style.setProperty('--examhead-h', `${el.offsetHeight}px`);
+    const set = () => document.documentElement.style.setProperty(name, `${el.offsetHeight}px`);
     set();
     new ResizeObserver(set).observe(el);
-  }, []);
+  };
+  const headRef = useCallback(measure('--examhead-h'), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const tabsRef = useCallback(measure('--examtabs-h'), []); // eslint-disable-line react-hooks/exhaustive-deps
   const graded = useMemo(() => {
     if (!exam || !keys || !subs) return [];
     return sortSubmissions(subs).map((s) => ({ s, r: gradeSubmission(exam, keys, s) }));
@@ -98,7 +100,7 @@ export default function ExamDetail() {
       <TeacherBar>
         <ListButton />
       </TeacherBar>
-      <div className="container wide">
+      <div className="container wide exam-page">
         <div ref={headRef} className="row exam-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ minWidth: 0 }}>
             <div className="muted small">{exam.subject} · {exam.grade}학년 {exam.semester}학기 · {exam.unit}</div>
@@ -123,7 +125,7 @@ export default function ExamDetail() {
           <div className="stat"><div className="v" style={{ color: reviewCount ? 'var(--warn)' : undefined }}>{reviewCount}건</div><div className="l">검토 요청</div></div>
         </div>
 
-        <div className="tabs exam-tabs">
+        <div ref={tabsRef} className="tabs exam-tabs">
           {TABS.map(([k, label]) => (
             <button key={k} className={tab === k ? 'active' : ''} onClick={() => setParams({ tab: k }, { replace: true, state: location.state })}>
               {label}{k === 'review' && reviewCount ? ` (${reviewCount})` : ''}
@@ -325,7 +327,7 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint, page
         </button>
       </div>
       <div className="results-scroll">
-      <table className="data results-table">
+      <table className="data results-table sticky-head">
         <thead>
           <tr>
             <th>반</th><th>번</th><th>이름</th><th className="c">점수</th><th className="c">오답 재응시</th><th className="c">결과지</th>
@@ -574,9 +576,9 @@ function AnalysisTab({ exam, keys, graded, examId }) {
   }
   return (
     <div className="card table-wrap" style={{ padding: 0 }}>
-      <table className="data analysis-table">
+      <table className="data analysis-table sticky-head">
         <thead>
-          <tr><th className="c">번호</th><th>유형</th><th>정답</th><th>정답률</th><th className="c">검토</th><th className="c">재검토</th></tr>
+          <tr><th className="c">번호</th><th>유형</th><th>정답</th><th>정답률</th><th className="c">검토</th><th className="r">재검토</th></tr>
         </thead>
         <tbody>
           {exam.questions.map((q, i) => {
@@ -601,15 +603,15 @@ function AnalysisTab({ exam, keys, graded, examId }) {
                   </div>
                 </td>
                 <td className="c">{rv || '-'}</td>
-                <td className="c">
+                <td className="r">
                   <button
                     type="button"
-                    className="btn xs"
+                    className="btn xs rereview"
                     disabled={busyNo != null || rv === graded.length}
                     onClick={() => reviewAll(q)}
                     title={rv === graded.length ? '이미 모두 검토 요청에 있어요' : '이 문항의 모든 학생 답을 검토 요청으로 보내 다시 판정'}
                   >
-                    {busyNo === q.no ? '보내는 중…' : '전부 재검토'}
+                    {busyNo === q.no ? '보내는 중…' : '🔁 전부 재검토'}
                   </button>
                 </td>
               </tr>

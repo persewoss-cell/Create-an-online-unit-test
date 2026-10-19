@@ -202,7 +202,7 @@ export default function Dashboard({ adminRoute = false }) {
         )}
         {exams && exams.length > 0 && (
           <div className="card table-wrap" style={{ padding: 0 }}>
-            <table className="data exam-list">
+            <table className="data exam-list sticky-head">
               <thead>
                 <tr>
                   <SortTh k="grade" center>학년</SortTh>

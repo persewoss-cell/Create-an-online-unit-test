@@ -695,3 +695,18 @@ table.exam-list td.unit-col { min-width: 160px; }
 .zoom-hint { font-size: 13px; color: var(--primary); white-space: nowrap; }
 /* 평가 화면 탭 줄: 제목 줄 바로 아래에 붙어 있게 */
 .exam-tabs { position: sticky; top: calc(var(--topbar-h) + var(--examhead-h, 64px)); z-index: 8; background: var(--bg); padding-top: 4px; }
+
+/* ───── 표 머리줄(제목 칸)을 아래로 내려도 위에 붙어 있게 ───── */
+/* 화면 전체 스크롤에 붙으려면 표를 감싼 칸이 따로 스크롤되면 안 된다 */
+.table-wrap:has(.sticky-head), .results-scroll:has(.sticky-head), .card:has(> .sticky-head) { overflow: visible; }
+.sticky-head thead th { position: sticky; top: var(--sticky-top, var(--topbar-h)); z-index: 4; box-shadow: inset 0 -1px 0 var(--line); }
+/* 평가 화면: 파란 줄 + 제목 줄 + 탭 줄 바로 아래 */
+.exam-page { --sticky-top: calc(var(--topbar-h) + var(--examhead-h, 64px) + var(--examtabs-h, 48px)); }
+
+/* 문항 분석 표: 정답 칸을 넓게, 재검토 버튼은 오른쪽 끝에 */
+.analysis-table th:nth-child(5) { width: 64px; }
+.analysis-table th:nth-child(6) { width: 132px; }
+.analysis-table th.r, .analysis-table td.r { text-align: right; padding-right: 16px; }
+.btn.rereview { background: #fff4e0; border-color: #f0c36d; color: #8a5300; font-weight: 700; }
+.btn.rereview:hover:not(:disabled) { background: #ffe7bd; border-color: #e0a63a; }
+.btn.rereview:disabled { background: #f3f4f6; border-color: var(--line); color: #9aa3b2; }

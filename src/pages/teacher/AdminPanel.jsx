@@ -121,7 +121,7 @@ export default function AdminPanel({ onMoved }) {
         ) : !list.length ? (
           <div className="center muted">아직 등록된 선생님이 없습니다.</div>
         ) : (
-          <table className="data">
+          <table className="data sticky-head">
             <thead>
               <tr><th>학교</th><th className="c">학년</th><th className="c">반</th><th>이름</th><th>비밀번호</th><th /></tr>
             </thead>

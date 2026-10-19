@@ -167,7 +167,7 @@ export default function Roster() {
           ) : !list.length ? (
             <div className="center muted">아직 등록된 학생이 없습니다. 엑셀로 올리거나 한 명씩 추가하세요.</div>
           ) : (
-            <table className="data compact-table">
+            <table className="data compact-table sticky-head">
               <thead><tr><th>학년</th><th>반</th><th>번호</th><th>이름</th><th /></tr></thead>
               <tbody>
                 {shown.map((x) =>
