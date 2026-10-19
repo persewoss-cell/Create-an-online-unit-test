@@ -367,6 +367,7 @@ export default function TakeExam({ retake = false, preview = null }) {
       <header className="exam-top">
         <b className="exam-title">{retake && <span className="badge review" style={{ marginRight: 6 }}>오답 재응시</span>}{exam.title}</b>
         <span className="muted small">{who}</span>
+        <span className="zoom-hint">🔍 문제가 잘 안 보이면 두 손가락으로 벌려 크게 보세요</span>
         <div className="exam-progress">
           <span className={`save-state small ${saveState}`} data-testid="save-state">
             {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '✓ 자동 저장됨' : saveState === 'local' ? '✓ 이 기기에 저장됨' : ''}
@@ -383,11 +384,11 @@ export default function TakeExam({ retake = false, preview = null }) {
             <div className="pane grow portrait-content">
               {side ? (
                 <>
-                  <FitRegions exam={exam} pages={pages} sections={[{ kind: 'passage', regions: passage }]} className="grow" />
-                  <FitRegions exam={exam} pages={pages} sections={[questionSection]} className="grow" />
+                  <FitRegions zoomable zoomKey={q.no} exam={exam} pages={pages} sections={[{ kind: 'passage', regions: passage }]} className="grow" />
+                  <FitRegions zoomable zoomKey={q.no} exam={exam} pages={pages} sections={[questionSection]} className="grow" />
                 </>
               ) : (
-                <FitRegions
+                <FitRegions zoomable zoomKey={q.no}
                   exam={exam}
                   pages={pages}
                   sections={[{ kind: 'passage', regions: passage }, questionSection]}
@@ -399,15 +400,15 @@ export default function TakeExam({ retake = false, preview = null }) {
           </>
         ) : side ? (
           <>
-            <FitRegions exam={exam} pages={pages} sections={[{ kind: 'passage', regions: passage }]} className="pane" />
+            <FitRegions zoomable zoomKey={q.no} exam={exam} pages={pages} sections={[{ kind: 'passage', regions: passage }]} className="pane" />
             <div className="pane col">
-              <FitRegions exam={exam} pages={pages} sections={[questionSection]} className="grow" />
+              <FitRegions zoomable zoomKey={q.no} exam={exam} pages={pages} sections={[questionSection]} className="grow" />
               {answerBox}
             </div>
           </>
         ) : (
           <>
-            <FitRegions
+            <FitRegions zoomable zoomKey={q.no}
               exam={exam}
               pages={pages}
               sections={[{ kind: 'passage', regions: passage }, questionSection]}

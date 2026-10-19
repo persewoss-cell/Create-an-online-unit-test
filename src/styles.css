@@ -686,3 +686,10 @@ table.exam-list td.unit-col { min-width: 160px; }
 .container.wide { max-width: 1560px; }
 .results-table .btn.xs { padding: 3px 7px; }
 .results-table .mark.sm { width: 19px; height: 19px; }
+
+/* 학생 화면: 두 손가락으로 확대 */
+.zoom-box { position: relative; overflow: hidden; touch-action: none; }
+.zoom-box.zoomed { cursor: grab; }
+.zoom-inner { transform-origin: 0 0; will-change: transform; }
+.zoom-reset { position: absolute; top: 6px; right: 6px; z-index: 5; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.92); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow); }
+.zoom-hint { font-size: 13px; color: var(--primary); white-space: nowrap; }

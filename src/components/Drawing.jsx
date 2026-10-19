@@ -87,6 +87,16 @@ export function DrawLayer({ ratio, strokes = [], onChange, tool = 'pen', ruler, 
   const drag = useRef(null);
   const H = 1000 * ratio;
 
+  // 두 손가락으로 확대하기 시작하면 첫 손가락으로 그리던 선은 버린다 (ZoomBox가 알려 줌)
+  useEffect(() => {
+    const cancel = () => {
+      drag.current = null;
+      setDraft(null);
+    };
+    window.addEventListener('draw-cancel', cancel);
+    return () => window.removeEventListener('draw-cancel', cancel);
+  }, []);
+
   const toLocal = (e) => {
     const r = svgRef.current.getBoundingClientRect();
     const k = 1000 / r.width;

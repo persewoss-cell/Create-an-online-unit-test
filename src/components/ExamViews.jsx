@@ -3,6 +3,7 @@
 //  - AnswerInput:  학생이 답을 입력하는 칸 (객관식/선 잇기/단답형/서술형), 정답 표시 모드 지원
 //  - GradedPaper:  제출 후 문제지 전체에 빨간 색연필로 채점 표시
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import ZoomBox from './ZoomBox.jsx';
 import { buildGrid, findSpot, occupy, textWidth } from '../lib/placement.js';
 import { StrokeShape, stackToPage } from './Drawing.jsx';
 import { choiceLabel } from '../lib/parseQuestions.js';
@@ -52,7 +53,7 @@ export function useSize() {
  * 주어진 칸 안에 스크롤 없이 들어가도록 영역 이미지들의 크기를 맞춘다.
  * sections: 카드 하나에 들어갈 영역 묶음들 (예: [지문 영역들, 문제 영역들])
  */
-export function FitRegions({ exam, pages, sections, className = '' }) {
+export function FitRegions({ exam, pages, sections, className = '', zoomable = false, zoomKey }) {
   const [ref, { w, h }] = useSize();
   const CARD_PAD = 20; // 카드 안쪽 여백(위아래 합)
   const GAP = 10;
@@ -66,10 +67,19 @@ export function FitRegions({ exam, pages, sections, className = '' }) {
       {w > 0 &&
         list.map((sec, i) => (
           <div key={i} className={`fit-card ${sec.kind || ''}`} style={{ width: width + CARD_PAD }}>
-            <div style={{ position: 'relative' }}>
-              <Regions exam={exam} pages={pages} regions={sec.regions} />
-              {sec.overlay && sec.overlay(stackRatio(exam, sec.regions))}
-            </div>
+            {zoomable ? (
+              <ZoomBox key={zoomKey}>
+                <div style={{ position: 'relative' }}>
+                  <Regions exam={exam} pages={pages} regions={sec.regions} />
+                  {sec.overlay && sec.overlay(stackRatio(exam, sec.regions))}
+                </div>
+              </ZoomBox>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <Regions exam={exam} pages={pages} regions={sec.regions} />
+                {sec.overlay && sec.overlay(stackRatio(exam, sec.regions))}
+              </div>
+            )}
           </div>
         ))}
     </div>
