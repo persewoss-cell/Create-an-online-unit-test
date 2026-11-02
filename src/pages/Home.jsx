@@ -29,8 +29,10 @@ export default function Home() {
       <TopBar />
       <div className="container narrow home">
         <div className="home-hero">
-          <img className="hero-img" src={heroImg} alt="" width="900" height="604" />
-          <h1 className="home-title">온라인 단원평가</h1>
+          <div className="home-brand">
+            <img className="hero-img" src={heroImg} alt="" width="900" height="604" />
+            <h1 className="home-title">온라인 단원평가</h1>
+          </div>
         </div>
         <button type="button" className="btn block manual-btn" onClick={() => setManual(true)}>📖 사용설명서</button>
         {manual && <ManualDialog initial={tab} onClose={closeManual} />}
