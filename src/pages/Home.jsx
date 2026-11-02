@@ -7,6 +7,7 @@ import StudentLogin from './student/StudentLogin.jsx';
 import TeacherLoginForm from './teacher/TeacherLoginForm.jsx';
 import AlreadyLoggedIn from '../components/AlreadyLoggedIn.jsx';
 import ManualDialog from './Manual.jsx';
+import heroImg from '../assets/hero.webp';
 
 const TABS = [
   ['student', '학생 로그인'],
@@ -28,7 +29,7 @@ export default function Home() {
       <TopBar />
       <div className="container narrow home">
         <div className="home-hero">
-          <div className="emoji">{tab === 'teacher' ? '🧑‍🏫' : '✏️'}</div>
+          <img className="hero-img" src={heroImg} alt="" width="900" height="604" />
           <h1>온라인 단원평가</h1>
         </div>
         <button type="button" className="btn block manual-btn" onClick={() => setManual(true)}>📖 사용설명서</button>
