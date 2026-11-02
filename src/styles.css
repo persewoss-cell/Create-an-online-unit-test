@@ -180,9 +180,9 @@ button.mark { cursor: pointer; }
 .home-hero .emoji { font-size: 44px; }
 .home-hero { container-type: inline-size; }
 /* 첫 화면: 그림을 제목 왼쪽에, 그림 높이는 글씨에 맞추고 한 줄로 (화면 폭에 맞춰 함께 커지고 작아짐) */
-.home-hero .home-brand { display: flex; align-items: center; justify-content: center; gap: 0.3em; font-size: calc(90cqi / 9.7); }
-.home-hero .hero-img { display: block; height: 1.5em; width: auto; flex: none; }
-.home-hero .home-title { font-size: 1em; white-space: nowrap; margin: 0; letter-spacing: -0.5px; }
+.home-hero .home-brand { display: flex; align-items: center; justify-content: center; gap: 0.3em; font-size: calc(90cqi / 9.1); }
+.home-hero .hero-img { display: block; height: 1.2em; width: auto; flex: none; }
+.home-hero .home-title { font-family: 'Jua', 'Pretendard', sans-serif; font-weight: 400; font-size: 1em; white-space: nowrap; margin: 0; }
 .teacher-link { text-align: center; margin-top: 18px; font-size: 14px; }
 .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #c9d6f5; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -429,7 +429,7 @@ button.mark { cursor: pointer; }
 .center-text { text-align: center; }
 
 /* 사용설명서 */
-.manual-btn { margin-bottom: 12px; font-weight: 700; }
+.manual-btn { margin-top: 12px; font-weight: 700; }
 .manual h2 { margin: 0; }
 .m-section { scroll-margin-top: 70px; }
 .m-toc ul { margin: 6px 0 0; padding-left: 0; list-style: none; columns: 2; column-gap: 24px; }

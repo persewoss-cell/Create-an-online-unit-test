@@ -34,8 +34,6 @@ export default function Home() {
             <h1 className="home-title">온라인 단원평가</h1>
           </div>
         </div>
-        <button type="button" className="btn block manual-btn" onClick={() => setManual(true)}>📖 사용설명서</button>
-        {manual && <ManualDialog initial={tab} onClose={closeManual} />}
         <div className="login-tabs" role="tablist">
           {TABS.map(([k, label]) => (
             <button
@@ -51,6 +49,8 @@ export default function Home() {
           ))}
         </div>
         {tab === 'teacher' ? (teacher ? <AlreadyLoggedIn /> : <TeacherLoginForm />) : <StudentLogin />}
+        <button type="button" className="btn block manual-btn" onClick={() => setManual(true)}>📖 사용설명서</button>
+        {manual && <ManualDialog initial={tab} onClose={closeManual} />}
         {tab === 'teacher' && (
           <div className="teacher-link"><Link to="/admin">관리자 로그인 →</Link></div>
         )}
