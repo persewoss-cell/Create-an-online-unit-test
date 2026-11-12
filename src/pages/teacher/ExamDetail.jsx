@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import TeacherBar, { ListButton } from '../../components/TeacherBar.jsx';
 import Loading from '../../components/Loading.jsx';
@@ -10,7 +10,7 @@ import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { classTarget } from '../../lib/school.js';
 import { findSameExam, sameExamMessage } from '../../lib/examDup.js';
 import {
-  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, setOverrideAll, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams,
+  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, setOverrideAll, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams, listRoster,
 } from '../../lib/db.js';
 import { gradeSubmission, partPoints, partEarned } from '../../lib/grading.js';
 import { retakeState, retakeMessage } from '../../lib/retake.js';
@@ -19,6 +19,7 @@ import SaveErrorDialog, { ErrorLine } from '../../components/SaveErrorDialog.jsx
 import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
 import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '../../lib/format.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
+import { historyReducer, initHistory, currentTick } from '../../lib/history.js';
 import { STATUS } from './Dashboard.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
 import PrintSheets from '../../components/PrintSheets.jsx';
@@ -47,6 +48,8 @@ export default function ExamDetail() {
   const [detail, setDetail] = useState(null);
   const [detailPaper, setDetailPaper] = useState(false);
   const [pages, setPages] = useState(null);
+  const { owner } = useTeacher();
+  const [roster, setRoster] = useState(null); // 이 반 학생 명단 → 미응시자
 
   // 평가·정답·답안 모두 실시간: 학생이 제출하거나 오답 재응시를 내면 바로 결과표에 들어온다
   // (제출 알림은 선생님 화면 전체에서 TeacherAlerts가 띄움)
@@ -61,6 +64,10 @@ export default function ExamDetail() {
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+  useEffect(() => {
+    if (!owner?.uid) return;
+    listRoster(owner).then(setRoster).catch(() => setRoster([]));
+  }, [owner?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [printRows, setPrintRows] = useState(null); // 인쇄할 결과지 (학생들)
   const [previewOpen, setPreviewOpen] = useState(false); // 학생 화면 미리보기
@@ -92,6 +99,12 @@ export default function ExamDetail() {
     }
   }
 
+  // 미응시자: 이 평가를 보는 반(학년·반) 명단 중 아직 답안이 없는 학생 (번호순)
+  const taken = new Set(subs.map((s) => s.studentId || s.id));
+  const absent = (roster || [])
+    .filter((r) => r.grade === exam.grade && (!exam.classes?.length || exam.classes.includes(r.classNo)))
+    .filter((r) => !taken.has(`${r.grade}-${r.classNo}-${r.number}`));
+  const multiClass = new Set(absent.map((r) => r.classNo)).size > 1;
   const avg = graded.length ? Math.round((graded.reduce((a, g) => a + g.r.score100, 0) / graded.length) * 10) / 10 : '-';
   const detailRow = detail && graded.find((g) => g.s.id === detail);
 
@@ -119,7 +132,16 @@ export default function ExamDetail() {
         </div>
 
         <div className="grid2" style={{ margin: '16px 0', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
-          <div className="stat"><div className="v">{graded.length}명</div><div className="l">응시</div></div>
+          <div className="stat">
+            <div className="v">{graded.length}명</div><div className="l">응시</div>
+            {roster?.length > 0 && (
+              <div className="absent" data-testid="absent">
+                {absent.length
+                  ? <>미응시 {absent.length}명: {absent.map((r) => `${multiClass ? `${r.classNo}반 ` : ''}${r.number}번 ${r.name}`).join(', ')}</>
+                  : '미응시자 없음'}
+              </div>
+            )}
+          </div>
           <div className="stat"><div className="v">{avg}</div><div className="l">평균 (100점)</div></div>
           <div className="stat"><div className="v">{exam.questions.length}</div><div className="l">문항</div></div>
           <div className="stat"><div className="v" style={{ color: reviewCount ? 'var(--warn)' : undefined }}>{reviewCount}건</div><div className="l">검토 요청</div></div>
@@ -624,9 +646,31 @@ function AnalysisTab({ exam, keys, graded, examId }) {
 }
 
 function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
-  const [items, setItems] = useState(() => toItems(exam.questions, keys));
-  const [groups, setGroups] = useState(() => exam.groups || []);
-  const [masks, setMasks] = useState(() => exam.masks || []);
+  // 문항·지문 묶음·가리기를 한 기록으로: 되돌리기·다시 실행 (저장한 뒤에도 이 화면을 떠나기 전까지 가능)
+  const [hist, dispatch] = useReducer(historyReducer, null, () =>
+    initHistory({ items: toItems(exam.questions, keys), groups: exam.groups || [], masks: exam.masks || [] }));
+  const { items, groups, masks } = hist.present;
+  const change = (patch) => dispatch({ type: 'set', tick: currentTick(), update: (cur) => ({ ...cur, ...patch(cur) }) });
+  const setItems = (v) => change((cur) => ({ items: typeof v === 'function' ? v(cur.items) : v }));
+  const undo = () => dispatch({ type: 'undo' });
+  const redo = () => dispatch({ type: 'redo' });
+  const [saved, setSaved] = useState(hist.present); // 마지막으로 저장한 상태 (되돌리면 다시 저장해야 함)
+  const dirty = hist.present !== saved;
+  // Ctrl+Z 되돌리기 / Ctrl+Y·Ctrl+Shift+Z 다시 실행 (글 칸에 입력 중일 때도 이 화면 기록으로). 팝업이 떠 있으면 건드리지 않음
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.isComposing) return;
+      const k = e.key.toLowerCase();
+      const isUndo = k === 'z' && !e.shiftKey;
+      const isRedo = k === 'y' || (k === 'z' && e.shiftKey);
+      if (!isUndo && !isRedo) return;
+      if (document.querySelector('.modal-back')) return;
+      e.preventDefault();
+      dispatch({ type: isUndo ? 'undo' : 'redo' });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [previewing, setPreviewing] = useState(false); // 저장 전 고친 내용 그대로 학생 화면 미리보기
   const [errs, setErrs] = useState([]);
   const [popup, setPopup] = useState(null); // 지금 화면 가운데에 띄울 저장 오류
@@ -649,8 +693,10 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
           return stableKey(view(old)) !== stableKey(view(q)) || stableKey(keys[q.no] ?? keys[String(q.no)]) !== stableKey(k[q.no]);
         })
         .map((q) => q.no);
+      const snap = hist.present;
       await saveQuestionsAndKeys(exam.id, questions, k, changed, { groups, masks });
       onSaved(questions, k, { groups, masks });
+      setSaved(snap);
       setMsg('저장했습니다. 모든 학생의 점수가 새 정답으로 다시 채점됩니다.');
     } catch (err) {
       setErrs([err.message]);
@@ -673,17 +719,20 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
         onChange={setItems}
         title={exam.title}
         structureLocked={hasSubs}
-        onViewChange={(v) => {
-          if (v.groups) setGroups(v.groups);
-          if (v.masks) setMasks(v.masks);
-        }}
+        onViewChange={(v) => change(() => ({ ...(v.groups ? { groups: v.groups } : {}), ...(v.masks ? { masks: v.masks } : {}) }))}
+        barExtra={(
+          <>
+            <button type="button" className="btn sm" onClick={undo} disabled={!hist.past.length} title="되돌리기 (Ctrl+Z)" aria-label="되돌리기">↶ 되돌리기</button>
+            <button type="button" className="btn sm" onClick={redo} disabled={!hist.future.length} title="다시 실행 (Ctrl+Y)" aria-label="다시 실행">↷ 다시 실행</button>
+          </>
+        )}
       />
       <div className="save-bar">
         {/* 저장 버튼 바로 옆에도 결과를 보여 준다 (맨 위까지 올라가지 않아도 되게) */}
         {errs.length > 0 && (
           <button type="button" className="btn sm danger" onClick={() => setPopup(errs)}>⚠️ 고칠 곳 {errs.length}개 보기</button>
         )}
-        {msg && !errs.length && <span className="save-ok">✓ 저장했어요</span>}
+        {dirty ? <span className="save-dirty">저장 안 한 변경이 있어요</span> : msg && !errs.length && <span className="save-ok">✓ 저장했어요</span>}
         <button className="btn" onClick={() => setPreviewing(true)} disabled={!items.length || !pages?.length} title="고친 내용 그대로 학생 시험 화면을 처음부터 넘겨 보기 (답은 저장되지 않아요)">
           👀 전체 미리보기
         </button>

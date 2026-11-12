@@ -24,9 +24,10 @@ function keyOf(it) {
 /**
  * @param {{view:{groups?:object[], pageAspects?:number[], masks?:object[]}, pages:string[], items:object[], onChange:(items)=>void, title:string,
  *   onViewChange?:(patch:{groups?:object[], masks?:object[]})=>void, structureLocked?:boolean}} props
+ *   barExtra: 문항 수·총점 줄 오른쪽 끝에 붙일 버튼(되돌리기 등)
  *   onViewChange: 지문 묶음(groups)·가리기(masks)를 바꿀 때 / structureLocked: 응시한 학생이 있어 문항 추가·순서 바꾸기를 막음
  */
-export default function ExamPreviewEditor({ view, pages, items, onChange, title, onViewChange, structureLocked = false }) {
+export default function ExamPreviewEditor({ view, pages, items, onChange, title, onViewChange, structureLocked = false, barExtra = null }) {
   const [open, setOpen] = useState({});
   const [editing, setEditing] = useState(null);
   const [previewNo, setPreviewNo] = useState(null);
@@ -171,7 +172,8 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
         {aiOpen && <AiPromptDialog questions={fromItems(items).questions} title={title} onClose={() => setAiOpen(false)} />}
       </div>
 
-      <div className="row" style={{ justifyContent: 'space-between' }}>
+      {/* 문항 수·총점 줄: 아래로 내려도 위에 붙어 있다 */}
+      <div className="row qlist-bar" style={{ justifyContent: 'space-between' }}>
         <div>
           <b>{items.length}문항</b> · 총점 <b style={{ color: totalPoints === 100 ? 'var(--ok)' : 'var(--warn)' }}>{totalPoints}점</b>
           {missing.length > 0 && <span style={{ color: 'var(--warn)', marginLeft: 10 }}>정답 없음: {missing.join(', ')}번</span>}
@@ -181,6 +183,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
           <button type="button" className="btn sm" onClick={() => setPreviewNo(items[0]?.no)} disabled={!items.length || !pages.length} title="학생이 보는 시험 화면 그대로 처음부터 넘겨 보기 (답은 저장되지 않아요)">
             👀 전체 미리보기
           </button>
+          {barExtra}
         </span>
       </div>
 
