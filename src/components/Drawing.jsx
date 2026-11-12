@@ -1,6 +1,6 @@
 // 그리기 문항: 문제 이미지 위에 손가락/펜으로 그리기
 // 좌표는 "문항 이미지 묶음" 기준: x는 0~1000(폭), y는 폭과 같은 비율의 단위(0~1000×세로비율)
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export const TOOLS = [
   ['pen', '✏️', '펜'],
