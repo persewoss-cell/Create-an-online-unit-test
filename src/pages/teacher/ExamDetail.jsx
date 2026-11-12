@@ -131,21 +131,21 @@ export default function ExamDetail() {
           </div>
         </div>
 
-        <div className="grid2" style={{ margin: '16px 0', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
-          <div className="stat">
-            <div className="v">{graded.length}명</div><div className="l">응시</div>
-            {roster?.length > 0 && (
-              <div className="absent" data-testid="absent">
-                {absent.length
-                  ? <>미응시 {absent.length}명: {absent.map((r) => `${multiClass ? `${r.classNo}반 ` : ''}${r.number}번 ${r.name}`).join(', ')}</>
-                  : '미응시자 없음'}
-              </div>
-            )}
-          </div>
+        <div className="grid2" style={{ margin: roster?.length ? '16px 0 8px' : '16px 0', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+          <div className="stat"><div className="v">{graded.length}명</div><div className="l">응시</div></div>
           <div className="stat"><div className="v">{avg}</div><div className="l">평균 (100점)</div></div>
           <div className="stat"><div className="v">{exam.questions.length}</div><div className="l">문항</div></div>
           <div className="stat"><div className="v" style={{ color: reviewCount ? 'var(--warn)' : undefined }}>{reviewCount}건</div><div className="l">검토 요청</div></div>
         </div>
+
+        {/* 미응시자: 위 칸들 바깥, 아래에 한 줄 */}
+        {roster?.length > 0 && (
+          <div className="absent" data-testid="absent">
+            {absent.length
+              ? <><b>미응시 {absent.length}명:</b> {absent.map((r) => `${multiClass ? `${r.classNo}반 ` : ''}${r.number}번 ${r.name}`).join(', ')}</>
+              : '미응시자 없음'}
+          </div>
+        )}
 
         <div ref={tabsRef} className="tabs exam-tabs">
           {TABS.map(([k, label]) => (
