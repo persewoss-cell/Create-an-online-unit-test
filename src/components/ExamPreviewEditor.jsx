@@ -25,9 +25,10 @@ function keyOf(it) {
  * @param {{view:{groups?:object[], pageAspects?:number[], masks?:object[]}, pages:string[], items:object[], onChange:(items)=>void, title:string,
  *   onViewChange?:(patch:{groups?:object[], masks?:object[]})=>void, structureLocked?:boolean}} props
  *   barExtra: 문항 수·총점 줄 오른쪽 끝에 붙일 버튼(되돌리기 등)
+ *   allCorrect / onToggleAllCorrect: "모두 정답 처리"한 문항 번호들과 켜고 끄기 (평가를 만든 뒤에만)
  *   onViewChange: 지문 묶음(groups)·가리기(masks)를 바꿀 때 / structureLocked: 응시한 학생이 있어 문항 추가·순서 바꾸기를 막음
  */
-export default function ExamPreviewEditor({ view, pages, items, onChange, title, onViewChange, structureLocked = false, barExtra = null }) {
+export default function ExamPreviewEditor({ view, pages, items, onChange, title, onViewChange, structureLocked = false, barExtra = null, allCorrect = null, onToggleAllCorrect }) {
   const [open, setOpen] = useState({});
   const [editing, setEditing] = useState(null);
   const [previewNo, setPreviewNo] = useState(null);
@@ -191,7 +192,7 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
         const key = keyOf(it);
         const q = fromItems([it]).questions[0];
         return (
-          <div key={idx} className={`pcard ${hasAnswer(key) ? '' : 'warn'}`} data-testid={`preview-${it.no}`}>
+          <div key={idx} className={`pcard ${hasAnswer(key) ? '' : 'warn'} ${allCorrect?.includes(Number(it.no)) ? 'all-ok' : ''}`} data-testid={`preview-${it.no}`}>
             <div className="pcard-bar">
               <b>{it.no}번</b>
               {!structureLocked && (
@@ -207,7 +208,17 @@ export default function ExamPreviewEditor({ view, pages, items, onChange, title,
                 <button type="button" className="btn xs danger" onClick={() => removeAt(idx)}>🗑 삭제</button>
                 </>
               )}
-              <button type="button" className="btn xs bar-end" onClick={() => setPreviewNo(it.no)} disabled={!pages.length} title="이 문항을 학생 시험 화면 그대로 보기">
+              {onToggleAllCorrect && (allCorrect?.includes(Number(it.no)) ? (
+                <span className="bar-end row all-ok-on" style={{ gap: 6 }}>
+                  <span className="badge open">✅ 모두 정답 처리됨</span>
+                  <button type="button" className="btn xs" onClick={() => onToggleAllCorrect(it.no, false)} title="다시 원래 정답으로 채점">모두 정답 해제</button>
+                </span>
+              ) : (
+                <button type="button" className="btn xs bar-end all-ok-btn" onClick={() => onToggleAllCorrect(it.no, true)} title="문제가 잘못 나왔을 때: 이 문항을 본 학생 모두(빈 답 포함) 정답으로">
+                  ✅ 모두 정답 처리
+                </button>
+              ))}
+              <button type="button" className={`btn xs ${onToggleAllCorrect ? '' : 'bar-end'}`} onClick={() => setPreviewNo(it.no)} disabled={!pages.length} title="이 문항을 학생 시험 화면 그대로 보기">
                 👀 미리보기
               </button>
             </div>

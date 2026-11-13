@@ -10,7 +10,7 @@ import { useTeacher } from '../../components/TeacherAuth.jsx';
 import { classTarget } from '../../lib/school.js';
 import { findSameExam, sameExamMessage } from '../../lib/examDup.js';
 import {
-  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, setOverrideAll, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams, listRoster,
+  watchExamLive, watchKeysLive, watchSubmissionsLive, setOverride, setOverrideAll, deleteSubmission, setRetake, setRetakeJudge, updateExam, saveQuestionsAndKeys, deleteExam, getPages, replacePages, watchMyExams, listRoster, setAllCorrect,
 } from '../../lib/db.js';
 import { gradeSubmission, partPoints, partEarned } from '../../lib/grading.js';
 import { retakeState, retakeMessage } from '../../lib/retake.js';
@@ -375,7 +375,10 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint, page
                 <td key={it.no} className="c qcol">
                   <button
                     className={`mark sm ${it.status} ${it.overridden ? 'overridden' : ''}`}
-                    title={`${answerToText(exam.questions[i], s.answers?.[it.no])}\n${it.overridden ? '교사 판정' : it.auto.reason || '자동 채점'}\n(클릭: 판정 바꾸기)`}
+                    title={it.allCorrect
+                      ? `${answerToText(exam.questions[i], s.answers?.[it.no])}\n모두 정답 처리한 문항 (해제는 문항·정답 수정 탭에서)`
+                      : `${answerToText(exam.questions[i], s.answers?.[it.no])}\n${it.overridden ? '교사 판정' : it.auto.reason || '자동 채점'}\n(클릭: 판정 바꾸기)`}
+                    disabled={it.allCorrect}
                     onClick={() => onJudge(s, it.no, nextOverride(it))}
                   >
                     {it.partial ? it.earned : MARK[it.status]}
@@ -726,6 +729,18 @@ function EditTab({ exam, keys, hasSubs, onSaved, pages }) {
         title={exam.title}
         structureLocked={hasSubs}
         onViewChange={(v) => change(() => ({ ...(v.groups ? { groups: v.groups } : {}), ...(v.masks ? { masks: v.masks } : {}) }))}
+        allCorrect={(exam.allCorrect || []).map(Number)}
+        onToggleAllCorrect={async (no, on) => {
+          const ok = window.confirm(on
+            ? `${no}번을 모두 정답으로 처리할까요?\n\n이 문항을 본 학생은 무엇을 썼든(빈 답 포함) 모두 정답이 되고, 바로 다시 채점돼요.\n(다시 누르면 해제할 수 있어요)`
+            : `${no}번 모두 정답 처리를 해제할까요?\n\n원래 정답으로 다시 채점돼요.`);
+          if (!ok) return;
+          try {
+            await setAllCorrect(exam, no, on);
+          } catch (err) {
+            alert(`저장하지 못했어요: ${err.message}`);
+          }
+        }}
         barExtra={(
           <>
             <button type="button" className="btn sm" onClick={undo} disabled={!hist.past.length} title="되돌리기 (Ctrl+Z)" aria-label="되돌리기">↶ 되돌리기</button>

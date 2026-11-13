@@ -766,3 +766,7 @@ table.exam-list td.unit-col { min-width: 160px; }
 /* 문항·정답 수정: 문항 수·총점 줄을 위에 붙여 두기 */
 .qlist-bar { position: sticky; top: var(--sticky-top, var(--topbar-h)); z-index: 7; background: var(--bg); padding: 8px 0; margin: 0 -2px; box-shadow: 0 6px 6px -6px rgba(20, 30, 50, 0.15); }
 .save-dirty { color: var(--warn); font-weight: 700; font-size: 14px; }
+
+/* 모두 정답 처리한 문항 */
+.pcard.all-ok { border-color: var(--ok); box-shadow: 0 0 0 2px var(--ok-weak); }
+.all-ok-btn { color: var(--ok); border-color: rgba(31, 157, 85, 0.45); }

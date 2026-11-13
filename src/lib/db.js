@@ -396,6 +396,13 @@ export function updateExam(id, patch) {
   return updateDoc(doc(db, 'exams', id), { ...patch, updatedAt: serverTimestamp() });
 }
 
+/** 문항을 "모두 정답 처리"하거나 해제 (on). 저장하는 즉시 모든 학생이 다시 채점된다 */
+export function setAllCorrect(exam, no, on) {
+  const cur = (exam.allCorrect || []).map(Number).filter((n) => n !== Number(no));
+  const next = on ? [...cur, Number(no)].sort((a, b) => a - b) : cur;
+  return updateExam(exam.id, { allCorrect: next });
+}
+
 
 // ─────────────── 실시간 반영 ───────────────
 

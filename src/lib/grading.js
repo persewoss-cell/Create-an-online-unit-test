@@ -329,15 +329,25 @@ function gradeAnswerBase(question, key, answer, leniency = 'normal', subject = '
  * @param {Record<string,object>} keys  문항 번호 → 정답 키
  * @param {{answers:Record<string,any>, overrides?:Record<string,'correct'|'wrong'>}} submission
  */
+/** 선생님이 "모두 정답 처리"한 문항 번호들 (문제가 잘못 나왔을 때 응시한 학생 모두 정답) */
+export function allCorrectSet(exam) {
+  return new Set((exam?.allCorrect || []).map(Number));
+}
+
 export function gradeSubmission(exam, keys, submission) {
   const overrides = submission.overrides || {};
+  const allOk = allCorrectSet(exam);
   const items = exam.questions.map((q) => {
     const auto = gradeAnswer(q, keys[q.no], submission.answers?.[q.no], exam.leniency, exam.subject);
     const ov = overrides[q.no];
     const points = Number(q.points) || 0;
     let status;
     let earned;
-    if (typeof ov === 'number') {
+    if (allOk.has(Number(q.no))) {
+      // 선생님이 "모두 정답 처리"한 문항: 무엇을 썼든(빈 답도) 정답
+      status = 'correct';
+      earned = points;
+    } else if (typeof ov === 'number') {
       // 선생님이 준 점수 (부분 점수)
       earned = round1(Math.max(0, Math.min(points, ov)));
       status = earned >= points ? 'correct' : 'wrong';
@@ -350,6 +360,7 @@ export function gradeSubmission(exam, keys, submission) {
       type: q.type,
       points,
       auto,
+      allCorrect: allOk.has(Number(q.no)),
       overridden: ov != null,
       status,
       earned,

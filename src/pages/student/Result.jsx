@@ -99,7 +99,9 @@ export default function Result() {
           watchExamLive(id, (e) => {
             if (!e) return;
             const changed = stableKey(e.questions) !== stableKey(cur.exam.questions);
+            const newlyOk = (e.allCorrect || []).filter((n) => !(cur.exam.allCorrect || []).includes(n));
             cur.exam = e;
+            if (ready && newlyOk.length) notify(`선생님이 ${newlyOk.join(', ')}번을 모두 정답으로 처리했어요. 점수가 새로 반영되었어요.`, { kind: 'success' });
             redraw();
             if (ready && changed) notify('선생님이 문제를 고쳤어요. 점수가 새로 반영되었어요.');
           }),
@@ -217,6 +219,11 @@ export default function Result() {
         {rt.enabled && rt.firstWrong.length > 0 && showHistory && (
           <div style={{ marginBottom: 16 }}>
             <RetakeHistory exam={exam} pages={pages} history={rt.history} />
+          </div>
+        )}
+        {exam.allCorrect?.length > 0 && (
+          <div className="alert success" style={{ marginBottom: 12 }}>
+            ✅ {exam.allCorrect.join(', ')}번은 선생님이 <b>모두 정답으로 처리한 문항</b>이에요. (모든 학생 정답)
           </div>
         )}
         <GradedPaper exam={exam} pages={pages} keys={keys} answers={sub.answers} result={result} hideKeys />
