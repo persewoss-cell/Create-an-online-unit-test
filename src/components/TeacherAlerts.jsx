@@ -24,7 +24,8 @@ export default function TeacherAlerts() {
       const go = () => nav(`/teacher/exam/${exam.id}${tab ? `?tab=${tab}` : ''}`);
       const away = document.visibilityState !== 'visible' || !document.hasFocus();
       if (away) showDesktop(exam.title, text, { tag: `${exam.id}-${text}`, onClick: go });
-      notify(`${text} (${exam.title})`, { kind: 'success', sticky: away, action: { label: '보기', onClick: go } });
+      // 연한 초록 반투명 알림, 5초 뒤 저절로 사라짐 (자리를 비웠을 때는 바탕화면 알림으로도 알려 줌)
+      notify(`${text} (${exam.title})`, { kind: 'soft', ms: 5000, action: { label: '보기', onClick: go } });
     };
     const pendingOf = (x, sub) => {
       if (!x.keys) return 0;

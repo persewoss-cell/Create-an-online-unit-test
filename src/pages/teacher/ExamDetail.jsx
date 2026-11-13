@@ -409,25 +409,24 @@ function ResultsTab({ exam, graded, onOpen, onJudge, examId, keys, onPrint, page
   );
 }
 
-const secOf = (t) => (t?.seconds != null ? t.seconds * 1000 : typeof t === 'number' ? t : Number.MAX_SAFE_INTEGER);
+// 밀리초 (서버 시각은 나노초까지 넣어 같은 초에 낸 답도 순서를 지킨다). 시각이 없으면 맨 아래로
+const secOf = (t) => (t?.seconds != null ? t.seconds * 1000 + Math.floor((t.nanoseconds || 0) / 1e6) : typeof t === 'number' ? t : Number.MAX_SAFE_INTEGER);
 
 function ReviewTab({ exam, keys, graded, onJudge, pages, examId }) {
-  const items = [];
-  const retakeItems = [];
+  // 처음 답안 검토 + 오답 재응시 검토를 한 줄로: 먼저 들어온 것이 위, 나중에 들어온 것이 아래
+  const list = [];
   for (const { s, r } of graded) {
     r.items.forEach((it, i) => {
-      if (it.status === 'review') items.push({ s, it, q: exam.questions[i], at: secOf(s.submittedAt) });
+      if (it.status === 'review') list.push({ kind: 'first', s, it, q: exam.questions[i], at: secOf(s.submittedAt) });
     });
     for (const p of retakeState(exam, keys, s, r).pending) {
       const q = exam.questions.find((x) => x.no === p.no);
-      if (q) retakeItems.push({ s, p, q, at: secOf(s.retakes?.[p.round - 1]?.at) });
+      if (q) list.push({ kind: 'retake', s, p, q, at: secOf(s.retakes?.[p.round - 1]?.at) });
     }
   }
-  // 먼저 제출한 답이 위, 나중에 제출한 답이 아래 (같은 학생은 문항 번호 순)
-  const byTime = (a, b) => a.at - b.at || a.q.no - b.q.no;
-  items.sort(byTime);
-  retakeItems.sort(byTime);
-  if (!items.length && !retakeItems.length) return <div className="card center muted">검토할 답안이 없습니다. 👍</div>;
+  // 같은 시각이면 학생 번호, 그다음 문항 번호 순
+  list.sort((a, b) => a.at - b.at || (a.s.classNo - b.s.classNo) || (a.s.number - b.s.number) || a.q.no - b.q.no);
+  if (!list.length) return <div className="card center muted">검토할 답안이 없습니다. 👍</div>;
   async function judgeRetake(s, p, value) {
     try {
       await setRetakeJudge(examId, s.id, p.round, p.no, value);
@@ -437,85 +436,92 @@ function ReviewTab({ exam, keys, graded, onJudge, pages, examId }) {
   }
   return (
     <div>
-      {retakeItems.length > 0 && (
-        <>
-          <p className="muted">
-            <b>오답 재응시</b>에서 다시 푼 답 중 자동 채점으로 판단하기 어려운 답입니다. 정답으로 인정하면 그 문제는 다 맞힌 것으로,
-            오답으로 처리하면 학생이 다시 풀게 됩니다. (처음 점수는 바뀌지 않아요)
-          </p>
-          {retakeItems.map(({ s, p, q }) => (
-            <div key={`${s.id}-r${p.round}-${p.no}`} className="review-item" data-testid="retake-review-item">
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <div>
-                  <b>{q.no}번</b> <span className="muted small">{TYPE_LABEL[q.type]}</span>
-                  <span style={{ marginLeft: 10 }}>{s.classNo}반 {s.number}번 {s.name}</span>
-                </div>
-                <span className="badge review">{p.round}차 오답 재응시{p.reason ? ` · ${p.reason}` : ''}</span>
-              </div>
-              <div className="review-grid">
-                <div className="review-q">
-                  {pages == null ? (
-                    <Loading text="문제 불러오는 중…" />
-                  ) : p.answer?.strokes?.length ? (
-                    <DrawnAnswer exam={exam} pages={pages} q={q} strokes={p.answer.strokes} />
-                  ) : (
-                    <ReviewQuestion exam={exam} q={q} pages={pages} />
-                  )}
-                </div>
-                <div>
-                  <div className="small" style={{ fontWeight: 600 }}>학생이 다시 푼 답</div>
-                  <div className="ans">
-                    {answerToText({ ...q, type: q.type === 'draw' ? 'short' : q.type, draw: false }, p.answer?.strokes ? p.answer.text : p.answer)
-                      || (p.answer?.strokes?.length ? '(왼쪽 그림)' : '')}
-                  </div>
-                  <div className="small" style={{ fontWeight: 600, marginTop: 8 }}>정답</div>
-                  <div className="ans" style={{ background: 'var(--ok-weak)' }}>{keyToText(q, keys[q.no])}</div>
-                  <div className="row" style={{ marginTop: 12 }}>
-                    <button className="btn ok lg" onClick={() => judgeRetake(s, p, 'correct')}>정답 인정</button>
-                    <button className="btn bad lg" onClick={() => judgeRetake(s, p, 'wrong')}>오답 처리</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-          {items.length > 0 && <h3 style={{ marginTop: 24 }}>처음 제출한 답안</h3>}
-        </>
-      )}
-      <p className="muted">자동 채점으로 판단하기 어려운 답안입니다. 정답으로 인정할지 결정해 주세요. 결정하면 학생 점수에 바로 반영됩니다.</p>
-      {items.map(({ s, it, q }) => (
-        <div key={`${s.id}-${it.no}`} className="review-item" data-testid="review-item">
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <div>
-              <b>{q.no}번</b> <span className="muted small">{TYPE_LABEL[q.type]} · {it.points}점</span>
-              <span style={{ marginLeft: 10 }}>{s.classNo}반 {s.number}번 {s.name}</span>
-            </div>
-            <span className="badge review">{it.auto.reason || '검토 필요'}</span>
+      <p className="muted">
+        자동 채점으로 판단하기 어려운 답안이에요. <b>먼저 들어온 답이 위</b>에 있어요. 정답으로 인정할지 결정하면 학생 점수에 바로 반영돼요.
+        {list.some((x) => x.kind === 'retake') && ' "오답 재응시" 표시가 있는 답은 다시 푼 답이라 처음 점수는 바뀌지 않고, 오답으로 처리하면 학생이 다시 풀어요.'}
+      </p>
+      {list.map((x) => (x.kind === 'retake' ? (
+        <RetakeReviewItem key={`${x.s.id}-r${x.p.round}-${x.p.no}`} {...x} exam={exam} keys={keys} pages={pages} onJudge={(v) => judgeRetake(x.s, x.p, v)} />
+      ) : (
+        <FirstReviewItem key={`${x.s.id}-${x.it.no}`} {...x} exam={exam} keys={keys} pages={pages} onJudge={(v) => onJudge(x.s, x.q.no, v)} />
+      )))}
+    </div>
+  );
+}
+
+/** 검토 요청 한 칸: 오답 재응시에서 다시 푼 답 */
+function RetakeReviewItem({ s, p, q, exam, keys, pages, onJudge }) {
+  return (
+    <div className="review-item" data-testid="retake-review-item">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div>
+          <b>{q.no}번</b> <span className="muted small">{TYPE_LABEL[q.type]}</span>
+          <span style={{ marginLeft: 10 }}>{s.classNo}반 {s.number}번 {s.name}</span>
+        </div>
+        <span className="badge review">{p.round}차 오답 재응시{p.reason ? ` · ${p.reason}` : ''}</span>
+      </div>
+      <div className="review-grid">
+        <div className="review-q">
+          {pages == null ? (
+            <Loading text="문제 불러오는 중…" />
+          ) : p.answer?.strokes?.length ? (
+            <DrawnAnswer exam={exam} pages={pages} q={q} strokes={p.answer.strokes} />
+          ) : (
+            <ReviewQuestion exam={exam} q={q} pages={pages} />
+          )}
+        </div>
+        <div>
+          <div className="small" style={{ fontWeight: 600 }}>학생이 다시 푼 답</div>
+          <div className="ans">
+            {answerToText({ ...q, type: q.type === 'draw' ? 'short' : q.type, draw: false }, p.answer?.strokes ? p.answer.text : p.answer)
+              || (p.answer?.strokes?.length ? '(왼쪽 그림)' : '')}
           </div>
-          <div className="review-grid">
-            <div className="review-q">
-              {pages == null ? (
-                <Loading text="문제 불러오는 중…" />
-              ) : (
-                <ReviewQuestion exam={exam} q={q} pages={pages} strokes={s.answers?.[q.no]?.strokes} />
-              )}
-            </div>
-            <div>
-              <div className="small" style={{ fontWeight: 600 }}>학생 답</div>
-              <div className="ans">{answerToText(q, s.answers?.[q.no])}</div>
-              <div className="small" style={{ fontWeight: 600, marginTop: 8 }}>정답</div>
-              <div className="ans" style={{ background: 'var(--ok-weak)' }}>{keyToText(q, keys[q.no])}</div>
-              {partPoints(q) ? (
-                <PartialJudge q={q} it={it} onJudge={(v) => onJudge(s, q.no, v)} />
-              ) : (
-                <div className="row" style={{ marginTop: 12 }}>
-                  <button className="btn ok lg" onClick={() => onJudge(s, q.no, 'correct')}>정답 인정</button>
-                  <button className="btn bad lg" onClick={() => onJudge(s, q.no, 'wrong')}>오답 처리</button>
-                </div>
-              )}
-            </div>
+          <div className="small" style={{ fontWeight: 600, marginTop: 8 }}>정답</div>
+          <div className="ans" style={{ background: 'var(--ok-weak)' }}>{keyToText(q, keys[q.no])}</div>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn ok lg" onClick={() => onJudge('correct')}>정답 인정</button>
+            <button className="btn bad lg" onClick={() => onJudge('wrong')}>오답 처리</button>
           </div>
         </div>
-      ))}
+      </div>
+    </div>
+  );
+}
+
+/** 검토 요청 한 칸: 처음 제출한 답 */
+function FirstReviewItem({ s, it, q, exam, keys, pages, onJudge }) {
+  return (
+    <div className="review-item" data-testid="review-item">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div>
+          <b>{q.no}번</b> <span className="muted small">{TYPE_LABEL[q.type]} · {it.points}점</span>
+          <span style={{ marginLeft: 10 }}>{s.classNo}반 {s.number}번 {s.name}</span>
+        </div>
+        <span className="badge review">{it.auto.reason || '검토 필요'}</span>
+      </div>
+      <div className="review-grid">
+        <div className="review-q">
+          {pages == null ? (
+            <Loading text="문제 불러오는 중…" />
+          ) : (
+            <ReviewQuestion exam={exam} q={q} pages={pages} strokes={s.answers?.[q.no]?.strokes} />
+          )}
+        </div>
+        <div>
+          <div className="small" style={{ fontWeight: 600 }}>학생 답</div>
+          <div className="ans">{answerToText(q, s.answers?.[q.no])}</div>
+          <div className="small" style={{ fontWeight: 600, marginTop: 8 }}>정답</div>
+          <div className="ans" style={{ background: 'var(--ok-weak)' }}>{keyToText(q, keys[q.no])}</div>
+          {partPoints(q) ? (
+            <PartialJudge q={q} it={it} onJudge={onJudge} />
+          ) : (
+            <div className="row" style={{ marginTop: 12 }}>
+              <button className="btn ok lg" onClick={() => onJudge('correct')}>정답 인정</button>
+              <button className="btn bad lg" onClick={() => onJudge('wrong')}>오답 처리</button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
