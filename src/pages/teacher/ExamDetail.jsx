@@ -20,6 +20,7 @@ import { exportResultsXlsx, sortSubmissions } from '../../lib/excel.js';
 import { answerToText, keyToText, TYPE_LABEL, STATUS_LABEL, stableKey } from '../../lib/format.js';
 import { toItems, fromItems, validateItems } from '../../lib/editorModel.js';
 import { historyReducer, initHistory, currentTick } from '../../lib/history.js';
+import { nextTabOrder, tabAfterRemoval } from '../../lib/reviewTabs.js';
 import { STATUS } from './Dashboard.jsx';
 import FileDrop from '../../components/FileDrop.jsx';
 import PrintSheets from '../../components/PrintSheets.jsx';
@@ -429,6 +430,23 @@ function ReviewTab({ exam, keys, graded, onJudge, pages, examId }) {
   }
   // 같은 시각이면 학생 번호, 그다음 문항 번호 순
   list.sort((a, b) => a.at - b.at || (a.s.classNo - b.s.classNo) || (a.s.number - b.s.number) || a.q.no - b.q.no);
+
+  // 책갈피 탭: 전체 + 검토할 것이 있는 문항 번호 (들어온 순서, 다 채점하면 사라지고 다시 오면 맨 뒤)
+  const firstAt = new Map();
+  for (const x of list) if (!firstAt.has(x.q.no)) firstAt.set(x.q.no, x.at);
+  const firstKey = [...firstAt].map(([no, at]) => `${no}:${at}`).join(',');
+  const [tabs, setTabs] = useState(() => ({ order: nextTabOrder([], firstAt), sel: 'all' }));
+  useEffect(() => {
+    setTabs((t) => {
+      const order = nextTabOrder(t.order, firstAt);
+      return { order, sel: tabAfterRemoval(t.order, order, t.sel) };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstKey]);
+  const order = nextTabOrder(tabs.order, firstAt); // 방금 바뀐 것도 바로 반영
+  const sel = tabAfterRemoval(tabs.order, order, tabs.sel);
+  const shown = sel === 'all' ? list : list.filter((x) => x.q.no === sel);
+
   if (!list.length) return <div className="card center muted">검토할 답안이 없습니다. 👍</div>;
   async function judgeRetake(s, p, value) {
     try {
@@ -443,11 +461,27 @@ function ReviewTab({ exam, keys, graded, onJudge, pages, examId }) {
         자동 채점으로 판단하기 어려운 답안이에요. <b>먼저 들어온 답이 위</b>에 있어요. 정답으로 인정할지 결정하면 학생 점수에 바로 반영돼요.
         {list.some((x) => x.kind === 'retake') && ' "오답 재응시" 표시가 있는 답은 다시 푼 답이라 처음 점수는 바뀌지 않고, 오답으로 처리하면 학생이 다시 풀어요.'}
       </p>
-      {list.map((x) => (x.kind === 'retake' ? (
+      <div className="rv-tabs" role="tablist" aria-label="검토 문항">
+        {['all', ...order].map((k) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={sel === k}
+            className={`rv-tab ${sel === k ? 'on' : ''}`}
+            onClick={() => setTabs((t) => ({ ...t, sel: k }))}
+          >
+            {k === 'all' ? '전체' : `${k}번`}
+          </button>
+        ))}
+      </div>
+      <div className="rv-box">
+      {shown.map((x) => (x.kind === 'retake' ? (
         <RetakeReviewItem key={`${x.s.id}-r${x.p.round}-${x.p.no}`} {...x} exam={exam} keys={keys} pages={pages} onJudge={(v) => judgeRetake(x.s, x.p, v)} />
       ) : (
         <FirstReviewItem key={`${x.s.id}-${x.it.no}`} {...x} exam={exam} keys={keys} pages={pages} onJudge={(v) => onJudge(x.s, x.q.no, v)} />
       )))}
+      </div>
     </div>
   );
 }
